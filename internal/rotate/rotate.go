@@ -92,10 +92,24 @@ func collect(root *os.Root, dir, rel string, depth int, fn func(rel string)) err
 	return nil
 }
 
+// NotFuture drops folders whose period starts after now. A folder dated
+// in the future (a wrong clock, or planted on the disk) must neither count
+// toward keepPerDisk nor be picked as the newest backup.
+func NotFuture(folders []Folder, now time.Time) []Folder {
+	out := folders[:0:0]
+	for _, f := range folders {
+		if !f.Period.Start.After(now) {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
 // Plan returns the folders to delete: the oldest, until KeepPerDisk are
 // left, never one younger than KeepMinDays and never protected ones (the
-// folder that was just written).
+// folder that was just written). Folders dated in the future are ignored.
 func Plan(folders []Folder, pol Policy, now time.Time, protected ...string) []Folder {
+	folders = NotFuture(folders, now)
 	if pol.KeepPerDisk <= 0 || len(folders) <= pol.KeepPerDisk {
 		return nil
 	}

@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
+
+	"github.com/macsnoeren/backup-usb/internal/fsx"
 
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
@@ -60,20 +61,19 @@ func CheckSpace(free uint64, need SpaceNeed) error {
 	return nil
 }
 
-// CheckWritable creates, syncs and removes a test file in dir.
-func CheckWritable(dir string) error {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return Errorf(KindDiskCheck, err, "err.notWritable")
-	}
-	p := filepath.Join(dir, ".usb-backup-write-test")
-	f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+// CheckWritable creates, syncs and removes a test file in the backup
+// folder, through its os.Root and exclusively, so a link planted on the
+// disk is never followed.
+func CheckWritable(root *os.Root) error {
+	const name = ".usb-backup-write-test"
+	f, err := fsx.CreateExclusive(root, name, 0o600)
 	if err != nil {
 		return Errorf(KindDiskCheck, err, "err.notWritable")
 	}
 	_, werr := f.Write([]byte("usb-backup write test\n"))
 	serr := f.Sync()
 	cerr := f.Close()
-	rerr := os.Remove(p)
+	rerr := root.Remove(name)
 	if err := errors.Join(werr, serr, cerr, rerr); err != nil {
 		return Errorf(KindDiskCheck, err, "err.notWritable")
 	}
@@ -81,7 +81,7 @@ func CheckWritable(dir string) error {
 }
 
 // CheckDisk runs the file system, space and writability checks.
-func CheckDisk(ctx context.Context, f volume.Finder, v volume.Volume, backupDir string, need SpaceNeed) error {
+func CheckDisk(ctx context.Context, f volume.Finder, v volume.Volume, root *os.Root, need SpaceNeed) error {
 	if err := CheckFileSystem(v, need); err != nil {
 		return err
 	}
@@ -92,5 +92,5 @@ func CheckDisk(ctx context.Context, f volume.Finder, v volume.Volume, backupDir 
 	if err := CheckSpace(free, need); err != nil {
 		return err
 	}
-	return CheckWritable(backupDir)
+	return CheckWritable(root)
 }

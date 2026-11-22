@@ -8,7 +8,6 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/config"
-	"github.com/macsnoeren/backup-usb/internal/secmem"
 )
 
 func init() {
@@ -43,11 +42,10 @@ type keys struct {
 // require asks for the vault password when no --identity is given.
 func (c *ctx) loadKeys(cfg *config.Config, k keyFlags, require bool) (*keys, error) {
 	if k.identity != "" {
-		data, err := config.ReadLimited(k.identity, 64<<10)
+		buf, err := readSecretFile(k.identity, 64<<10)
 		if err != nil {
 			return nil, app.Errorf(app.KindUsage, err, "err.identity", err.Error())
 		}
-		buf := secmem.From(data)
 		defer buf.Wipe()
 		ids, recipients, err := app.ParseIdentityFile(buf.Bytes())
 		if err != nil {
@@ -116,7 +114,7 @@ func cmdVerify(c *ctx, args []string) error {
 	defer cancel()
 	deps := c.deps(cfg)
 	rep, err := app.Verify(ctx, deps, cfg, opts)
-	if err == nil && ks.breakglass {
+	if err == nil && ks.breakglass && rep != nil && rep.Decrypted > 0 {
 		if rerr := app.RecordBreakglassTest(c.configDir(), c.env.Now()); rerr != nil {
 			deps.Log.Warn("cannot record break-glass test", "err", rerr)
 		}
@@ -143,7 +141,7 @@ func cmdVerify(c *ctx, args []string) error {
 			}
 			fmt.Fprintf(c.env.Stdout, "%s/%s: %s\n", a.Folder, a.File, line)
 		}
-		if err == nil && ks.breakglass {
+		if err == nil && ks.breakglass && rep.Decrypted > 0 {
 			fmt.Fprintln(c.env.Stdout, c.p.T("verify.breakglass"))
 		}
 	}

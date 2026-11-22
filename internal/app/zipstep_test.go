@@ -101,7 +101,9 @@ func TestCleanupParts(t *testing.T) {
 	for _, f := range []string{"2026/47/Data.zip.part", "2026/47/Data.zip.age.part", "2026/47/Data.zip.sha256.part", "2026/47/Data.zip", "2026/47/notes.part", "keep.txt", "2026/46/report.txt.part"} {
 		testutil.WriteFile(t, dir, f, "x")
 	}
-	removed, err := CleanupParts(dir)
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	removed, err := CleanupParts(root)
 	if err != nil || len(removed) != 4 {
 		t.Fatalf("removed %v, %v", removed, err)
 	}
@@ -110,9 +112,6 @@ func TestCleanupParts(t *testing.T) {
 		if _, ok := got[keep]; !ok {
 			t.Errorf("%s removed", keep)
 		}
-	}
-	if _, err := CleanupParts(filepath.Join(dir, "missing")); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -123,7 +122,9 @@ func TestCleanupPartsDoesNotFollowSymlinks(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(dir, "link")); err != nil {
 		t.Skip("symlinks not available:", err)
 	}
-	if _, err := CleanupParts(dir); err != nil {
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	if _, err := CleanupParts(root); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "victim.zip.part")); err != nil {

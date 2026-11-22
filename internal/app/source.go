@@ -13,6 +13,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/archive"
 	"github.com/macsnoeren/backup-usb/internal/crypt"
+	"github.com/macsnoeren/backup-usb/internal/fsx"
 )
 
 // openedSource is one archive opened for reading, with its index.
@@ -23,6 +24,7 @@ type openedSource struct {
 	index     *archive.Index
 	fromIndex bool
 	manifest  map[string]string
+	encrypted bool
 }
 
 func (s *openedSource) Close() {
@@ -53,11 +55,11 @@ func openSource(root *os.Root, folder, tag string, ids []age.Identity) (*openedS
 	if encrypted && len(ids) == 0 {
 		return nil, errNeedKey
 	}
-	f, err := root.Open(path.Join(folder, name))
+	f, err := fsx.OpenRegular(root, path.Join(folder, name))
 	if err != nil {
 		return nil, Errorf(KindIO, err, "err.read")
 	}
-	src := &openedSource{file: f}
+	src := &openedSource{file: f, encrypted: encrypted}
 	st, err := f.Stat()
 	if err != nil {
 		src.Close()

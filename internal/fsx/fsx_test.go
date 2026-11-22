@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	_ "github.com/macsnoeren/backup-usb/internal/testutil" // -update flag
 )
@@ -125,5 +126,39 @@ func TestDiskRootBlocksSymlinks(t *testing.T) {
 	r3.Close()
 	if _, err := OpenDiskRoot(t.TempDir(), "Backup", false); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("no create: %v", err)
+	}
+}
+
+func TestOpenRegular(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "ok"), []byte("x"), 0o600)
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	if data, err := ReadRegular(root, "ok", 10); err != nil || string(data) != "x" {
+		t.Fatal(err)
+	}
+	if _, err := ReadRegular(root, "ok", 0); err == nil {
+		t.Fatal("size limit")
+	}
+	os.Mkdir(filepath.Join(dir, "d"), 0o700)
+	if _, err := OpenRegular(root, "d"); !errors.Is(err, ErrNotRegular) {
+		t.Fatal("folder accepted")
+	}
+	if err := os.Symlink(filepath.Join(dir, "ok"), filepath.Join(dir, "link")); err == nil {
+		if _, err := OpenRegular(root, "link"); !errors.Is(err, ErrNotRegular) {
+			t.Fatal("symlink accepted")
+		}
+	}
+	if err := mkfifo(filepath.Join(dir, "fifo")); err == nil {
+		done := make(chan error, 1)
+		go func() { _, err := OpenRegular(root, "fifo"); done <- err }()
+		select {
+		case err := <-done:
+			if !errors.Is(err, ErrNotRegular) {
+				t.Fatal("fifo accepted")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("opening a FIFO hangs")
+		}
 	}
 }

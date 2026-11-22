@@ -148,13 +148,18 @@ func generateIdentity() (*secmem.Buffer, string, error) {
 
 // KeysInitOptions configure keys init.
 type KeysInitOptions struct {
-	ConfigDir     string
-	Config        *config.Config
-	VaultPath     string
-	Password      *secmem.Buffer
-	BreakglassOut io.Writer // receives the break-glass key once
-	Force         bool
-	Now           time.Time
+	ConfigDir string
+	Config    *config.Config
+	VaultPath string
+	Password  *secmem.Buffer
+	// BreakglassOut receives the break-glass key once; it is synced before
+	// anything else is saved.
+	BreakglassOut interface {
+		io.Writer
+		Sync() error
+	}
+	Force bool
+	Now   time.Time
 }
 
 // KeysInitResult describes the created keys (public data only).
@@ -208,6 +213,9 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	// The break-glass key goes out first: if that fails, nothing is
 	// written and the keys are gone, which is safe.
 	if err := writeBreakglass(o.BreakglassOut, bg, bgRcp, o.Now); err != nil {
+		return nil, Errorf(KindIO, err, "err.breakglassWrite")
+	}
+	if err := o.BreakglassOut.Sync(); err != nil {
 		return nil, Errorf(KindIO, err, "err.breakglassWrite")
 	}
 	if err := os.MkdirAll(o.ConfigDir, 0o755); err != nil { //nolint:gosec // configuration folder is readable by everyone

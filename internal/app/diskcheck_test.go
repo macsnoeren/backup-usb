@@ -34,7 +34,9 @@ func TestDiskChecks(t *testing.T) {
 		disks := testutil.FakeDisks(t, "BACKUP1")
 		disks.Update("BACKUP1", func(d *testutil.FakeDisk) { d.FileSystem = tt.fs; d.FreeBytes = tt.free })
 		v := disks.Disk("BACKUP1").Volume
-		err := CheckDisk(context.Background(), disks.Finder(), v, filepath.Join(v.Mount, "Backup"), tt.need)
+		root, _ := os.OpenRoot(v.Mount)
+		err := CheckDisk(context.Background(), disks.Finder(), v, root, tt.need)
+		root.Close()
 		if (err != nil) != tt.failed {
 			t.Errorf("%s: err = %v", tt.name, err)
 			continue
@@ -57,12 +59,26 @@ func TestNotWritable(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.Chmod(dir, 0o700) })
-	err := CheckWritable(filepath.Join(dir, "Backup"))
-	if KindOf(err) != KindDiskCheck {
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	if err := CheckWritable(root); KindOf(err) != KindDiskCheck {
 		t.Fatalf("err = %v", err)
 	}
-	if err := CheckWritable(t.TempDir()); err != nil {
+	ok, _ := os.OpenRoot(t.TempDir())
+	defer ok.Close()
+	if err := CheckWritable(ok); err != nil {
 		t.Fatal(err)
+	}
+	// A planted link is never followed.
+	victim := filepath.Join(t.TempDir(), "victim")
+	os.WriteFile(victim, []byte("precious"), 0o600)
+	if err := os.Symlink(victim, filepath.Join(ok.Name(), ".usb-backup-write-test")); err == nil {
+		if err := CheckWritable(ok); err != nil {
+			t.Fatal(err)
+		}
+		if data, _ := os.ReadFile(victim); string(data) != "precious" {
+			t.Fatal("write test followed a symlink")
+		}
 	}
 	_ = volume.Healthy
 }

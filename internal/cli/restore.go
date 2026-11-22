@@ -61,7 +61,7 @@ func cmdRestore(c *ctx, args []string) error {
 		opts.Identities = ks2.ids
 		rep, err = app.Restore(ctx, c.deps(cfg), cfg, opts)
 	}
-	if err == nil && ks.breakglass {
+	if err == nil && ks.breakglass && rep != nil && rep.Decrypted {
 		_ = app.RecordBreakglassTest(c.configDir(), c.env.Now())
 	}
 	if *asJSON && rep != nil {

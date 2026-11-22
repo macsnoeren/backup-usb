@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/macsnoeren/backup-usb/internal/fsx"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
 
@@ -136,20 +136,19 @@ var ErrNoIDFile = errors.New("no ID file")
 // ReadIDFile reads and parses the ID file of a mounted volume. The file is
 // untrusted input.
 func ReadIDFile(mount string) (*IDFile, []byte, error) {
-	f, err := os.Open(IDPath(mount))
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open disk: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	// Only a regular file counts: a FIFO or a link planted on any stick
+	// must not hang the run or read a file of the computer.
+	data, err := fsx.ReadRegular(root, IDDir+"/"+IDFileName, MaxFileSize)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil, ErrNoIDFile
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("open ID file: %w", err)
-	}
-	defer func() { _ = f.Close() }() // read-only
-	data, err := io.ReadAll(io.LimitReader(f, MaxFileSize+1))
-	if err != nil {
-		return nil, nil, fmt.Errorf("read ID file: %w", err)
-	}
-	if len(data) > MaxFileSize {
-		return nil, nil, errors.New("ID file too large")
+		return nil, nil, errors.New("ID file cannot be read")
 	}
 	id, err := ParseIDFile(data)
 	return id, data, err

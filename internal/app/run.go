@@ -385,10 +385,10 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			return rep, ferr
 		}
 	}
-	if err := CheckWritable(root.Name()); err != nil {
+	if err := CheckWritable(root); err != nil {
 		return rep, err
 	}
-	if removed, err := CleanupParts(root.Name()); err != nil {
+	if removed, err := CleanupParts(root); err != nil {
 		deps.Log.Warn("cleanup of part files failed", "err", err)
 	} else if len(removed) > 0 {
 		deps.Log.Info("removed part files of an interrupted run", "count", len(removed))
@@ -443,6 +443,12 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			continue
 		}
 		fillSource(&sr, out, cfg.VerifyAfterBackup || enc != nil)
+		if enc != nil {
+			if _, err := root.Lstat(path.Join(folder, cfg.ArchiveFile(s.Tag))); err == nil {
+				warnings = true
+				rep.addMessage(p, "msg.plaintextLeft", folder)
+			}
+		}
 		var rcpts []age.Recipient
 		if enc != nil {
 			rcpts = enc.age
@@ -568,33 +574,49 @@ func errorText(p msg.Printer, err error) string {
 }
 
 // freeSpace deletes the oldest folders until the backup fits
-// (freeSpaceAction: deleteOldest), never below keepMinDays and never the
-// current folder.
+// (freeSpaceAction: deleteOldest), never below keepMinDays, never the
+// current folder and never the newest older backup: until the new backup is
+// verified, that one must survive. It first checks that deleting all
+// candidates would free enough; otherwise it deletes nothing.
 func freeSpace(ctx context.Context, deps *Deps, c *Candidate, root *os.Root, patterns []*week.Pattern, cfg *config.Config, pol rotate.Policy, need SpaceNeed, current string, now time.Time) ([]string, error) {
+	folders, err := rotate.Find(root, patterns, cfg.Schedule)
+	if err != nil {
+		return nil, Errorf(KindIO, err, "err.read")
+	}
+	var older []rotate.Folder
+	for _, f := range rotate.NotFuture(folders, now) {
+		if f.Rel != current {
+			older = append(older, f)
+		}
+	}
+	if len(older) > 0 {
+		older = older[:len(older)-1] // keep the newest older backup
+	}
+	var cands []rotate.Folder
+	for _, f := range older {
+		if !rotate.TooYoung(f, pol, now) {
+			cands = append(cands, f)
+		}
+	}
+	free, _, err := deps.Finder.Space(ctx, c.Vol)
+	if err != nil {
+		return nil, Errorf(KindDiskCheck, err, "err.spaceUnknown")
+	}
+	avail := free
+	for _, f := range cands {
+		avail += folderSize(root, f.Rel)
+	}
+	if avail < need.Required() {
+		return nil, Errorf(KindDiskCheck, nil, "err.space", humanBytes(need.Required()), humanBytes(free))
+	}
 	var removed []string
-	for {
-		folders, err := rotate.Find(root, patterns, cfg.Schedule)
-		if err != nil {
-			return removed, Errorf(KindIO, err, "err.read")
-		}
-		var victim *rotate.Folder
-		for i := range folders {
-			f := folders[i]
-			if f.Rel != current && !rotate.TooYoung(f, pol, now) {
-				victim = &f
-				break
-			}
-		}
-		if victim == nil {
-			free, _, _ := deps.Finder.Space(ctx, c.Vol)
-			return removed, Errorf(KindDiskCheck, nil, "err.space", humanBytes(need.Required()), humanBytes(free))
-		}
-		r, err := rotate.Delete(root, []rotate.Folder{*victim})
+	for _, f := range cands {
+		r, err := rotate.Delete(root, []rotate.Folder{f})
 		removed = append(removed, r...)
 		if err != nil {
 			return removed, Errorf(KindIO, err, "err.write")
 		}
-		deps.Log.Info("deleted oldest folder to free space", "folder", victim.Rel)
+		deps.Log.Info("deleted oldest folder to free space", "folder", f.Rel)
 		free, _, err := deps.Finder.Space(ctx, c.Vol)
 		if err != nil {
 			return removed, Errorf(KindDiskCheck, err, "err.spaceUnknown")
@@ -603,6 +625,22 @@ func freeSpace(ctx context.Context, deps *Deps, c *Candidate, root *os.Root, pat
 			return removed, nil
 		}
 	}
+	free, _, _ = deps.Finder.Space(ctx, c.Vol)
+	return removed, Errorf(KindDiskCheck, nil, "err.spaceAfterDelete", humanBytes(need.Required()), humanBytes(free), len(removed))
+}
+
+// folderSize sums the regular files below rel inside root.
+func folderSize(root *os.Root, rel string) uint64 {
+	var n uint64
+	_ = fs.WalkDir(root.FS(), rel, func(_ string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() {
+			if info, err := d.Info(); err == nil {
+				n += uint64(max(info.Size(), 0))
+			}
+		}
+		return nil
+	})
+	return n
 }
 
 // dryRun reports what a run would do without writing anything.

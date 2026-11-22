@@ -75,3 +75,14 @@ func TestVerifyUnencrypted(t *testing.T) {
 	}
 	w.mustRun(12, "verify", "--week", "2026-40")
 }
+
+func TestBreakglassNotRecordedWithoutDecryption(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.mustRun(0, "run") // unencrypted week
+	bg := w.keysInit()
+	w.mustRun(0, "verify", "--identity", bg)
+	if _, ok := app.BreakglassTested(w.cfgDir); ok {
+		t.Fatal("break-glass recorded as tested without decrypting anything")
+	}
+}

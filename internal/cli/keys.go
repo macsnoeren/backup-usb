@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -110,14 +109,15 @@ func cmdKeysInit(c *ctx, args []string) error {
 		ConfigDir: c.configDir(), Config: cfg, VaultPath: *vaultPath, Password: pw,
 		BreakglassOut: f, Force: *force, Now: c.env.Now(),
 	})
-	serr := f.Sync()
 	cerr := f.Close()
-	if err == nil {
-		err = errors.Join(serr, cerr)
-	}
 	if err != nil {
 		_ = removeFile(*out)
 		return err
+	}
+	if cerr != nil {
+		// The key was synced before the vault was saved; a failing close
+		// after that is reported but the file stays.
+		return app.Errorf(app.KindIO, cerr, "err.breakglassWrite")
 	}
 	if l := c.logger(cfg); l != nil {
 		l.Info("keys created", "operational", res.OperationalKey, "breakglass", res.BreakglassFingerprint)

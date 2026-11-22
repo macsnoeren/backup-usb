@@ -57,6 +57,8 @@ type RestoreReport struct {
 	Renamed     []Renamed         `json:"renamed,omitempty"`
 	Skipped     []archive.Skipped `json:"skipped,omitempty"`
 	FromIndex   bool              `json:"fromIndex"`
+	// Decrypted is set when the archive was encrypted.
+	Decrypted bool `json:"decrypted"`
 }
 
 // Restore decrypts and unpacks files of one backup. Existing files are never
@@ -83,7 +85,7 @@ func Restore(ctx context.Context, deps *Deps, cfg *config.Config, opts RestoreOp
 		return nil, err
 	}
 	defer closeDisks(disks)
-	d, f, err := findPeriod(disks, cfg, opts.Week)
+	d, f, err := findPeriod(disks, cfg, opts.Week, deps.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +106,7 @@ func Restore(ctx context.Context, deps *Deps, cfg *config.Config, opts RestoreOp
 		return nil, Errorf(KindIO, err, "err.restoreWrite", dest)
 	}
 	defer func() { _ = root.Close() }()
-	rep := &RestoreReport{Disk: d.Reg.Name, Period: f.Period.Label(), Tag: src.index.Tag, Destination: dest, FromIndex: src.fromIndex}
+	rep := &RestoreReport{Disk: d.Reg.Name, Period: f.Period.Label(), Tag: src.index.Tag, Destination: dest, FromIndex: src.fromIndex, Decrypted: src.encrypted}
 	day := deps.Now().Format("2006-01-02")
 	var dirTimes []archive.Entry
 	for i, e := range entries {

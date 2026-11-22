@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -54,6 +53,9 @@ type VerifyReport struct {
 	Disks    []string       `json:"disks"`
 	Archives []ArchiveCheck `json:"archives"`
 	Status   string         `json:"status"`
+	// Decrypted counts the encrypted archives that were unpacked with a
+	// key.
+	Decrypted int `json:"decrypted"`
 }
 
 var archiveFileRe = regexp.MustCompile(`^([A-Za-z0-9_-]{1,64})[A-Za-z0-9_.-]*\.zip(\.age)?$`)
@@ -92,8 +94,9 @@ func periodFolders(root *os.Root, cfg *config.Config) ([]rotate.Folder, error) {
 	return rotate.Find(root, append(patterns, pattern), cfg.Schedule)
 }
 
-// selectFolders picks the folders for --week, --all or the newest.
-func selectFolders(folders []rotate.Folder, cfg *config.Config, label string, all bool) ([]rotate.Folder, error) {
+// selectFolders picks the folders for --week, --all or the newest. The
+// default "newest" ignores folders dated in the future.
+func selectFolders(folders []rotate.Folder, cfg *config.Config, label string, all bool, now time.Time) ([]rotate.Folder, error) {
 	if len(folders) == 0 {
 		return nil, Errorf(KindVerify, nil, "err.noBackups")
 	}
@@ -112,7 +115,10 @@ func selectFolders(folders []rotate.Folder, cfg *config.Config, label string, al
 		}
 		return nil, Errorf(KindVerify, nil, "err.noSuchPeriod", per.Label())
 	}
-	return folders[len(folders)-1:], nil
+	if past := rotate.NotFuture(folders, now); len(past) > 0 {
+		return past[len(past)-1:], nil
+	}
+	return nil, Errorf(KindVerify, nil, "err.noBackups")
 }
 
 // archivesIn lists the archives in a period folder.
@@ -182,7 +188,7 @@ func Verify(ctx context.Context, deps *Deps, cfg *config.Config, opts VerifyOpti
 		}
 		folders, err := periodFolders(root, cfg)
 		if err == nil {
-			folders, err = selectFolders(folders, cfg, opts.Week, opts.All)
+			folders, err = selectFolders(folders, cfg, opts.Week, opts.All, deps.Now())
 		}
 		if err != nil {
 			_ = root.Close()
@@ -204,6 +210,9 @@ func Verify(ctx context.Context, deps *Deps, cfg *config.Config, opts VerifyOpti
 				deps.emit(Event{Event: "state", State: "verifying", Tag: name, Disk: c.Reg.Name})
 				chk, err := verifyArchive(ctx, root, f.Rel, name, opts.Identities)
 				rep.Archives = append(rep.Archives, chk)
+				if err == nil && chk.Mode == "full" && strings.HasSuffix(name, crypt.Suffix) {
+					rep.Decrypted++
+				}
 				if err != nil && firstErr == nil {
 					firstErr = err
 				}
@@ -246,7 +255,7 @@ func verifyArchive(ctx context.Context, root *os.Root, folder, name string, ids 
 		chk.Mode = "hash"
 		return chk, nil
 	}
-	f, err := root.Open(rel)
+	f, err := fsx.OpenRegular(root, rel)
 	if err != nil {
 		return failWith(KindIO, err)
 	}
@@ -280,10 +289,16 @@ func verifyArchive(ctx context.Context, root *os.Root, folder, name string, ids 
 func ParseIdentityFile(data []byte) ([]age.Identity, []string, error) {
 	var ids []age.Identity
 	var recipients []string
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	sc.Buffer(make([]byte, 8192), 64<<10)
-	for sc.Scan() {
-		line := bytes.TrimSpace(sc.Bytes())
+	// Split lines in place: no copy of the key outside the caller's
+	// locked buffer.
+	for len(data) > 0 {
+		line := data
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			line, data = data[:i], data[i+1:]
+		} else {
+			data = nil
+		}
+		line = bytes.TrimSpace(line)
 		if !bytes.HasPrefix(line, []byte("AGE-SECRET-KEY-")) {
 			continue
 		}

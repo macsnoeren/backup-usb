@@ -95,7 +95,7 @@ func WriteVerifiedZip(ctx context.Context, job ZipJob) (out *ZipOutcome, err err
 }
 
 func verifyInRoot(ctx context.Context, root *os.Root, rel string, opts verify.Options) error {
-	f, err := root.Open(rel)
+	f, err := fsx.OpenRegular(root, rel)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
 	}
@@ -138,7 +138,7 @@ func writeSynced(root *os.Root, rel string, data []byte) error {
 // HashFile returns the SHA-256 and size of a file inside root, read from
 // disk.
 func HashFile(ctx context.Context, root *os.Root, rel string) (string, int64, error) {
-	f, err := root.Open(rel)
+	f, err := fsx.OpenRegular(root, rel)
 	if err != nil {
 		return "", 0, fmt.Errorf("open %s: %w", path.Base(rel), err)
 	}
@@ -167,21 +167,13 @@ func (c ctxReader) Read(p []byte) (int, error) {
 // CleanupParts may remove. Nothing else is ever touched.
 var partSuffixes = []string{".zip.part", ".zip.age.part", ".sha256.part", ".index.gz.part", ".index.age.part", ".txt.part", ".json.part"}
 
-// CleanupParts removes leftover part files of interrupted runs under dir
-// (the backup folder on a disk). All access goes through an os.Root, so a
-// symlink on the disk can never lead outside dir. It returns the removed
-// files relative to dir.
-func CleanupParts(dir string) ([]string, error) {
-	root, err := os.OpenRoot(dir)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("open backup folder: %w", err)
-	}
-	defer func() { _ = root.Close() }()
+// CleanupParts removes leftover part files of interrupted runs inside root
+// (the backup folder on a disk). All access goes through the os.Root, so a
+// symlink on the disk can never lead outside it. It returns the removed
+// files.
+func CleanupParts(root *os.Root) ([]string, error) {
 	var removed []string
-	err = fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(root.FS(), ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

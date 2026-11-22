@@ -313,6 +313,13 @@ func Open(path string, pw *secmem.Buffer) (*Vault, error) {
 	if err != nil {
 		return nil, ErrWrongPassword
 	}
+	st, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("open vault: %w", err)
+	}
+	if st.Size() > MaxSize*2 {
+		return nil, ErrFormat
+	}
 	r, err := age.Decrypt(io.LimitReader(f, MaxSize*2), id)
 	if err != nil {
 		var noMatch *age.NoIdentityMatchError
@@ -321,7 +328,9 @@ func Open(path string, pw *secmem.Buffer) (*Vault, error) {
 		}
 		return nil, fmt.Errorf("%w: %w", ErrWrongPassword, err)
 	}
-	pt := secmem.New(MaxSize + 1)
+	// The plaintext is never larger than the encrypted file; a small
+	// buffer fits within the memory lock limit.
+	pt := secmem.New(int(st.Size()) + 1)
 	defer pt.Wipe()
 	n, err := io.ReadFull(r, pt.Bytes())
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {

@@ -66,7 +66,7 @@ func WriteIndex(root *os.Root, folder, tag, period, archiveName string, created 
 // if it is encrypted. A missing index gives fs.ErrNotExist.
 func ReadIndex(root *os.Root, folder, tag string, ids []age.Identity) (*archive.Index, error) {
 	for _, enc := range []bool{true, false} {
-		f, err := root.Open(path.Join(folder, IndexName(tag, enc)))
+		f, err := fsx.OpenRegular(root, path.Join(folder, IndexName(tag, enc)))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}

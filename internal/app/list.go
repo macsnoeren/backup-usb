@@ -101,11 +101,11 @@ func closeDisks(ds []openedDisk) {
 
 // findPeriod returns the disk and folder holding the period label (the
 // newest one when label is empty).
-func findPeriod(disks []openedDisk, cfg *config.Config, label string) (*openedDisk, rotate.Folder, error) {
+func findPeriod(disks []openedDisk, cfg *config.Config, label string, now time.Time) (*openedDisk, rotate.Folder, error) {
 	var best *openedDisk
 	var bestF rotate.Folder
 	for i := range disks {
-		sel, err := selectFolders(disks[i].folders, cfg, label, false)
+		sel, err := selectFolders(disks[i].folders, cfg, label, false, now)
 		if err != nil {
 			continue
 		}
@@ -135,7 +135,7 @@ func List(ctx context.Context, deps *Deps, cfg *config.Config, opts ListOptions)
 		for _, d := range disks {
 			for _, f := range d.folders {
 				if opts.Week != "" {
-					if sel, err := selectFolders([]rotate.Folder{f}, cfg, opts.Week, false); err != nil || len(sel) == 0 {
+					if sel, err := selectFolders([]rotate.Folder{f}, cfg, opts.Week, false, deps.Now()); err != nil || len(sel) == 0 {
 						continue
 					}
 				}
@@ -157,7 +157,7 @@ func List(ctx context.Context, deps *Deps, cfg *config.Config, opts ListOptions)
 		}
 		return res, nil
 	}
-	d, f, err := findPeriod(disks, cfg, opts.Week)
+	d, f, err := findPeriod(disks, cfg, opts.Week, deps.Now())
 	if err != nil {
 		return nil, err
 	}

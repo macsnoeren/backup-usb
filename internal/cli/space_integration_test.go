@@ -65,3 +65,24 @@ func TestFreeSpaceDeleteOldestRespectsMinDays(t *testing.T) {
 		}
 	}
 }
+
+// When deleting every allowed folder still would not free enough space,
+// nothing is deleted.
+func TestFreeSpaceDeleteOldestRefusesHopelessCase(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	old := w.oldWeeks("BACKUP1", 3)
+	for _, rel := range old {
+		testutil.WriteFile(t, w.disks.Disk("BACKUP1").Mount, "Backup/"+rel+"/big.bin", strings.Repeat("x", 10<<20))
+	}
+	// 2 MB free; deleting the two allowed folders frees 20 MB, far below
+	// the 100 MB margin.
+	w.disks.Update("BACKUP1", func(d *testutil.FakeDisk) { d.Capacity = 3*10<<20 + 3<<20 })
+	w.set("freeSpaceAction", "deleteOldest")
+	w.mustRun(10, "run")
+	for _, rel := range old {
+		if !exists(w.diskFile("BACKUP1", "Backup/"+rel)) {
+			t.Fatalf("%s deleted although it could not help", rel)
+		}
+	}
+}

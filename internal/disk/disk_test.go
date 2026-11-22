@@ -3,7 +3,11 @@ package disk
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/testutil"
 	"github.com/macsnoeren/backup-usb/internal/volume"
@@ -89,4 +93,29 @@ func FuzzParseIDFile(f *testing.F) {
 		_, _ = ParseIDFile(data)
 		_, _ = ParseRegistry(data)
 	})
+}
+
+func TestIDFileMustBeRegular(t *testing.T) {
+	mount := t.TempDir()
+	os.MkdirAll(filepath.Join(mount, "Backup"), 0o755)
+	victim := filepath.Join(t.TempDir(), "host.json")
+	os.WriteFile(victim, []byte(`{"secretfield":1}`), 0o600)
+	if err := os.Symlink(victim, filepath.Join(mount, "Backup", "disk-id.json")); err == nil {
+		if _, _, err := ReadIDFile(mount); err == nil || errors.Is(err, ErrNoIDFile) || strings.Contains(err.Error(), "secretfield") {
+			t.Fatalf("symlinked ID file: %v", err)
+		}
+		os.Remove(filepath.Join(mount, "Backup", "disk-id.json"))
+	}
+	if err := mkfifo(filepath.Join(mount, "Backup", "disk-id.json")); err == nil {
+		done := make(chan error, 1)
+		go func() { _, _, err := ReadIDFile(mount); done <- err }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("FIFO accepted")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("a FIFO as ID file hangs the run")
+		}
+	}
 }

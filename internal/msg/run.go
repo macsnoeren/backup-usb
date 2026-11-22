@@ -53,3 +53,10 @@ func init() {
 		"dry.nothingWritten":  {EN: "Dry run: nothing was written.", NL: "Proefrun: er is niets geschreven."},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.spaceAfterDelete": {EN: "not enough free space: %s needed, %s free, after deleting %d old folders (the newest older backup was kept)", NL: "te weinig vrije ruimte: %s nodig, %s vrij, na het verwijderen van %d oude mappen (de nieuwste oudere back-up is bewaard)"},
+		"msg.plaintextLeft":    {EN: "An unencrypted archive from earlier in this period is still in %s; delete it if it should not stay readable.", NL: "Er staat nog een onversleuteld archief van eerder in deze periode in %s; verwijder het als het niet leesbaar mag blijven."},
+	})
+}

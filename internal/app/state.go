@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"strings"
@@ -33,19 +32,7 @@ type LastBackup struct {
 // readLimited reads rel from root, at most max bytes. A missing file gives
 // fs.ErrNotExist. Everything on the disk is untrusted.
 func readLimited(root *os.Root, rel string, maxSize int64) ([]byte, error) {
-	f, err := root.Open(rel)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }() // read-only
-	data, err := io.ReadAll(io.LimitReader(f, maxSize+1))
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", rel, err)
-	}
-	if int64(len(data)) > maxSize {
-		return nil, fmt.Errorf("%s is too large", rel)
-	}
-	return data, nil
+	return fsx.ReadRegular(root, rel, maxSize)
 }
 
 // ReadLastBackup reads last-backup.txt; a missing or unreadable file gives

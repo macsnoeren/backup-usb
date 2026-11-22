@@ -26,3 +26,25 @@ Found during the tasks themselves (before the review): damage to local
 headers, data descriptors and the central directory was not detected by
 `archive/zip`; now caught (test flips every byte). `CleanupParts` was
 race-prone with symlinks; now root-scoped.
+
+## Phases 3 and 4 – run, vault, keys, encryption, verify (T3.1–T4.8)
+
+Reviewed by a separate review agent over `git diff 053536f..3110ad3`, with
+exploit tests via `go test -overlay`, plus `make security`.
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | The write test (`CheckWritable`) and `CleanupParts` used plain paths: a planted `Backup/.usb-backup-write-test` symlink made `run` overwrite a file on the computer. | high | Both now work on the `os.Root` of the backup folder; the test file is created exclusively. Test with a planted link. |
+| 2 | `freeSpaceAction: deleteOldest` could delete every old backup and still fail, and then claimed nothing was deleted. | medium-high | It now checks first that free space plus all deletable folders covers the need (else deletes nothing), always keeps the newest older backup, and reports how many folders were deleted. Tests for the hopeless case. |
+| 3 | `disk-id.json` (on any stick) and the state files were opened through symlinks and FIFOs: a FIFO hung every run; a link read a file of the computer. | medium | `fsx.OpenRegular`: only regular files, opened with `O_NONBLOCK`, re-checked on the handle. Used for every read from a disk. Tests with a FIFO and a link. |
+| 4 | Unwiped copies of `--identity` key files (`io.ReadAll`, `bufio.Scanner`). | low-medium | Read straight into a `secmem` buffer; lines split in place. |
+| 5 | The break-glass file was synced after the vault and recipients were written. | low | Synced inside `KeysInit` before anything else is saved. |
+| 6 | "Break-glass tested" was recorded even when nothing was decrypted. | low | Recorded only after at least one encrypted archive was unpacked with it. |
+| 7 | Folders dated in the future (planted or wrong clock) counted toward `keepPerDisk` and became the default for verify. | low | `rotate.NotFuture` excludes them from rotation, space freeing and the default "newest" choice. |
+| 8 | Plaintext archive of an earlier run in the same period stays when encryption is switched on; per-page `munlock`; 1 MiB vault lock. | low | Warning in the report; vault buffer sized to the file. Page-sharing of `munlock` is accepted (best effort, documented). |
+
+Clean according to the review: secrets only cross into strings at the age
+API boundary; no secrets in logs, errors or JSON; encryption fails closed;
+rotation is root-scoped and pattern-strict; the stream verifier cannot
+deadlock or panic; disk recognition requires registry, ID file and volume to
+agree.

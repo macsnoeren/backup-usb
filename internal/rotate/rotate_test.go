@@ -151,6 +151,26 @@ func TestSymlinkFoldersAreIgnored(t *testing.T) {
 	}
 }
 
+func TestFutureFoldersDoNotCount(t *testing.T) {
+	dir := t.TempDir()
+	pat := pattern(t, `{year}\{week}`)
+	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.Local)
+	makeWeeks(t, dir, now, 3, pat)
+	testutil.WriteFile(t, dir, "2099/01/Data.zip", "planted")
+	testutil.WriteFile(t, dir, "2098/01/Data.zip", "planted")
+	root := openRoot(t, dir)
+	folders, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	if len(folders) != 5 {
+		t.Fatal(len(folders))
+	}
+	if del := Plan(folders, Policy{KeepPerDisk: 3}, now); len(del) != 0 {
+		t.Fatalf("future folders pushed real backups out: %+v", del)
+	}
+	if got := NotFuture(folders, now); len(got) != 3 {
+		t.Fatal(len(got))
+	}
+}
+
 func TestMixedPatterns(t *testing.T) {
 	dir := t.TempDir()
 	a, b := pattern(t, `{year}\{week}`), pattern(t, `{year}-W{week}`)
