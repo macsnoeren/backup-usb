@@ -1,0 +1,48 @@
+{
+  "status": "ok",
+  "disk": "BACKUP1",
+  "device": "fake1",
+  "mount": "<mount>",
+  "period": "2026-W47",
+  "folder": "2026/47",
+  "started": "2026-11-18T10:00:00Z",
+  "finished": "2026-11-18T10:00:00Z",
+  "encrypted": false,
+  "health": "Healthy",
+  "freeBytes": 68719476736,
+  "folderCount": 1,
+  "messages": [
+    "Verification OK. You can remove the disk."
+  ],
+  "sources": [
+    {
+      "tag": "Data",
+      "status": "ok",
+      "archive": "Data.zip",
+      "files": 2,
+      "dirs": 1,
+      "bytes": 2008,
+      "zipBytes": 2735,
+      "sha256": "f6cc2e80df4abd1cfee22254af38ec315a9d3a7a7599fa5ae86c572c3a357524",
+      "verified": true,
+      "skippedCount": 0,
+      "warningCount": 0
+    },
+    {
+      "tag": "Books",
+      "status": "ok",
+      "archive": "Books.zip",
+      "files": 1,
+      "dirs": 1,
+      "bytes": 7,
+      "zipBytes": 509,
+      "sha256": "3c1b9837b8dd29f882c1ea213243874072e6ed1f76cc6cbed20ca47dc7b54868",
+      "verified": true,
+      "skippedCount": 0,
+      "warningCount": 0
+    }
+  ],
+  "messageKeys": [
+    "msg.canRemove"
+  ]
+}

@@ -1,0 +1,33 @@
+USB Backup rapport
+
+Status:        OK met waarschuwingen
+Schijf:        BACKUP1
+Periode:       2026-W47
+Map:           2026/47
+Gestart:       2026-11-18T10:00:00Z
+Klaar:         2026-11-18T10:01:35Z
+Versleuteld:   nee
+Gezondheid:    Healthy
+Vrije ruimte:  40.0 GiB
+Mappen:        25
+Verwijderd:    2026/21
+
+[Data] OK met waarschuwingen
+  Archief:     Data.zip
+  Bestanden:   1200
+  Grootte:     3.0 GiB
+  Zipgrootte:  2.0 GiB
+  SHA-256:     2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+  Controle:    OK
+  Overgeslagen: 1
+    Outlook/archive.pst (in use or not readable)
+
+[Books] OK
+  Archief:     Books.zip
+  Bestanden:   12
+  Grootte:     4.0 KiB
+  Zipgrootte:  2.0 KiB
+  SHA-256:     486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7
+  Controle:    OK
+
+Verification OK. You can remove the disk.

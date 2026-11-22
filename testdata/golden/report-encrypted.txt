@@ -1,0 +1,33 @@
+USB Backup report
+
+Status:        OK with warnings
+Disk:          BACKUP1
+Period:        2026-W47
+Folder:        2026/47
+Started:       2026-11-18T10:00:00Z
+Finished:      2026-11-18T10:01:35Z
+Encrypted:     yes
+Keys:          4f1a9c0d2b3e5f67, a1b2c3d4e5f60718
+Health:        Healthy
+Free space:    40.0 GiB
+Folders:       25
+Deleted:       2026/21
+
+[Data] OK with warnings
+  Archive:     Data.zip
+  Files:       1200
+  Size:        3.0 GiB
+  Zip size:    2.0 GiB
+  SHA-256:     2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+  Verified:    OK
+  Skipped:     1
+
+[Books] OK
+  Archive:     Books.zip
+  Files:       12
+  Size:        4.0 KiB
+  Zip size:    2.0 KiB
+  SHA-256:     486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7
+  Verified:    OK
+
+Verification OK. You can remove the disk.

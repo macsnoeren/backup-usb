@@ -46,7 +46,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T3.4 `run` zonder versleuteling** Volledige stappen uit het stroomschema: schijf zoeken met wachttijd, juiste schijf voor deze periode, dubbele trigger (`laatste-backup.txt`, `duplicateGuardMinutes`, `minIntervalHours`), controles, per bronmap zip + controle, alles goed dan hernoemen, rotatie, `rapport.txt`. *Klaar als:* integratietest met twee nep-schijven doorloopt een geslaagde week, een verkeerde schijf (exitcode 3), geen schijf (2), dubbele trigger (4).
 - [x] **T3.5 Fout in één bronmap** Mislukt één bronmap, dan blijven de andere zips staan, wordt de week als mislukt gemeld en wordt er niets geroteerd. *Klaar als:* integratietest met een onleesbaar bestand bij `lockedFiles: fail`.
 - [x] **T3.6 `freeSpaceAction`** `stop` stopt met exitcode 10; `deleteOldest` verwijdert eerst de oudste map, nooit onder `keepMinDays`. *Klaar als:* tests voor beide waarden.
-- [ ] **T3.7 Rapport en `--json`** `rapport.txt` per weekmap, en hetzelfde als JSON-object op stdout bij `--json`. Bestandsnamen alleen als versleuteling uit staat. *Klaar als:* golden-file-test voor beide formaten.
+- [x] **T3.7 Rapport en `--json`** `rapport.txt` per weekmap, en hetzelfde als JSON-object op stdout bij `--json`. Bestandsnamen alleen als versleuteling uit staat. *Klaar als:* golden-file-test voor beide formaten.
 - [ ] **T3.8 `--dry-run`** Toont schijf, doelmap, verwachte grootte en welke mappen de rotatie zou verwijderen. Schrijft niets. *Klaar als:* test controleert dat de nep-schijf na afloop onveranderd is.
 
 ## Fase 4 – Geheugen, vault en versleuteling

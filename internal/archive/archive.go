@@ -50,6 +50,9 @@ type Options struct {
 	FollowSymlinks bool
 	// Progress is called after each file with the bytes read so far.
 	Progress func(doneBytes uint64, file string)
+	// ManifestTime is the modification time of the manifest entry; zero
+	// means now.
+	ManifestTime time.Time
 }
 
 // Entry describes one entry of the zip. The list of entries is the index.
@@ -291,7 +294,11 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	}
 
 	manifest := Manifest(res.Entries)
-	mh := &zip.FileHeader{Name: ManifestName, Method: zip.Deflate, Modified: time.Now()}
+	mtime := opts.ManifestTime
+	if mtime.IsZero() {
+		mtime = time.Now()
+	}
+	mh := &zip.FileHeader{Name: ManifestName, Method: zip.Deflate, Modified: mtime}
 	sum := sha256.Sum256(manifest)
 	mw, err := addHeader(mh, Entry{Path: ManifestName, Size: uint64(len(manifest)), Modified: mh.Modified, SHA256: hex.EncodeToString(sum[:])})
 	if err != nil {

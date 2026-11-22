@@ -394,6 +394,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			continue
 		}
 		aopts := archiveOptions(cfg, s)
+		aopts.ManifestTime = now
 		total := sizes[i]
 		aopts.Progress = func(done uint64, _ string) {
 			pct := 100
@@ -496,6 +497,15 @@ func (r *RunReport) addMessage(p msg.Printer, key string, args ...any) {
 	r.MessageKeys = append(r.MessageKeys, key)
 }
 
+// Redact removes file names from the report; used when the backup is
+// encrypted, because report.txt stays readable on the disk.
+func (r *RunReport) Redact() {
+	for i := range r.Sources {
+		r.Sources[i].Skipped = nil
+		r.Sources[i].Warnings = nil
+	}
+}
+
 func fillSource(sr *SourceReport, out *ZipOutcome, verified bool) {
 	res := out.Result
 	sr.Status = StatusOK
@@ -596,6 +606,9 @@ func dryRun(ctx context.Context, deps *Deps, rep *RunReport, c *Candidate, root 
 
 // writeReportFile writes report.txt into the period folder.
 func writeReportFile(deps *Deps, root *os.Root, folder string, rep *RunReport, cfg *config.Config) {
+	if rep.Encrypted {
+		rep.Redact()
+	}
 	if err := fsx.RootWriteFileAtomic(root, path.Join(folder, ReportFile), []byte(RenderReport(rep, deps.Lang)), 0o644); err != nil {
 		deps.Log.Warn("cannot write report", "err", err)
 	}
