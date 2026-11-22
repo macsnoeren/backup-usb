@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,6 +36,10 @@ type Env struct {
 	ConfigDir string
 	// Getenv reads environment variables (never used for secrets).
 	Getenv func(string) string
+	// Sleep replaces waiting between disk searches (tests).
+	Sleep func(ctx context.Context, d time.Duration) error
+	// Context, if set, is the parent context of every command (tests).
+	Context context.Context
 }
 
 // Run executes the command line in args (args[0] is the program name) and
@@ -111,23 +116,32 @@ func (e *Env) Run(args []string) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return ExitOK
 	}
-	if err != nil {
+	var q quietErr
+	if err != nil && !errors.As(err, &q) {
 		c.printError(err)
 	}
 	return ExitCode(err)
 }
 
 func (c *ctx) printError(err error) {
-	var ae *app.Error
-	if errors.As(err, &ae) && msg.Has(ae.Key) {
-		text := c.p.T(ae.Key, ae.Args...)
-		if ae.Err != nil && ae.Kind != app.KindUsage {
-			text += " (" + ae.Err.Error() + ")"
-		}
-		fmt.Fprintln(c.env.Stderr, "usb-backup-cli:", text)
+	if t := appErrText(c, err); t != "" {
+		fmt.Fprintln(c.env.Stderr, "usb-backup-cli:", t)
 		return
 	}
 	fmt.Fprintln(c.env.Stderr, "usb-backup-cli:", err)
+}
+
+// appErrText translates an *app.Error, with its technical cause.
+func appErrText(c *ctx, err error) string {
+	var ae *app.Error
+	if !errors.As(err, &ae) || !msg.Has(ae.Key) {
+		return ""
+	}
+	text := c.p.T(ae.Key, ae.Args...)
+	if ae.Err != nil && ae.Kind != app.KindUsage && ae.Kind != app.KindWarning {
+		text += " (" + ae.Err.Error() + ")"
+	}
+	return text
 }
 
 // newFlags returns a flag set with the global flags registered.

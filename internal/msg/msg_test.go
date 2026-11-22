@@ -1,10 +1,13 @@
 package msg
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
-	_ "github.com/macsnoeren/backup-usb/internal/testutil" // -update flag
+	"github.com/macsnoeren/backup-usb/internal/testutil"
 )
 
 func TestEveryKeyHasEnglishAndMatchingVerbs(t *testing.T) {
@@ -25,5 +28,35 @@ func TestFallback(t *testing.T) {
 	}
 	if got := T(EN, "version", "1", "x", "linux", "amd64"); !strings.Contains(got, "version 1") {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// TestUsedKeysExist scans the Go sources for message keys and checks that
+// each one is in the table, so a lost entry fails the build.
+var fileName = regexp.MustCompile(`\.(json|txt|zip|sha256|age|log|vault|recipients|pub|sig|key|part)$`)
+
+func TestUsedKeysExist(t *testing.T) {
+	root := testutil.RepoRoot()
+	re := regexp.MustCompile(`"((?:err|msg|report|status|dry|state|gui|help|keys|disk|cfg|task|restore|list|verify|status)\.[A-Za-z0-9.]+)"`)
+	err := filepath.Walk(filepath.Join(root, "internal"), func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") || strings.Contains(p, string(filepath.Separator)+"msg"+string(filepath.Separator)) {
+			return err
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		for _, m := range re.FindAllStringSubmatch(string(data), -1) {
+			if fileName.MatchString(m[1]) {
+				continue // a file name such as keys.json, not a key
+			}
+			if !Has(m[1]) && !strings.HasSuffix(m[1], ".") {
+				t.Errorf("%s: key %q is not in the translation table", filepath.Base(p), m[1])
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

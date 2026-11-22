@@ -2,7 +2,9 @@ package app
 
 import "fmt"
 
-// humanBytes formats a byte count with a binary unit.
+// HumanBytes formats a byte count with a binary unit.
+func HumanBytes(n uint64) string { return humanBytes(n) }
+
 func humanBytes(n uint64) string {
 	const unit = 1024
 	if n < unit {

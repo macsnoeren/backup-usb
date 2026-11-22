@@ -1,0 +1,138 @@
+//go:build integration
+
+package cli
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/verify"
+)
+
+func TestRunWeek(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+
+	// Week 47 is odd: BACKUP1, also when both disks are connected.
+	out, _ := w.mustRun(0, "run")
+	if !strings.Contains(out, "BACKUP1") || !strings.Contains(out, "2026-W47") {
+		t.Fatalf("summary:\n%s", out)
+	}
+	for _, f := range []string{"Data.zip", "Data.zip.sha256", "Books.zip", "Books.zip.sha256", "report.txt"} {
+		if !exists(w.diskFile("BACKUP1", "Backup/2026/47/"+f)) {
+			t.Errorf("%s missing", f)
+		}
+	}
+	for _, f := range []string{"Backup/last-backup.txt", "Backup/keys.json"} {
+		if !exists(w.diskFile("BACKUP1", f)) {
+			t.Errorf("%s missing", f)
+		}
+	}
+	if exists(w.diskFile("BACKUP2", "Backup/2026")) {
+		t.Error("BACKUP2 was written in an odd week")
+	}
+	if _, err := verify.File(t.Context(), w.diskFile("BACKUP1", "Backup/2026/47/Data.zip"), verify.Options{ExpectedFiles: 2}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A second trigger right after: skipped (4); --force goes ahead.
+	w.clock.Advance(2 * time.Minute)
+	w.mustRun(4, "run")
+	w.mustRun(0, "run", "--force")
+	// Within minIntervalHours in the same folder: skipped.
+	w.clock.Advance(3 * time.Hour)
+	w.mustRun(4, "run")
+
+	// Next week is even: BACKUP2.
+	w.clock.Advance(7 * 24 * time.Hour)
+	out, _ = w.mustRun(0, "run", "--json")
+	var rep app.RunReport
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatal(err)
+	}
+	if rep.Disk != "BACKUP2" || rep.Folder != "2026/48" || rep.Status != app.StatusOK || len(rep.Sources) != 2 {
+		t.Fatalf("report %+v", rep)
+	}
+}
+
+func TestRunWrongAndNoDisk(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.disks.Remove("BACKUP1")
+	_, errOut := w.mustRun(3, "run")
+	if !strings.Contains(errOut, "2026-W47 is for BACKUP1, but BACKUP2 is connected") {
+		t.Fatalf("stderr %q", errOut)
+	}
+	if exists(w.diskFile("BACKUP2", "Backup/2026")) {
+		t.Fatal("wrong disk was written")
+	}
+	// --any-disk and --target override the week rule.
+	w.mustRun(0, "run", "--any-disk")
+	w.disks.Remove("BACKUP2")
+	_, errOut = w.mustRun(2, "run")
+	if !strings.Contains(errOut, "insert BACKUP1") {
+		t.Fatalf("stderr %q", errOut)
+	}
+	// --quiet-skip: same code, no message.
+	code, out, errOut := w.run("run", "--quiet-skip")
+	if code != 2 || out != "" || errOut != "" {
+		t.Fatalf("quiet skip: %d %q %q", code, out, errOut)
+	}
+}
+
+func TestRunTargetAndWait(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.mustRun(0, "run", "--target", w.disks.Disk("BACKUP2").Mount)
+	if !exists(w.diskFile("BACKUP2", "Backup/2026/47/Data.zip")) {
+		t.Fatal("--target ignored")
+	}
+	// --wait polls; with no disk it gives up after the wait (fake clock).
+	w.disks.Remove("BACKUP1")
+	w.disks.Remove("BACKUP2")
+	start := w.clock.Now()
+	w.mustRun(2, "run", "--wait", "5")
+	if w.clock.Now().Sub(start) < 5*time.Second {
+		t.Fatal("did not wait")
+	}
+}
+
+func TestRunUnknownDisk(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	// Copy the ID file of BACKUP1 to BACKUP2, then unplug BACKUP1.
+	data, err := os.ReadFile(w.diskFile("BACKUP1", "Backup/disk-id.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(w.diskFile("BACKUP2", "Backup"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(w.diskFile("BACKUP2", "Backup/disk-id.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w.disks.Remove("BACKUP1")
+	_, errOut := w.mustRun(6, "run")
+	if !strings.Contains(errOut, "unknown disk") {
+		t.Fatalf("stderr %q", errOut)
+	}
+	if exists(w.diskFile("BACKUP2", "Backup/2026")) {
+		t.Fatal("unknown disk was written")
+	}
+}
+
+func TestRunMissingSource(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	if err := os.RemoveAll(w.srcDir + "/Books"); err != nil {
+		t.Fatal(err)
+	}
+	_, errOut := w.mustRun(11, "run")
+	if !strings.Contains(errOut, "Books") {
+		t.Fatalf("stderr %q", errOut)
+	}
+}
