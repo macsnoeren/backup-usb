@@ -63,7 +63,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 ## Fase 5 – Index, bladeren en herstellen
 
 - [x] **T5.1 Index per bronmap** `<tag>.index.age` met per bestand pad, grootte, wijzigingsdatum, SHA-256 en positie in de zip. Versleuteld als versleuteling aan staat. *Klaar als:* index en zip komen overeen voor alle bestanden.
-- [ ] **T5.2 `list`** Weken, bronmappen en bestanden tonen uit de index, met `--path` en `--search`. Alleen de index wordt ontsleuteld. *Klaar als:* test met een geneste map; uitvoer ook als JSON.
+- [x] **T5.2 `list`** Weken, bronmappen en bestanden tonen uit de index, met `--path` en `--search`. Alleen de index wordt ontsleuteld. *Klaar als:* test met een geneste map; uitvoer ook als JSON.
 - [ ] **T5.3 `restore` van losse bestanden** `--file` voor een bestand of map; de zip wordt als stroom ontsleuteld tot het bestand en daar gestopt. Elk bestand gecontroleerd tegen de SHA-256 uit de index. *Klaar als:* een bestand achteraan in de zip wordt correct teruggezet.
 - [ ] **T5.4 Herstellen naar oorspronkelijke plek** `--original`: bestaande bestanden nooit overschrijven, maar een andere naam geven (`naam (hersteld 2026-11-22).ext`). `--to` voor een gekozen map. *Klaar als:* test met een bestand dat al bestaat.
 - [ ] **T5.5 Terugvallen zonder index** Ontbreekt de index of is die beschadigd, dan de hele zip ontsleutelen en een waarschuwing geven. *Klaar als:* test met een verwijderde index.

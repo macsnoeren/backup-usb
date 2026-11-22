@@ -14,3 +14,24 @@ func init() {
 		"verify.breakglass": {EN: "The break-glass key works.", NL: "De break-glass-sleutel werkt."},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.noArchive":    {EN: "no archive for tag %q in %s", NL: "geen archief voor tag %q in %s"},
+		"list.noIndex":     {EN: "Index missing or damaged: the archive itself was read (this takes longer).", NL: "Index ontbreekt of is beschadigd: het archief zelf is gelezen (dit duurt langer)."},
+		"list.periodsHead": {EN: "Period     Disk      Folder     Sources", NL: "Periode    Schijf    Map        Bronnen"},
+	})
+}
+
+func init() {
+	add(map[string]entry{
+		"err.restoreTag":   {EN: "restore needs --tag", NL: "restore heeft --tag nodig"},
+		"err.restoreDest":  {EN: "restore needs --to <folder> or --original", NL: "restore heeft --to <map> of --original nodig"},
+		"err.restoreWrite": {EN: "cannot write %s", NL: "kan %s niet schrijven"},
+		"err.restoreHash":  {EN: "%s: the restored file does not match its SHA-256; it was not kept", NL: "%s: het teruggezette bestand klopt niet met de SHA-256; het is niet bewaard"},
+		"err.notInBackup":  {EN: "%s is not in this backup", NL: "%s staat niet in deze back-up"},
+		"restore.done":     {EN: "Restored %d files (%s) from %s %s %s to %s.", NL: "%d bestanden (%s) teruggezet uit %s %s %s naar %s."},
+		"restore.renamed":  {EN: "  %s already existed, restored as %s", NL: "  %s bestond al, teruggezet als %s"},
+		"restore.skipped":  {EN: "  skipped %s (%s)", NL: "  overgeslagen: %s (%s)"},
+	})
+}
