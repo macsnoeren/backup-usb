@@ -15,6 +15,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/msg"
+	"github.com/macsnoeren/backup-usb/internal/password"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
@@ -41,6 +42,8 @@ type Env struct {
 	Sleep func(ctx context.Context, d time.Duration) error
 	// Context, if set, is the parent context of every command (tests).
 	Context context.Context
+	// Console replaces the console password prompt (tests).
+	Console password.Source
 }
 
 // Run executes the command line in args (args[0] is the program name) and
