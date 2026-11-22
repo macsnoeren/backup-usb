@@ -15,6 +15,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/msg"
+	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
 
@@ -45,6 +46,9 @@ type Env struct {
 // Run executes the command line in args (args[0] is the program name) and
 // returns the process exit code.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	// Keep secrets out of core dumps and crash reports. Failure is not
+	// fatal: the process is short-lived either way.
+	_ = secmem.ProtectProcess()
 	env := &Env{
 		Stdin:  stdin,
 		Stdout: stdout,
