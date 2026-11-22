@@ -2,6 +2,7 @@ package verify
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,6 +27,10 @@ type Options struct {
 	ExpectedFiles int
 	// Progress is called with the bytes checked so far.
 	Progress func(done uint64)
+	// Entries, if set, are the entries the writer recorded. Every local
+	// file header is then compared with them, which archive/zip does not
+	// do (it reads names from the central directory only).
+	Entries []archive.Entry
 }
 
 // Report describes a successful check.
@@ -91,6 +96,12 @@ func Zip(ctx context.Context, r io.ReaderAt, size int64, opts Options) (*Report,
 	}
 	if cerr != nil {
 		return nil, fail("manifest: %v", cerr)
+	}
+
+	if opts.Entries != nil {
+		if err := checkLocalHeaders(r, size, zr, opts.Entries); err != nil {
+			return nil, err
+		}
 	}
 
 	rep := &Report{}
@@ -165,4 +176,83 @@ func hashEntry(ctx context.Context, f *zip.File, buf []byte) (string, uint64, er
 		return "", n, fmt.Errorf("size %d does not match header %d", n, f.UncompressedSize64)
 	}
 	return hex.EncodeToString(h.Sum(nil)), n, nil
+}
+
+// checkLocalHeaders compares every local file header and data descriptor
+// with the entries recorded by the writer and with the central directory.
+// archive/zip reads names, times and extra fields from the central
+// directory only, so damage there would otherwise go unnoticed.
+func checkLocalHeaders(r io.ReaderAt, size int64, zr *zip.Reader, entries []archive.Entry) error {
+	central := make(map[string]*zip.File, len(zr.File))
+	for _, f := range zr.File {
+		central[f.Name] = f
+	}
+	if len(entries) != len(zr.File) {
+		return fail("zip has %d entries, the writer recorded %d", len(zr.File), len(entries))
+	}
+	le16 := func(b []byte) uint16 { return uint16(b[0]) | uint16(b[1])<<8 }
+	le32 := func(b []byte) uint32 { return uint32(le16(b)) | uint32(le16(b[2:]))<<16 }
+	le64 := func(b []byte) uint64 { return uint64(le32(b)) | uint64(le32(b[4:]))<<32 }
+	for i, e := range entries {
+		f := central[e.Path]
+		if f == nil || zr.File[i] != f {
+			return fail("%q missing from the central directory or out of order", e.Path)
+		}
+		if f.CRC32 != e.CRC32 || f.CompressedSize64 != e.CompressedSize || f.UncompressedSize64 != e.Size || f.Method != e.Method {
+			return fail("%q: central directory does not match what was written", e.Path)
+		}
+		n := e.DataOffset - e.HeaderOffset
+		if e.HeaderOffset < 0 || n < 30 || n > 30+65535*2 || e.DataOffset > size {
+			return fail("%q: invalid header offsets", e.Path)
+		}
+		hdr := make([]byte, n)
+		if _, err := r.ReadAt(hdr, e.HeaderOffset); err != nil {
+			return fail("%q: read local header: %v", e.Path, err)
+		}
+		nameLen := int(le16(hdr[26:]))
+		extraLen := int(le16(hdr[28:]))
+		flags := le16(hdr[6:])
+		if le32(hdr) != 0x04034b50 || 30+nameLen+extraLen != int(n) || le16(hdr[4:]) != f.ReaderVersion ||
+			string(hdr[30:30+nameLen]) != e.Path || le16(hdr[8:]) != e.Method || flags != f.Flags ||
+			le16(hdr[10:]) != f.ModifiedTime || le16(hdr[12:]) != f.ModifiedDate ||
+			!bytes.HasPrefix(f.Extra, hdr[30+nameLen:]) {
+			return fail("%q: local file header is damaged", e.Path)
+		}
+		if off, err := f.DataOffset(); err != nil || off != e.DataOffset {
+			return fail("%q: data offset does not match", e.Path)
+		}
+		if flags&0x8 == 0 {
+			if le32(hdr[14:]) != e.CRC32 || uint64(le32(hdr[18:])) != e.CompressedSize || uint64(le32(hdr[22:])) != e.Size {
+				return fail("%q: local file header is damaged", e.Path)
+			}
+			continue
+		}
+		if le32(hdr[14:]) != 0 || le32(hdr[18:]) != 0 || le32(hdr[22:]) != 0 {
+			return fail("%q: local file header is damaged", e.Path)
+		}
+		// Data descriptor: signature, CRC, then 32- or 64-bit sizes.
+		zip64 := e.CompressedSize >= 0xffffffff || e.Size >= 0xffffffff
+		dd := make([]byte, 24)
+		ddLen := 16
+		if zip64 {
+			ddLen = 24
+		}
+		end := e.DataOffset + int64(min(e.CompressedSize, 1<<62))
+		if end+int64(ddLen) > size {
+			return fail("%q: data descriptor missing", e.Path)
+		}
+		if _, err := r.ReadAt(dd[:ddLen], end); err != nil {
+			return fail("%q: read data descriptor: %v", e.Path, err)
+		}
+		ok := le32(dd) == 0x08074b50 && le32(dd[4:]) == e.CRC32
+		if zip64 {
+			ok = ok && le64(dd[8:]) == e.CompressedSize && le64(dd[16:]) == e.Size
+		} else {
+			ok = ok && uint64(le32(dd[8:])) == e.CompressedSize && uint64(le32(dd[12:])) == e.Size
+		}
+		if !ok {
+			return fail("%q: data descriptor is damaged", e.Path)
+		}
+	}
+	return nil
 }

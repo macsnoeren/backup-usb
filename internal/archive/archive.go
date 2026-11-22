@@ -79,6 +79,15 @@ type Result struct {
 	ZipSize  int64     `json:"zipSize"`
 	Skipped  []Skipped `json:"skipped,omitempty"`
 	Manifest []byte    `json:"-"`
+	// ManifestEntry is the zip entry of the manifest (not in Entries).
+	ManifestEntry Entry `json:"-"`
+	// StreamSHA256 is the SHA-256 of all zip bytes as they were written.
+	StreamSHA256 string `json:"-"`
+}
+
+// AllEntries returns Entries followed by the manifest entry, in zip order.
+func (r *Result) AllEntries() []Entry {
+	return append(append([]Entry(nil), r.Entries...), r.ManifestEntry)
 }
 
 // ErrReadFailed wraps errors reading a source file after it was opened.
@@ -113,7 +122,8 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	if !st.IsDir() {
 		return nil, fmt.Errorf("source %s is not a folder", src)
 	}
-	cw := &countWriter{w: w}
+	streamHash := sha256.New()
+	cw := &countWriter{w: io.MultiWriter(w, streamHash)}
 	zw := zip.NewWriter(cw)
 	level := opts.CompressionLevel
 	if level < 1 || level > 9 {
@@ -256,9 +266,10 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 
 	manifest := Manifest(res.Entries)
 	mh := &zip.FileHeader{Name: ManifestName, Method: zip.Deflate, Modified: time.Now()}
-	mw, err := zw.CreateHeader(mh)
+	sum := sha256.Sum256(manifest)
+	mw, err := addHeader(mh, Entry{Path: ManifestName, Size: uint64(len(manifest)), Modified: mh.Modified, SHA256: hex.EncodeToString(sum[:])})
 	if err != nil {
-		return nil, fmt.Errorf("zip header manifest: %w", err)
+		return nil, err
 	}
 	if _, err := mw.Write(manifest); err != nil {
 		return nil, fmt.Errorf("write zip: %w", err)
@@ -275,7 +286,10 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			return nil, fmt.Errorf("zip size bookkeeping failed for %s", e.Path)
 		}
 	}
+	res.ManifestEntry = res.Entries[len(res.Entries)-1]
+	res.Entries = res.Entries[:len(res.Entries)-1]
 	res.ZipSize = cw.n
+	res.StreamSHA256 = hex.EncodeToString(streamHash.Sum(nil))
 	res.Manifest = manifest
 	return res, nil
 }

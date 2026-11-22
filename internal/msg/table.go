@@ -53,3 +53,24 @@ Never pass passwords as arguments: use --password-stdin or the console prompt.
 	"err.passwordArgument": {NL: "een wachtwoord mag nooit als argument worden meegegeven; gebruik --password-stdin of de vraag op de console", EN: "a password must never be passed as an argument; use --password-stdin or the console prompt"},
 	"version":              {NL: "usb-backup-cli versie %s (%s, %s/%s)", EN: "usb-backup-cli version %s (%s, %s/%s)"},
 }
+
+func init() {
+	add(map[string]entry{
+		"err.write":     {EN: "writing to the backup disk failed", NL: "schrijven naar de back-upschijf is mislukt"},
+		"err.read":      {EN: "reading a file failed", NL: "lezen van een bestand is mislukt"},
+		"err.locked":    {EN: "a file could not be opened (lockedFiles: fail)", NL: "een bestand kon niet worden geopend (lockedFiles: fail)"},
+		"err.cancelled": {EN: "cancelled", NL: "geannuleerd"},
+		"err.verify":    {EN: "verification of %s failed; old backups were not deleted", NL: "controle van %s is mislukt; oude back-ups zijn niet verwijderd"},
+	})
+}
+
+// add merges entries into the table; a duplicate key is a programming
+// error.
+func add(m map[string]entry) {
+	for k, v := range m {
+		if _, dup := table[k]; dup {
+			panic("msg: duplicate key " + k)
+		}
+		table[k] = v
+	}
+}

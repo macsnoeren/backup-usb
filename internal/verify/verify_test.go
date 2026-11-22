@@ -115,3 +115,59 @@ func FuzzZip(f *testing.F) {
 		_ = check(data)
 	})
 }
+
+// TestEveryByteIsCovered flips every byte of the local headers, data and
+// data descriptors of a small zip in turn and expects the check (with the
+// writer's entries) to notice each change. The central directory is covered
+// by the stream hash in app.WriteVerifiedZip.
+func TestEveryByteIsCovered(t *testing.T) {
+	p, res := writeZip(t)
+	data, _ := os.ReadFile(p)
+	entries := res.AllEntries()
+	if _, err := Zip(context.Background(), bytes.NewReader(data), int64(len(data)), Options{ExpectedFiles: res.Files, Entries: entries}); err != nil {
+		t.Fatal(err)
+	}
+	missed := 0
+	me := res.ManifestEntry
+	end := me.DataOffset + int64(me.CompressedSize) + 16
+	inDeflate := func(i int64) bool {
+		for _, e := range entries {
+			if e.Method == 8 && i >= e.DataOffset && i < e.DataOffset+int64(e.CompressedSize) {
+				return true
+			}
+		}
+		return false
+	}
+	for i := range data[:end] {
+		if inDeflate(int64(i)) {
+			// Some deflate bits (padding after the last block) do not
+			// change the output; the stream hash covers them.
+			continue
+		}
+		bad := append([]byte(nil), data...)
+		bad[i] ^= 0x01
+		_, err := Zip(context.Background(), bytes.NewReader(bad), int64(len(bad)), Options{ExpectedFiles: res.Files, Entries: entries})
+		if err == nil {
+			missed++
+			t.Logf("change at offset %d not detected", i)
+		}
+	}
+	if missed > 0 {
+		t.Errorf("%d byte changes not detected", missed)
+	}
+	// Changes inside deflate data are either detected or harmless.
+	for _, e := range entries {
+		if e.Method != 8 {
+			continue
+		}
+		for i := e.DataOffset; i < e.DataOffset+int64(e.CompressedSize); i++ {
+			bad := append([]byte(nil), data...)
+			bad[i] ^= 0x01
+			zr, err := Zip(context.Background(), bytes.NewReader(bad), int64(len(bad)), Options{ExpectedFiles: res.Files, Entries: entries})
+			_ = zr
+			if err == nil {
+				t.Logf("%s: flip at %d is harmless (output unchanged, checked by SHA-256)", e.Path, i)
+			}
+		}
+	}
+}
