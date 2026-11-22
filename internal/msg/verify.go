@@ -2,6 +2,7 @@ package msg
 
 func init() {
 	add(map[string]entry{
+		"err.needKey":       {EN: "this backup is encrypted: give --password-stdin, --identity or enter the vault password", NL: "deze back-up is versleuteld: geef --password-stdin of --identity, of voer het vault-wachtwoord in"},
 		"err.noDiskAny":     {EN: "no registered backup disk connected", NL: "geen geregistreerde back-upschijf aangesloten"},
 		"err.noBackups":     {EN: "no backups found on the disk", NL: "geen back-ups gevonden op de schijf"},
 		"err.noSuchPeriod":  {EN: "no backup for %s on the disk", NL: "geen back-up van %s op de schijf"},

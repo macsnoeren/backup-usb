@@ -443,6 +443,16 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			continue
 		}
 		fillSource(&sr, out, cfg.VerifyAfterBackup || enc != nil)
+		var rcpts []age.Recipient
+		if enc != nil {
+			rcpts = enc.age
+		}
+		if err := WriteIndex(root, folder, s.Tag, per.Label(), sr.Archive, now, out.Result, rcpts); err != nil {
+			deps.Log.Warn("index not written", "tag", s.Tag, "err", err)
+			sr.Status = StatusWarning
+			sr.WarningCount++
+			sr.Warnings = append(sr.Warnings, archive.Skipped{Path: IndexName(s.Tag, enc != nil), Reason: "index not written; restore reads the whole archive"})
+		}
 		if sr.SkippedCount > 0 || sr.WarningCount > 0 {
 			warnings = true
 		}

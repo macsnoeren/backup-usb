@@ -165,7 +165,7 @@ func (c ctxReader) Read(p []byte) (int, error) {
 
 // partSuffixes are the leftover files of an interrupted run that
 // CleanupParts may remove. Nothing else is ever touched.
-var partSuffixes = []string{".zip.part", ".zip.age.part", ".sha256.part", ".index.json.part", ".index.age.part", ".txt.part", ".json.part"}
+var partSuffixes = []string{".zip.part", ".zip.age.part", ".sha256.part", ".index.gz.part", ".index.age.part", ".txt.part", ".json.part"}
 
 // CleanupParts removes leftover part files of interrupted runs under dir
 // (the backup folder on a disk). All access goes through an os.Root, so a
