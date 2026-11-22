@@ -12,6 +12,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/config"
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/vault"
 )
 
@@ -26,7 +27,33 @@ func (w *world) keysInit() string {
 	w.stdin = testPassword + "\n" + testPassword + "\n"
 	defer func() { w.stdin = "" }()
 	w.mustRun(0, "keys", "init", "--vault", w.vaultPath(), "--breakglass-out", bg, "--password-stdin")
+	w.resignIDFiles()
 	return bg
+}
+
+// resignIDFiles signs ID files that tests wrote before keys existed, as a
+// re-enroll would.
+func (w *world) resignIDFiles() {
+	v, err := vault.Open(w.vaultPath(), secmemFrom(testPassword))
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	defer v.Close()
+	key := v.SigningKey()
+	defer key.Wipe()
+	for _, name := range []string{"BACKUP1", "BACKUP2"} {
+		p := w.diskFile(name, "Backup/disk-id.json")
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		signed, err := sign.SignJSON(key.Bytes(), sign.PurposeDiskID, data)
+		if err != nil {
+			w.t.Fatal(err)
+		}
+		os.Chmod(p, 0o644)
+		os.WriteFile(p, signed, 0o644)
+	}
 }
 
 func (w *world) vaultPath() string { return filepath.Join(w.cfgDir, "user", "recovery.vault") }

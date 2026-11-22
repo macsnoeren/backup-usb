@@ -200,3 +200,13 @@ func hashOf(p string) (string, int64, error) {
 	defer root.Close()
 	return app.HashFile(context.Background(), root, filepath.Base(p))
 }
+
+// diskSerial returns a field of an ID file.
+func (w *world) diskSerial(idFile []byte, field string) string {
+	var m map[string]any
+	if err := json.Unmarshal(idFile, &m); err != nil {
+		w.t.Fatal(err)
+	}
+	s, _ := m[field].(string)
+	return s
+}

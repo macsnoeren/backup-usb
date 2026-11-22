@@ -2,6 +2,7 @@ package disk
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/macsnoeren/backup-usb/internal/fsx"
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
 
@@ -174,9 +176,16 @@ type Mismatch struct{ Reason string }
 func (m *Mismatch) Error() string { return "unknown disk: " + m.Reason }
 
 // Match checks a connected volume and its ID file against the registry. It
-// returns the registration, or a *Mismatch. requireHW refuses disks
-// registered without a hardware serial number.
-func Match(v volume.Volume, id *IDFile, reg *Registry, requireHW bool) (*Registration, error) {
+// returns the registration, or a *Mismatch. When pub is set (keys exist),
+// the signature of the ID file (raw, as read from the disk) must be valid;
+// it covers the serial numbers, so a copied or edited ID file fails.
+// requireHW refuses disks registered without a hardware serial number.
+func Match(v volume.Volume, id *IDFile, raw []byte, reg *Registry, requireHW bool, pub ed25519.PublicKey) (*Registration, error) {
+	if pub != nil {
+		if err := sign.VerifyJSON(pub, sign.PurposeDiskID, raw); err != nil {
+			return nil, &Mismatch{"ID file signature does not match"}
+		}
+	}
 	r, _ := reg.ByID(id.ID)
 	if r == nil {
 		return nil, &Mismatch{"ID not registered"}

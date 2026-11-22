@@ -124,6 +124,10 @@ func LoadRegistry(dir string, cfg *config.Config) (*disk.Registry, error) {
 // that are not mounted are only mounted when their volume serial belongs to
 // a registered disk.
 func scanDisks(ctx context.Context, deps *Deps, reg *disk.Registry, requireHW bool, target string) (*found, error) {
+	pub, err := SigningKey(deps.ConfigDir)
+	if err != nil {
+		return nil, err
+	}
 	vols, err := deps.Finder.Volumes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list volumes: %w", err)
@@ -144,7 +148,7 @@ func scanDisks(ctx context.Context, deps *Deps, reg *disk.Registry, requireHW bo
 			}
 			v = m
 		}
-		id, _, err := disk.ReadIDFile(v.Mount)
+		id, raw, err := disk.ReadIDFile(v.Mount)
 		if errors.Is(err, disk.ErrNoIDFile) {
 			if target != "" {
 				f.unknown = append(f.unknown, v.Label)
@@ -156,7 +160,7 @@ func scanDisks(ctx context.Context, deps *Deps, reg *disk.Registry, requireHW bo
 			f.unknown = append(f.unknown, v.Label)
 			continue
 		}
-		r, err := disk.Match(v, id, reg, requireHW)
+		r, err := disk.Match(v, id, raw, reg, requireHW, pub)
 		if err != nil {
 			deps.Log.Warn("disk not recognised", "device", v.Device, "label", v.Label, "reason", err)
 			f.unknown = append(f.unknown, v.Label)

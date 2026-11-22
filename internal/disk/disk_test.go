@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
@@ -22,7 +24,7 @@ func reg() (*Registry, volume.Volume, *IDFile) {
 
 func TestMatch(t *testing.T) {
 	rg, v, id := reg()
-	if r, err := Match(v, id, rg, false); err != nil || r.Name != "BACKUP1" {
+	if r, err := Match(v, id, nil, rg, false, nil); err != nil || r.Name != "BACKUP1" {
 		t.Fatal(r, err)
 	}
 	cases := map[string]func(v *volume.Volume, id *IDFile, rg *Registry){
@@ -39,7 +41,7 @@ func TestMatch(t *testing.T) {
 		rg, v, id := reg()
 		change(&v, id, rg)
 		var m *Mismatch
-		if _, err := Match(v, id, rg, name == "require hw"); !errors.As(err, &m) {
+		if _, err := Match(v, id, nil, rg, name == "require hw", nil); !errors.As(err, &m) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
@@ -47,7 +49,7 @@ func TestMatch(t *testing.T) {
 	// without serial is fine.
 	rg, v, id = reg()
 	rg.Disks[0].HardwareSerial, v.HardwareSerial, id.HardwareSerial = "", "", ""
-	if _, err := Match(v, id, rg, false); err != nil {
+	if _, err := Match(v, id, nil, rg, false, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -117,5 +119,25 @@ func TestIDFileMustBeRegular(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("a FIFO as ID file hangs the run")
 		}
+	}
+}
+
+func TestMatchSignature(t *testing.T) {
+	priv := ed25519.NewKeyFromSeed(testutil.TestSigningSeed(t, "signing"))
+	pub := priv.Public().(ed25519.PublicKey)
+	rg, v, id := reg()
+	raw, _ := json.Marshal(id)
+	signed, _ := sign.SignJSON(priv, sign.PurposeDiskID, raw)
+	if _, err := Match(v, id, signed, rg, false, pub); err != nil {
+		t.Fatal(err)
+	}
+	var m *Mismatch
+	if _, err := Match(v, id, raw, rg, false, pub); !errors.As(err, &m) {
+		t.Fatal("unsigned ID file accepted")
+	}
+	other := ed25519.NewKeyFromSeed(testutil.TestSigningSeed(t, "signing-other"))
+	forged, _ := sign.SignJSON(other, sign.PurposeDiskID, raw)
+	if _, err := Match(v, id, forged, rg, false, pub); !errors.As(err, &m) {
+		t.Fatal("ID file signed by another key accepted")
 	}
 }
