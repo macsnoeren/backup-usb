@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"testing"
+
+	_ "github.com/macsnoeren/backup-usb/internal/testutil" // -update flag
 )
 
 func TestRunWithoutProcess(t *testing.T) {

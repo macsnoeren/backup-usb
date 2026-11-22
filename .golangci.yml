@@ -17,6 +17,11 @@ linters:
         # G304 (file path from variable) is the whole point of a backup tool;
         # paths are validated where they come from untrusted input.
         - G304
+        # G703 (taint-based path traversal) fires on every path that comes
+        # from the config or the command line, which are operator input.
+        # Untrusted paths (zip entries, index) go through internal/archive
+        # SafeJoin, which has its own tests and fuzzing.
+        - G703
     errcheck:
       check-type-assertions: true
       exclude-functions:
@@ -28,6 +33,8 @@ linters:
       - path: _test\.go
         linters: [gosec, errcheck]
       - path: internal/testutil/
+        linters: [gosec]
+      - path: scripts/
         linters: [gosec]
 formatters:
   enable:
