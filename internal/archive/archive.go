@@ -119,8 +119,19 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	if level < 1 || level > 9 {
 		level = flate.BestSpeed
 	}
+	var pool []*flate.Writer
 	zw.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
-		return flate.NewWriter(out, level)
+		if n := len(pool); n > 0 {
+			fw := pool[n-1]
+			pool = pool[:n-1]
+			fw.Reset(out)
+			return &pooledFlate{fw, &pool}, nil
+		}
+		fw, err := flate.NewWriter(out, level)
+		if err != nil {
+			return nil, err
+		}
+		return &pooledFlate{fw, &pool}, nil
 	})
 	store := map[string]bool{}
 	for _, e := range opts.StoreExtensions {
@@ -267,6 +278,19 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	res.ZipSize = cw.n
 	res.Manifest = manifest
 	return res, nil
+}
+
+// pooledFlate returns its flate writer to the pool on Close, so archives
+// with many small files do not allocate a compressor per file.
+type pooledFlate struct {
+	*flate.Writer
+	pool *[]*flate.Writer
+}
+
+func (p *pooledFlate) Close() error {
+	err := p.Writer.Close()
+	*p.pool = append(*p.pool, p.Writer)
+	return err
 }
 
 type writeError struct{ err error }
