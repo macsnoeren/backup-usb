@@ -47,7 +47,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T3.5 Fout in één bronmap** Mislukt één bronmap, dan blijven de andere zips staan, wordt de week als mislukt gemeld en wordt er niets geroteerd. *Klaar als:* integratietest met een onleesbaar bestand bij `lockedFiles: fail`.
 - [x] **T3.6 `freeSpaceAction`** `stop` stopt met exitcode 10; `deleteOldest` verwijdert eerst de oudste map, nooit onder `keepMinDays`. *Klaar als:* tests voor beide waarden.
 - [x] **T3.7 Rapport en `--json`** `rapport.txt` per weekmap, en hetzelfde als JSON-object op stdout bij `--json`. Bestandsnamen alleen als versleuteling uit staat. *Klaar als:* golden-file-test voor beide formaten.
-- [ ] **T3.8 `--dry-run`** Toont schijf, doelmap, verwachte grootte en welke mappen de rotatie zou verwijderen. Schrijft niets. *Klaar als:* test controleert dat de nep-schijf na afloop onveranderd is.
+- [x] **T3.8 `--dry-run`** Toont schijf, doelmap, verwachte grootte en welke mappen de rotatie zou verwijderen. Schrijft niets. *Klaar als:* test controleert dat de nep-schijf na afloop onveranderd is.
 
 ## Fase 4 – Geheugen, vault en versleuteling
 

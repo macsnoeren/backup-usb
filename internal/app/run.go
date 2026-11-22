@@ -306,7 +306,11 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	rep.Disk, rep.Device, rep.Mount = c.Reg.Name, c.Vol.Device, c.Vol.Mount
 	deps.Log.Info("backup disk found", "disk", c.Reg.Name, "device", c.Vol.Device, "period", per.Label())
 
-	root, err := fsx.OpenDiskRoot(c.Vol.Mount, cfg.TargetFolder)
+	root, err := fsx.OpenDiskRoot(c.Vol.Mount, cfg.TargetFolder, !opts.DryRun)
+	if opts.DryRun && errors.Is(err, fs.ErrNotExist) {
+		// Nothing on the disk yet; a dry run must not create anything.
+		root, err = emptyRoot()
+	}
 	if err != nil {
 		return rep, Errorf(KindDiskCheck, err, "err.notWritable")
 	}
@@ -613,4 +617,16 @@ func writeReportFile(deps *Deps, root *os.Root, folder string, rep *RunReport, c
 		deps.Log.Warn("cannot write report", "err", err)
 	}
 	_ = cfg
+}
+
+// emptyRoot is a read-only stand-in for a backup folder that does not exist
+// yet (dry run).
+func emptyRoot() (*os.Root, error) {
+	dir, err := os.MkdirTemp("", "usb-backup-dry-run")
+	if err != nil {
+		return nil, err
+	}
+	r, err := os.OpenRoot(dir)
+	_ = os.Remove(dir)
+	return r, err
 }

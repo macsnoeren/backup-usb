@@ -1,6 +1,8 @@
 package fsx
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,7 +89,7 @@ func TestDiskRootBlocksSymlinks(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(mount, "Backup", "47")); err != nil {
 		t.Fatal(err)
 	}
-	root, err := OpenDiskRoot(mount, "Backup")
+	root, err := OpenDiskRoot(mount, "Backup", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,13 +114,16 @@ func TestDiskRootBlocksSymlinks(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(m2, "Backup")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenDiskRoot(m2, "Backup"); err == nil {
+	if _, err := OpenDiskRoot(m2, "Backup", true); err == nil {
 		t.Fatal("symlinked backup folder accepted")
 	}
 	// Nested target folders are created.
-	r3, err := OpenDiskRoot(t.TempDir(), `Back-ups\Office`)
+	r3, err := OpenDiskRoot(t.TempDir(), `Back-ups\Office`, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r3.Close()
+	if _, err := OpenDiskRoot(t.TempDir(), "Backup", false); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("no create: %v", err)
+	}
 }

@@ -12,11 +12,12 @@ import (
 )
 
 // OpenDiskRoot opens the folder rel (slash or backslash separated) on a
-// mounted disk as an os.Root, creating it if needed. The mount point itself
+// mounted disk as an os.Root, creating it if create is set (otherwise a
+// missing folder gives fs.ErrNotExist). The mount point itself
 // is trusted; every component below it must be a real folder, never a
 // symlink or junction. All later access through the root stays inside it,
 // so links planted on the disk cannot lead to files on the computer.
-func OpenDiskRoot(mount, rel string) (*os.Root, error) {
+func OpenDiskRoot(mount, rel string, create bool) (*os.Root, error) {
 	base, err := os.OpenRoot(mount)
 	if err != nil {
 		return nil, fmt.Errorf("open disk: %w", err)
@@ -30,6 +31,9 @@ func OpenDiskRoot(mount, rel string) (*os.Root, error) {
 	for _, comp := range strings.Split(rel, "/") {
 		cur = path.Join(cur, comp)
 		st, err := base.Lstat(cur)
+		if errors.Is(err, fs.ErrNotExist) && !create {
+			return nil, err
+		}
 		if errors.Is(err, fs.ErrNotExist) {
 			if err := base.Mkdir(cur, 0o750); err != nil && !errors.Is(err, fs.ErrExist) {
 				return nil, fmt.Errorf("create %s: %w", cur, err)
