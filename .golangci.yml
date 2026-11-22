@@ -1,0 +1,34 @@
+version: "2"
+run:
+  build-tags:
+    - integration
+linters:
+  default: standard
+  enable:
+    - gosec
+    - errorlint
+    - bodyclose
+    - misspell
+    - unconvert
+    - nolintlint
+  settings:
+    gosec:
+      excludes:
+        # G304 (file path from variable) is the whole point of a backup tool;
+        # paths are validated where they come from untrusted input.
+        - G304
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [gosec, errcheck]
+      - path: internal/testutil/
+        linters: [gosec]
+formatters:
+  enable:
+    - gofmt
