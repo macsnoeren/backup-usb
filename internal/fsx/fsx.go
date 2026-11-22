@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // PartSuffix is the suffix of files that are still being written.
@@ -64,38 +65,49 @@ func SyncDir(dir string) error {
 }
 
 // SafeRel checks a relative slash path from an untrusted source (a zip entry
-// or an index) and returns it cleaned. It rejects absolute paths, "..",
-// drive letters, UNC paths, backslashes, NUL and control characters, and
-// Windows device names.
-func SafeRel(name string) (string, error) {
+// or an index) for the current platform and returns it cleaned.
+func SafeRel(name string) (string, error) { return SafeRelOS(name, runtime.GOOS) }
+
+// SafeRelOS checks name for the given GOOS. Everywhere it rejects empty and
+// absolute paths, ".", "..", empty components, NUL and control characters,
+// invalid UTF-8 and invisible format characters (such as bidi overrides).
+// For windows it also rejects backslashes, drive letters and streams (":"),
+// the characters <>"|?*, components ending in a dot or space and device
+// names such as CON, NUL, COM1 and LPT¹.
+func SafeRelOS(name, goos string) (string, error) {
 	if name == "" {
 		return "", errors.New("empty path")
 	}
-	if strings.ContainsRune(name, '\\') || strings.ContainsRune(name, ':') {
-		return "", fmt.Errorf("unsafe path %q", name)
+	if !utf8.ValidString(name) {
+		return "", fmt.Errorf("path %q is not valid UTF-8", name)
 	}
 	for _, r := range name {
-		if r == 0 || unicode.IsControl(r) {
+		if r == 0 || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return "", fmt.Errorf("unsafe path %q", name)
 		}
 	}
 	if strings.HasPrefix(name, "/") {
 		return "", fmt.Errorf("absolute path %q", name)
 	}
+	windows := goos == "windows"
+	if windows && strings.ContainsAny(name, `\:<>"|?*`) {
+		return "", fmt.Errorf("path %q is not valid on Windows", name)
+	}
 	trimmed := strings.TrimSuffix(name, "/")
 	for _, comp := range strings.Split(trimmed, "/") {
 		if comp == "" || comp == "." || comp == ".." {
 			return "", fmt.Errorf("unsafe path %q", name)
 		}
-		if isWindowsDevice(comp) {
-			return "", fmt.Errorf("reserved name in path %q", name)
+		if windows && (strings.HasSuffix(comp, ".") || strings.HasSuffix(comp, " ") || isWindowsDevice(comp)) {
+			return "", fmt.Errorf("path %q is not valid on Windows", name)
 		}
 	}
 	return trimmed, nil
 }
 
 // SafeJoin joins an untrusted relative slash path to base and guarantees
-// that the result stays inside base.
+// that the result stays inside base lexically. Callers that create files
+// must still go through an os.Root, so symlinks cannot lead outside.
 func SafeJoin(base, name string) (string, error) {
 	rel, err := SafeRel(name)
 	if err != nil {
@@ -119,8 +131,13 @@ func isWindowsDevice(comp string) bool {
 	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
 		return true
 	}
-	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '0' && base[3] <= '9' {
-		return true
+	for _, p := range []string{"COM", "LPT"} {
+		if rest, ok := strings.CutPrefix(base, p); ok {
+			switch rest {
+			case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "¹", "²", "³":
+				return true
+			}
+		}
 	}
 	return false
 }

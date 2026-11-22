@@ -80,7 +80,7 @@ func extract(t *testing.T, zipPath string) string {
 func TestRoundTrip(t *testing.T) {
 	src := makeSource(t)
 	dest := filepath.Join(t.TempDir(), "Data.zip")
-	res, err := WriteFile(context.Background(), src, dest, defaultOpts())
+	res, err := WriteFileTo(t, src, dest, defaultOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestRoundTrip(t *testing.T) {
 func TestZipDetails(t *testing.T) {
 	src := makeSource(t)
 	dest := filepath.Join(t.TempDir(), "Data.zip")
-	res, err := WriteFile(context.Background(), src, dest, defaultOpts())
+	res, err := WriteFileTo(t, src, dest, defaultOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,12 +171,12 @@ func TestZipDetails(t *testing.T) {
 
 func TestErrorsRemovePart(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "Data.zip")
-	if _, err := WriteFile(context.Background(), filepath.Join(t.TempDir(), "missing"), dest, defaultOpts()); err == nil {
+	if _, err := WriteFileTo(t, filepath.Join(t.TempDir(), "missing"), dest, defaultOpts()); err == nil {
 		t.Fatal("missing source accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := WriteFile(ctx, makeSource(t), dest, defaultOpts()); err == nil {
+	if _, err := WriteFileToCtx(t, ctx, makeSource(t), dest, defaultOpts()); err == nil {
 		t.Fatal("cancelled write succeeded")
 	}
 	if _, err := os.Stat(dest + ".part"); !os.IsNotExist(err) {

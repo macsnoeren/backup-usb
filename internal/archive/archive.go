@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/macsnoeren/backup-usb/internal/fsx"
 )
 
 // ManifestName is the last entry of every zip: a sha256sum-compatible list
@@ -42,7 +44,9 @@ type Options struct {
 	// LockedFiles is "skip" (default) or "fail" for files that cannot be
 	// opened.
 	LockedFiles string
-	// FollowSymlinks archives the target of a symlink instead of the link.
+	// FollowSymlinks archives the target of a symlink to a file instead of
+	// the link. Links to folders are always stored as links, so loops are
+	// impossible.
 	FollowSymlinks bool
 	// Progress is called after each file with the bytes read so far.
 	Progress func(doneBytes uint64, file string)
@@ -72,12 +76,15 @@ type Skipped struct {
 
 // Result describes a written zip.
 type Result struct {
-	Entries  []Entry   `json:"entries"`
-	Files    int       `json:"files"`
-	Dirs     int       `json:"dirs"`
-	Bytes    uint64    `json:"bytes"`
-	ZipSize  int64     `json:"zipSize"`
-	Skipped  []Skipped `json:"skipped,omitempty"`
+	Entries []Entry   `json:"entries"`
+	Files   int       `json:"files"`
+	Dirs    int       `json:"dirs"`
+	Bytes   uint64    `json:"bytes"`
+	ZipSize int64     `json:"zipSize"`
+	Skipped []Skipped `json:"skipped,omitempty"`
+	// Warnings are files that were archived but need attention, such as a
+	// file that changed while it was read or a name Windows cannot restore.
+	Warnings []Skipped `json:"warnings,omitempty"`
 	Manifest []byte    `json:"-"`
 	// ManifestEntry is the zip entry of the manifest (not in Entries).
 	ManifestEntry Entry `json:"-"`
@@ -184,6 +191,13 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "reserved name"})
 			return nil
 		}
+		if _, err := fsx.SafeRel(rel); err != nil {
+			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "name cannot be restored"})
+			return nil
+		}
+		if _, err := fsx.SafeRelOS(rel, "windows"); err != nil {
+			res.Warnings = append(res.Warnings, Skipped{Path: rel, Reason: "name cannot be restored on Windows"})
+		}
 		mode := info.Mode()
 		switch {
 		case mode.IsDir():
@@ -227,6 +241,13 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			return nil
 		}
 		defer func() { _ = f.Close() }() // read-only
+		// The file may have been swapped after it was listed (for example
+		// for a link to a device or a pipe): check the open handle.
+		before, err := f.Stat()
+		if err != nil || !before.Mode().IsRegular() || !os.SameFile(before, info) {
+			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "changed while the backup ran"})
+			return nil
+		}
 		method := zip.Deflate
 		if opts.CompressionLevel == 0 || store[strings.ToLower(strings.TrimPrefix(path.Ext(rel), "."))] {
 			method = zip.Store
@@ -249,6 +270,9 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			}
 			return fmt.Errorf("%w: %s: %w", ErrReadFailed, rel, err)
 		}
+		if after, err := f.Stat(); err != nil || uint64(max(after.Size(), 0)) != n || !after.ModTime().Equal(before.ModTime()) {
+			res.Warnings = append(res.Warnings, Skipped{Path: rel, Reason: "changed while it was read"})
+		}
 		e := &res.Entries[len(res.Entries)-1]
 		e.Size = n
 		e.SHA256 = hex.EncodeToString(h.Sum(nil))
@@ -259,6 +283,8 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			opts.Progress(done, rel)
 		}
 		return nil
+	}, func(rel, reason string) {
+		res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: reason})
 	})
 	if walkErr != nil {
 		return nil, walkErr
@@ -414,8 +440,9 @@ func unescape(s string) string {
 }
 
 // walk visits every entry under src in sorted order, applying excludes.
-// rel is the slash path relative to src.
-func walk(src string, opts Options, fn func(rel string, info fs.FileInfo, full string) error) error {
+// rel is the slash path relative to src. Folders and entries that cannot be
+// read are passed to skip (or fail the walk with lockedFiles: fail).
+func walk(src string, opts Options, fn func(rel string, info fs.FileInfo, full string) error, skip func(rel, reason string)) error {
 	var visit func(dir, rel string, depth int) error
 	visit = func(dir, rel string, depth int) error {
 		if depth > 256 {
@@ -429,7 +456,8 @@ func walk(src string, opts Options, fn func(rel string, info fs.FileInfo, full s
 			if opts.LockedFiles == LockedFail {
 				return fmt.Errorf("%w: %s: %w", ErrLocked, rel, err)
 			}
-			return nil
+			// Entries read before the error are still archived.
+			skip(rel+"/", "folder cannot be read completely")
 		}
 		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 		for _, de := range entries {
@@ -447,6 +475,7 @@ func walk(src string, opts Options, fn func(rel string, info fs.FileInfo, full s
 				if opts.LockedFiles == LockedFail {
 					return fmt.Errorf("%w: %s: %w", ErrLocked, r, err)
 				}
+				skip(r, "cannot be read")
 				continue
 			}
 			if info.Mode()&fs.ModeSymlink != 0 && opts.FollowSymlinks {
@@ -492,6 +521,6 @@ func Scan(src string, opts Options) (files int, bytes uint64, err error) {
 			bytes += uint64(max(info.Size(), 0))
 		}
 		return nil
-	})
+	}, func(string, string) {})
 	return files, bytes, err
 }

@@ -85,11 +85,80 @@ func TestLockedFail(t *testing.T) {
 	opts := defaultOpts()
 	opts.LockedFiles = LockedFail
 	dest := filepath.Join(t.TempDir(), "x.zip")
-	_, err := WriteFile(context.Background(), src, dest, opts)
+	_, err := WriteFileTo(t, src, dest, opts)
 	if !errors.Is(err, ErrLocked) {
 		t.Fatalf("err = %v", err)
 	}
 	if _, err := os.Stat(dest + ".part"); !os.IsNotExist(err) {
 		t.Fatal("part file left behind")
+	}
+}
+
+func TestUnreadableFolderIsReported(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs an unreadable folder")
+	}
+	src := t.TempDir()
+	testutil.WriteFile(t, src, "secret/a.txt", "a")
+	testutil.WriteFile(t, src, "ok.txt", "ok")
+	if err := os.Chmod(filepath.Join(src, "secret"), 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(src, "secret"), 0o755) })
+	var buf bytes.Buffer
+	res, err := Write(context.Background(), src, &buf, defaultOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Skipped) != 1 || res.Skipped[0].Path != "secret/" {
+		t.Fatalf("skipped %+v", res.Skipped)
+	}
+	opts := defaultOpts()
+	opts.LockedFiles = LockedFail
+	if _, err := Write(context.Background(), src, &buf, opts); !errors.Is(err, ErrLocked) {
+		t.Fatalf("fail mode: %v", err)
+	}
+}
+
+func TestUnrestorableNames(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("these names cannot be created on Windows")
+	}
+	src := t.TempDir()
+	testutil.WriteFile(t, src, "2024-01-01 10:00.txt", "colon")
+	testutil.WriteFile(t, src, "line\nbreak.txt", "newline")
+	var buf bytes.Buffer
+	res, err := Write(context.Background(), src, &buf, defaultOpts())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Files != 1 || len(res.Skipped) != 1 || res.Skipped[0].Path != "line\nbreak.txt" {
+		t.Fatalf("files %d skipped %+v", res.Files, res.Skipped)
+	}
+	if len(res.Warnings) != 1 || res.Warnings[0].Reason != "name cannot be restored on Windows" {
+		t.Fatalf("warnings %+v", res.Warnings)
+	}
+}
+
+func TestFileSwappedForDevice(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no /dev/zero")
+	}
+	src := t.TempDir()
+	p := testutil.WriteFile(t, src, "x.txt", "x")
+	info, _ := os.Lstat(p)
+	// Simulate a swap between listing and opening: the open handle is a
+	// different file than the one that was listed.
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/dev/zero", p); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := os.Open(p)
+	st, _ := f.Stat()
+	f.Close()
+	if st.Mode().IsRegular() || os.SameFile(st, info) {
+		t.Fatal("test setup: swap not visible on the handle")
 	}
 }

@@ -20,7 +20,7 @@ func writeZip(t *testing.T) (string, *archive.Result) {
 	testutil.WriteFile(t, src, "dir/b.jpg", strings.Repeat("b", 3000))
 	testutil.WriteFile(t, src, "dir/empty", "")
 	dest := filepath.Join(t.TempDir(), "Data.zip")
-	res, err := archive.WriteFile(context.Background(), src, dest, archive.Options{CompressionLevel: 6, StoreExtensions: []string{"jpg"}})
+	res, err := writeFileTo(t, src, dest, archive.Options{CompressionLevel: 6, StoreExtensions: []string{"jpg"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,4 +170,14 @@ func TestEveryByteIsCovered(t *testing.T) {
 			}
 		}
 	}
+}
+
+func writeFileTo(t *testing.T, src, dest string, opts archive.Options) (*archive.Result, error) {
+	t.Helper()
+	root, err := os.OpenRoot(filepath.Dir(dest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	return archive.WriteFile(context.Background(), src, root, filepath.Base(dest), opts)
 }

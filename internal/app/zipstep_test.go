@@ -16,12 +16,19 @@ func zipJob(t *testing.T) ZipJob {
 	src := t.TempDir()
 	testutil.WriteFile(t, src, "a.txt", strings.Repeat("a", 10000))
 	testutil.WriteFile(t, src, "b/c.txt", "c")
-	week := filepath.Join(t.TempDir(), "Backup", "2026", "47")
-	if err := os.MkdirAll(week, 0o755); err != nil {
+	backup := filepath.Join(t.TempDir(), "Backup")
+	if err := os.MkdirAll(filepath.Join(backup, "2026", "47"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	return ZipJob{Src: src, Dest: filepath.Join(week, "Data.zip"), Opts: archive.Options{CompressionLevel: 6}, Verify: true}
+	root, err := os.OpenRoot(backup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { root.Close() })
+	return ZipJob{Src: src, Root: root, Rel: "2026/47/Data.zip", Opts: archive.Options{CompressionLevel: 6}, Verify: true}
 }
+
+func weekDir(job ZipJob) string { return filepath.Join(job.Root.Name(), "2026", "47") }
 
 func TestWriteVerifiedZip(t *testing.T) {
 	job := zipJob(t)
@@ -29,18 +36,18 @@ func TestWriteVerifiedZip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sha, err := os.ReadFile(job.Dest + ".sha256")
+	sha, err := os.ReadFile(filepath.Join(weekDir(job), "Data.zip.sha256"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(sha) != out.SHA256+"  Data.zip\n" {
 		t.Fatalf("sha256 file %q", sha)
 	}
-	sum, _, _ := HashFile(context.Background(), job.Dest)
+	sum, _, _ := HashFile(context.Background(), job.Root, job.Rel)
 	if sum != out.SHA256 {
 		t.Fatal("sha256 does not match file")
 	}
-	got := testutil.Tree(t, filepath.Dir(job.Dest))
+	got := testutil.Tree(t, weekDir(job))
 	if len(got) != 2 {
 		t.Fatalf("week folder: %v", got)
 	}
@@ -68,8 +75,8 @@ func TestSimulatedFailuresLeaveNothing(t *testing.T) {
 	for name, hook := range cases {
 		job := zipJob(t)
 		// An older good zip of the same week must survive.
-		testutil.WriteFile(t, filepath.Dir(job.Dest), "Data.zip", "old good zip")
-		testHookAfterWrite = hook
+		testutil.WriteFile(t, weekDir(job), "Data.zip", "old good zip")
+		testHookAfterWrite = func(part string) error { return hook(filepath.Join(job.Root.Name(), part)) }
 		_, err := WriteVerifiedZip(context.Background(), job)
 		testHookAfterWrite = nil
 		if err == nil {
@@ -82,7 +89,7 @@ func TestSimulatedFailuresLeaveNothing(t *testing.T) {
 		if KindOf(err) != want {
 			t.Errorf("%s: kind %v, want %v", name, KindOf(err), want)
 		}
-		got := testutil.Tree(t, filepath.Dir(job.Dest))
+		got := testutil.Tree(t, weekDir(job))
 		if len(got) != 1 || got["Data.zip"] != "old good zip" {
 			t.Errorf("%s: left behind %v", name, got)
 		}

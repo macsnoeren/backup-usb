@@ -4,7 +4,6 @@ package archive
 
 import (
 	"archive/zip"
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,7 +28,7 @@ func TestLargeFileZip64(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "big.zip")
 	opts := defaultOpts()
 	opts.CompressionLevel = 1
-	res, err := WriteFile(context.Background(), src, dest, opts)
+	res, err := WriteFileTo(t, src, dest, opts)
 	if err != nil {
 		t.Fatal(err)
 	}

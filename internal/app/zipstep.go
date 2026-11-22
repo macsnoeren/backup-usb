@@ -9,7 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/macsnoeren/backup-usb/internal/archive"
@@ -19,8 +19,11 @@ import (
 
 // ZipJob is one unencrypted zip to write.
 type ZipJob struct {
-	Src    string
-	Dest   string // final path, e.g. <disk>/Backup/2026/47/Data.zip
+	Src string
+	// Root is the backup folder on the disk; Rel the zip inside it, for
+	// example "2026/47/Data.zip".
+	Root   *os.Root
+	Rel    string
 	Opts   archive.Options
 	Verify bool
 }
@@ -36,19 +39,21 @@ type ZipOutcome struct {
 // use it to simulate failures.
 var testHookAfterWrite func(part string) error
 
-// WriteVerifiedZip writes job.Dest+".part", verifies it, writes the
-// sha256 file and only then renames the part file. On any failure nothing
-// new is left behind: no .part file and no half final file.
+// WriteVerifiedZip writes job.Rel+".part", verifies it, writes the sha256
+// file and only then renames the part file. On a failure before the rename
+// nothing new is left behind: no .part file and no half final file. The old
+// .sha256 is removed before the rename, so a new zip is never next to a hash
+// that does not belong to it.
 func WriteVerifiedZip(ctx context.Context, job ZipJob) (out *ZipOutcome, err error) {
-	part := job.Dest + fsx.PartSuffix
-	shaPath := job.Dest + ".sha256"
+	part := job.Rel + fsx.PartSuffix
+	shaRel := job.Rel + ".sha256"
 	defer func() {
 		if err != nil {
-			_ = os.Remove(part)
-			_ = os.Remove(shaPath + fsx.PartSuffix)
+			_ = job.Root.Remove(part)
+			_ = job.Root.Remove(shaRel + fsx.PartSuffix)
 		}
 	}()
-	res, err := archive.WriteFile(ctx, job.Src, job.Dest, job.Opts)
+	res, err := archive.WriteFile(ctx, job.Src, job.Root, job.Rel, job.Opts)
 	if err != nil {
 		return nil, classifyWriteErr(err)
 	}
@@ -57,31 +62,50 @@ func WriteVerifiedZip(ctx context.Context, job ZipJob) (out *ZipOutcome, err err
 			return nil, Errorf(KindIO, err, "err.write")
 		}
 	}
+	name := path.Base(job.Rel)
 	if job.Verify {
-		if _, err := verify.File(ctx, part, verify.Options{ExpectedFiles: res.Files, Entries: res.AllEntries()}); err != nil {
-			return nil, Errorf(KindVerify, err, "err.verify", filepath.Base(job.Dest))
+		if err := verifyInRoot(ctx, job.Root, part, verify.Options{ExpectedFiles: res.Files, Entries: res.AllEntries()}); err != nil {
+			return nil, Errorf(KindVerify, err, "err.verify", name)
 		}
 	}
 	// Read the whole zip back from the disk: it must be exactly what was
 	// written.
-	sum, size, err := HashFile(ctx, part)
+	sum, size, err := HashFile(ctx, job.Root, part)
 	if err != nil {
 		return nil, Errorf(KindIO, err, "err.read")
 	}
 	if sum != res.StreamSHA256 || size != res.ZipSize {
-		return nil, Errorf(KindVerify, errors.New("zip read back from disk differs from what was written"), "err.verify", filepath.Base(job.Dest))
+		return nil, Errorf(KindVerify, errors.New("zip read back from disk differs from what was written"), "err.verify", name)
 	}
-	line := archive.ManifestLine(sum, filepath.Base(job.Dest))
-	if err := writeSynced(shaPath+fsx.PartSuffix, []byte(line)); err != nil {
+	if err := writeSynced(job.Root, shaRel+fsx.PartSuffix, []byte(archive.ManifestLine(sum, name))); err != nil {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
-	if err := fsx.Rename(part, job.Dest); err != nil {
+	if err := job.Root.Remove(shaRel); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
-	if err := fsx.Rename(shaPath+fsx.PartSuffix, shaPath); err != nil {
+	if err := fsx.RootRename(job.Root, part, job.Rel); err != nil {
+		return nil, Errorf(KindIO, err, "err.write")
+	}
+	if err := fsx.RootRename(job.Root, shaRel+fsx.PartSuffix, shaRel); err != nil {
+		// The zip is in place but has no hash file: report the failure;
+		// the next run replaces it.
 		return nil, Errorf(KindIO, err, "err.write")
 	}
 	return &ZipOutcome{Result: res, SHA256: sum, Size: size}, nil
+}
+
+func verifyInRoot(ctx context.Context, root *os.Root, rel string, opts verify.Options) error {
+	f, err := root.Open(rel)
+	if err != nil {
+		return fmt.Errorf("open zip: %w", err)
+	}
+	defer func() { _ = f.Close() }() // read-only
+	st, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat zip: %w", err)
+	}
+	_, err = verify.Zip(ctx, f, st.Size(), opts)
+	return err
 }
 
 func classifyWriteErr(err error) error {
@@ -96,32 +120,33 @@ func classifyWriteErr(err error) error {
 	return Errorf(KindIO, err, "err.write")
 }
 
-// writeSynced creates path with data and syncs it.
-func writeSynced(path string, data []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+// writeSynced creates rel inside root exclusively with data and syncs it.
+func writeSynced(root *os.Root, rel string, data []byte) error {
+	f, err := fsx.CreateExclusive(root, rel, 0o600)
 	if err != nil {
-		return fmt.Errorf("create %s: %w", filepath.Base(path), err)
+		return err
 	}
 	_, werr := f.Write(data)
 	serr := f.Sync()
 	cerr := f.Close()
 	if err := errors.Join(werr, serr, cerr); err != nil {
-		return fmt.Errorf("write %s: %w", filepath.Base(path), err)
+		return fmt.Errorf("write %s: %w", path.Base(rel), err)
 	}
 	return nil
 }
 
-// HashFile returns the SHA-256 and size of a file, read from disk.
-func HashFile(ctx context.Context, path string) (string, int64, error) {
-	f, err := os.Open(path)
+// HashFile returns the SHA-256 and size of a file inside root, read from
+// disk.
+func HashFile(ctx context.Context, root *os.Root, rel string) (string, int64, error) {
+	f, err := root.Open(rel)
 	if err != nil {
-		return "", 0, fmt.Errorf("open %s: %w", filepath.Base(path), err)
+		return "", 0, fmt.Errorf("open %s: %w", path.Base(rel), err)
 	}
 	defer func() { _ = f.Close() }() // read-only
 	h := sha256.New()
 	n, err := io.Copy(h, ctxReader{ctx, f})
 	if err != nil {
-		return "", 0, fmt.Errorf("read %s: %w", filepath.Base(path), err)
+		return "", 0, fmt.Errorf("read %s: %w", path.Base(rel), err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), n, nil
 }

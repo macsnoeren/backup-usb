@@ -21,7 +21,7 @@ func TestManifestWithSha256sum(t *testing.T) {
 	}
 	src := makeSource(t)
 	dest := filepath.Join(t.TempDir(), "Data.zip")
-	if _, err := WriteFile(context.Background(), src, dest, defaultOpts()); err != nil {
+	if _, err := WriteFileTo(t, src, dest, defaultOpts()); err != nil {
 		t.Fatal(err)
 	}
 	out := extract(t, dest+".part")

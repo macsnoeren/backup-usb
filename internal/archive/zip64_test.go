@@ -2,7 +2,6 @@ package archive
 
 import (
 	"archive/zip"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,7 +18,7 @@ func TestStoreExtensions(t *testing.T) {
 	opts := defaultOpts()
 	opts.StoreExtensions = []string{"jpg", ".png", "mp4", "docx"}
 	dest := filepath.Join(t.TempDir(), "x.zip")
-	if _, err := WriteFile(context.Background(), src, dest, opts); err != nil {
+	if _, err := WriteFileTo(t, src, dest, opts); err != nil {
 		t.Fatal(err)
 	}
 	zr, err := zip.OpenReader(dest + ".part")
@@ -53,7 +52,7 @@ func TestManyFilesUseZip64(t *testing.T) {
 		}
 	}
 	dest := filepath.Join(t.TempDir(), "many.zip")
-	res, err := WriteFile(context.Background(), src, dest, defaultOpts())
+	res, err := WriteFileTo(t, src, dest, defaultOpts())
 	if err != nil {
 		t.Fatal(err)
 	}
