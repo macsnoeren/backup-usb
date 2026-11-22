@@ -32,7 +32,7 @@ Geen Docker. Alles moet lokaal draaien met `go test`.
 3. Draai `make lint test test-integration`; bij CLI-gedrag ook `make test-e2e`.
 4. Controleer dat `CGO_ENABLED=0 GOOS=windows go build ./...` en `GOOS=linux go build ./...` slagen.
 5. **Security-review** volgens de sectie hieronder. Draai `make security` en loop de checklist na over de diff van deze taak.
-6. Vink de taak af en maak één commit met het taaknummer: `T2.3: zip64 en store-extensies`. Zet in het commitbericht een regel `Security-review: OK` of de gevonden punten.
+6. Vink de taak af en maak één commit met het taaknummer: `T2.3: zip64 and store extensions`. Zet in het commitbericht een regel `Security-review: OK` of de gevonden punten.
 
 Een taak is pas klaar als de security-review geen open punten heeft. Een gevonden probleem wordt in dezelfde taak opgelost, met een test die het probleem aantoont. Kan dat niet, dan komt het onder "Open punten" en gaat de taak niet door.
 
@@ -45,7 +45,7 @@ Een taak is pas klaar als de security-review geen open punten heeft. Een gevonde
 - Nep-schijven en nep-klok (`USB_BACKUP_FAKE_DISKS`, `USB_BACKUP_FAKE_NOW`) alleen met build-tag `fakes`, nooit in een productiebuild.
 - Afhankelijkheden zo min mogelijk: standaardbibliotheek, `filippo.io/age`, windigo (alleen GUI). Nieuwe afhankelijkheid alleen na een notitie onder "Open punten".
 - Fouten met context teruggeven (`fmt.Errorf("...: %w", err)`); exitcodes alleen in `internal/cli`, volgens de tabel in het ontwerp.
-- Teksten voor gebruikers in het Nederlands, via de vertaaltabel; code, commentaar en logberichten in het Engels.
+- Alles in het Engels: code, commentaar, logberichten, gebruikersteksten (via de vertaaltabel `internal/msg`, standaardtaal `en`, Nederlands optioneel), bestandsnamen op de schijf, commitberichten en README. Alleen `docs/tasks.md` en `docs/DESIGN.md` blijven Nederlands.
 
 ## Beveiliging: altijd
 
