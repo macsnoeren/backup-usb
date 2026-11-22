@@ -27,7 +27,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T1.2 Schijfkeuze** Functie die bij een datum en de rotatie-instelling (`oddEven`, `roundRobin`, `any`) zegt welke schijfnaam aan de beurt is. *Klaar als:* tabeltest, inclusief week 53 gevolgd door week 1 (beide oneven).
 - [x] **T1.3 Pakket `config`: laden en standaardwaarden** Struct met alle sleutels uit de instellingentabel, standaardwaarden, laden uit JSON, configuratiemap per platform (`C:\ProgramData\USB Backup`, `/etc/usb-backup` of `~/.config/usb-backup`). *Klaar als:* ontbrekend bestand geeft de standaardwaarden; een onbekende sleutel geeft een duidelijke fout.
 - [x] **T1.4 Config-validatie** Tags (letters, cijfers, `-`, `_`, uniek), bestaande bronpaden, `keepPerDisk >= 0`, geldig `folderPattern`, geldige enums. *Klaar als:* elke ongeldige waarde in een tabeltest geeft een eigen, leesbare fout.
-- [ ] **T1.5 Pakket `logx`** Logboek met tijdstempel, niveaus, omwisselen boven `logMaxSizeMB`, `logKeep` oude bestanden. *Klaar als:* test schrijft voorbij de grens en controleert de omgewisselde bestanden.
+- [x] **T1.5 Pakket `logx`** Logboek met tijdstempel, niveaus, omwisselen boven `logMaxSizeMB`, `logKeep` oude bestanden. *Klaar als:* test schrijft voorbij de grens en controleert de omgewisselde bestanden.
 
 ## Fase 2 – Zip en controle (zonder versleuteling)
 
