@@ -60,3 +60,9 @@ func init() {
 		"msg.plaintextLeft":    {EN: "An unencrypted archive from earlier in this period is still in %s; delete it if it should not stay readable.", NL: "Er staat nog een onversleuteld archief van eerder in deze periode in %s; verwijder het als het niet leesbaar mag blijven."},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.tampered": {EN: "settings or registrations were changed without the operator (signature does not match); nothing was done", NL: "instellingen of registraties zijn gewijzigd zonder beheerder (handtekening klopt niet); er is niets gedaan"},
+	})
+}

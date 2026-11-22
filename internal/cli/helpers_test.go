@@ -15,7 +15,9 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
+	"github.com/macsnoeren/backup-usb/internal/vault"
 	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
@@ -61,6 +63,34 @@ func (w *world) writeConfig() {
 		w.t.Fatal(err)
 	}
 	testutil.WriteFile(w.t, w.cfgDir, config.FileName, string(data))
+	w.resign()
+}
+
+// resign signs the settings and registration list with the operator key,
+// like the CLI does, once keys exist (tests write these files directly).
+func (w *world) resign() {
+	if _, err := os.Stat(filepath.Join(w.cfgDir, config.SigningPubFile)); err != nil {
+		return
+	}
+	v, err := vault.Open(w.vaultPath(), secmemFrom(testPassword))
+	if err != nil {
+		w.t.Fatal(err)
+	}
+	defer v.Close()
+	key := v.SigningKey()
+	defer key.Wipe()
+	for _, f := range []struct{ name, purpose string }{{config.FileName, sign.PurposeConfig}, {config.DefaultDisksFile, sign.PurposeRegistry}} {
+		p := filepath.Join(w.cfgDir, f.name)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		sig, err := sign.SigFile(key.Bytes(), f.purpose, data)
+		if err != nil {
+			w.t.Fatal(err)
+		}
+		testutil.WriteFile(w.t, w.cfgDir, f.name+".sig", string(sig))
+	}
 }
 
 // set changes one setting.
@@ -114,6 +144,7 @@ func (w *world) enrollUnsigned(weeks map[string]string) {
 		w.t.Fatal(err)
 	}
 	testutil.WriteFile(w.t, w.cfgDir, config.DefaultDisksFile, string(data))
+	w.resign()
 }
 
 func (w *world) env() *Env {

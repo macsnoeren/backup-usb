@@ -22,6 +22,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/logx"
 	"github.com/macsnoeren/backup-usb/internal/msg"
 	"github.com/macsnoeren/backup-usb/internal/rotate"
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 	"github.com/macsnoeren/backup-usb/internal/week"
 )
@@ -98,16 +99,25 @@ type found struct {
 	unknown []string // labels of disks with an ID file that does not match
 }
 
-// LoadRegistry reads the registration list from the configuration folder.
+// LoadRegistry reads the registration list from the configuration folder,
+// checking the operator's signature.
 func LoadRegistry(dir string, cfg *config.Config) (*disk.Registry, error) {
-	data, err := config.ReadLimited(cfg.DisksPath(dir), disk.MaxFileSize)
+	pub, err := SigningKey(dir)
+	if err != nil {
+		return nil, err
+	}
+	data, err := readSigned(cfg.DisksPath(dir), disk.MaxFileSize, pub, sign.PurposeRegistry)
 	if errors.Is(err, fs.ErrNotExist) {
 		return &disk.Registry{Version: 1}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return disk.ParseRegistry(data)
+	reg, err := disk.ParseRegistry(data)
+	if err != nil {
+		return nil, Errorf(KindTampered, err, "err.registry")
+	}
+	return reg, nil
 }
 
 // scanDisks looks at all volumes and recognises registered disks. Volumes
@@ -298,7 +308,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	}
 	reg, err := LoadRegistry(deps.ConfigDir, cfg)
 	if err != nil {
-		return nil, Errorf(KindTampered, err, "err.registry")
+		return nil, err
 	}
 
 	deps.emit(Event{Event: "state", State: "searching"})

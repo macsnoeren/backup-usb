@@ -65,7 +65,7 @@ var archiveFileRe = regexp.MustCompile(`^([A-Za-z0-9_-]{1,64})[A-Za-z0-9_.-]*\.z
 func connectedDisks(ctx context.Context, deps *Deps, cfg *config.Config, target string) ([]Candidate, error) {
 	reg, err := LoadRegistry(deps.ConfigDir, cfg)
 	if err != nil {
-		return nil, Errorf(KindTampered, err, "err.registry")
+		return nil, err
 	}
 	f, err := scanDisks(ctx, deps, reg, cfg.RequireHardwareSerial, target)
 	if err != nil {

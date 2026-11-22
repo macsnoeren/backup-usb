@@ -227,6 +227,11 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	if err := fsx.WriteFileAtomic(recPath, RecipientsFile(k.ID, opRcp, bgRcp), 0o644); err != nil {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
+	sk := v.SigningKey()
+	defer sk.Wipe()
+	if err := signExisting(o.ConfigDir, o.Config, sk); err != nil {
+		return nil, err
+	}
 	pub, _ := v.SigningPublic()
 	pubText := base64.StdEncoding.EncodeToString(pub)
 	if err := fsx.WriteFileAtomic(filepath.Join(o.ConfigDir, config.SigningPubFile), []byte(pubText+"\n"), 0o644); err != nil {

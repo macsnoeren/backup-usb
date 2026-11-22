@@ -27,9 +27,9 @@ func (c *ctx) configDir() string {
 // loadConfig loads and validates the settings. Source paths are checked by
 // the run itself, so a missing source gives a clear error there.
 func (c *ctx) loadConfig() (*config.Config, error) {
-	cfg, err := config.Load(c.configDir())
+	cfg, err := app.LoadConfig(c.configDir())
 	if err != nil {
-		return nil, app.Errorf(app.KindUsage, err, "err.config", err.Error())
+		return nil, err
 	}
 	if err := cfg.Validate(config.ValidateOptions{SkipPathCheck: true}); err != nil {
 		return nil, app.Errorf(app.KindUsage, err, "err.config", err.Error())
