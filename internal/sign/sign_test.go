@@ -80,7 +80,7 @@ func TestJSONField(t *testing.T) {
 
 func FuzzVerifyJSON(f *testing.F) {
 	f.Add([]byte(`{"a":1,"signature":"x"}`))
-	_, pub := ed25519.GenerateKey(nil)
+	pub, _, _ := ed25519.GenerateKey(nil)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		if VerifyJSON(pub, PurposeDiskID, data) == nil {
 			t.Fatal("random data verified")
