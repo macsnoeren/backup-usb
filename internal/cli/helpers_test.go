@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
@@ -157,3 +158,14 @@ func exists(p string) bool {
 }
 
 func secmemFrom(s string) *secmem.Buffer { return secmem.From([]byte(s)) }
+
+func testIdentity(t *testing.T, name string) string { return testutil.TestIdentity(t, name) }
+
+func hashOf(p string) (string, int64, error) {
+	root, err := os.OpenRoot(filepath.Dir(p))
+	if err != nil {
+		return "", 0, err
+	}
+	defer root.Close()
+	return app.HashFile(context.Background(), root, filepath.Base(p))
+}
