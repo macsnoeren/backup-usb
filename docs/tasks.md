@@ -31,7 +31,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 
 ## Fase 2 – Zip en controle (zonder versleuteling)
 
-- [ ] **T2.1 Zip van één bronmap** `archive.Write(bron, doel)`: Deflate op `compressionLevel`, UTF-8-namen met `/`, lege mappen, wijzigingsdatum behouden. Schrijft naar `<naam>.part`. *Klaar als:* test met geneste mappen, Unicode-namen, bestanden van 0 bytes; uitgepakt is alles gelijk aan de bron.
+- [x] **T2.1 Zip van één bronmap** `archive.Write(bron, doel)`: Deflate op `compressionLevel`, UTF-8-namen met `/`, lege mappen, wijzigingsdatum behouden. Schrijft naar `<naam>.part`. *Klaar als:* test met geneste mappen, Unicode-namen, bestanden van 0 bytes; uitgepakt is alles gelijk aan de bron.
 - [ ] **T2.2 SHA-256 tijdens schrijven en manifest** Hash per bestand via `io.MultiWriter`, manifest als laatste entry `_backup/manifest.sha256` in `sha256sum`-formaat. *Klaar als:* `sha256sum -c` op een uitgepakte test-zip slaagt.
 - [ ] **T2.3 Zip64 en store-extensies** Types uit `storeExtensions` zonder compressie. Zip64 boven 4 GB of 65.535 bestanden. *Klaar als:* unit-test met 70.000 kleine bestanden; een test met een bestand groter dan 4 GB achter een build-tag `long`.
 - [ ] **T2.4 Uitsluitingen en vergrendelde bestanden** `exclude` globaal en per bron. Een bestand dat niet te openen is: overslaan en melden (`lockedFiles: skip`) of falen (`fail`). *Klaar als:* tests voor beide instellingen; het rapport noemt het overgeslagen bestand.

@@ -1,0 +1,459 @@
+package archive
+
+import (
+	"archive/zip"
+	"bufio"
+	"compress/flate"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+)
+
+// ManifestName is the last entry of every zip: a sha256sum-compatible list
+// of all files.
+const ManifestName = "_backup/manifest.sha256"
+
+// Locked file handling.
+const (
+	LockedSkip = "skip"
+	LockedFail = "fail"
+)
+
+// Options control how a source folder is archived.
+type Options struct {
+	// CompressionLevel is the Deflate level 1-9; 0 stores everything.
+	CompressionLevel int
+	// StoreExtensions are stored without compression (case-insensitive,
+	// without dot).
+	StoreExtensions []string
+	// Exclude are patterns (path.Match) checked against the base name and,
+	// if they contain "/", against the relative path.
+	Exclude []string
+	// LockedFiles is "skip" (default) or "fail" for files that cannot be
+	// opened.
+	LockedFiles string
+	// FollowSymlinks archives the target of a symlink instead of the link.
+	FollowSymlinks bool
+	// Progress is called after each file with the bytes read so far.
+	Progress func(doneBytes uint64, file string)
+}
+
+// Entry describes one entry of the zip. The list of entries is the index.
+type Entry struct {
+	Path           string    `json:"path"`
+	Dir            bool      `json:"dir,omitempty"`
+	Link           string    `json:"link,omitempty"`
+	Size           uint64    `json:"size"`
+	Modified       time.Time `json:"modified"`
+	Mode           uint32    `json:"mode,omitempty"`
+	SHA256         string    `json:"sha256,omitempty"`
+	CRC32          uint32    `json:"crc32"`
+	Method         uint16    `json:"method"`
+	HeaderOffset   int64     `json:"headerOffset"`
+	DataOffset     int64     `json:"dataOffset"`
+	CompressedSize uint64    `json:"compressedSize"`
+}
+
+// Skipped is a file that was not archived.
+type Skipped struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+}
+
+// Result describes a written zip.
+type Result struct {
+	Entries  []Entry   `json:"entries"`
+	Files    int       `json:"files"`
+	Dirs     int       `json:"dirs"`
+	Bytes    uint64    `json:"bytes"`
+	ZipSize  int64     `json:"zipSize"`
+	Skipped  []Skipped `json:"skipped,omitempty"`
+	Manifest []byte    `json:"-"`
+}
+
+// ErrReadFailed wraps errors reading a source file after it was opened.
+var ErrReadFailed = errors.New("read error in source file")
+
+// ErrLocked wraps errors for files that cannot be opened when LockedFiles is
+// "fail".
+var ErrLocked = errors.New("source file cannot be opened")
+
+type countWriter struct {
+	w io.Writer
+	n int64
+}
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.n += int64(n)
+	return n, err
+}
+
+// Write archives the folder src as a zip stream to w. Paths in the zip use
+// "/" and UTF-8; empty folders are kept as folder entries; modification
+// times and (on Unix) permissions are kept; symlinks are stored as links
+// unless FollowSymlinks is set. The SHA-256 of every file is computed over
+// exactly the bytes that go into the zip, and the manifest is the last
+// entry.
+func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result, error) {
+	st, err := os.Stat(src)
+	if err != nil {
+		return nil, fmt.Errorf("source folder: %w", err)
+	}
+	if !st.IsDir() {
+		return nil, fmt.Errorf("source %s is not a folder", src)
+	}
+	cw := &countWriter{w: w}
+	zw := zip.NewWriter(cw)
+	level := opts.CompressionLevel
+	if level < 1 || level > 9 {
+		level = flate.BestSpeed
+	}
+	zw.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
+		return flate.NewWriter(out, level)
+	})
+	store := map[string]bool{}
+	for _, e := range opts.StoreExtensions {
+		store[strings.ToLower(strings.TrimPrefix(e, "."))] = true
+	}
+
+	res := &Result{}
+	var headers []*zip.FileHeader
+	var done uint64
+	buf := make([]byte, 256<<10)
+
+	addHeader := func(fh *zip.FileHeader, e Entry) (io.Writer, error) {
+		before := cw.n
+		fw, err := zw.CreateHeader(fh)
+		if err != nil {
+			return nil, fmt.Errorf("zip header %s: %w", fh.Name, err)
+		}
+		if err := zw.Flush(); err != nil {
+			return nil, fmt.Errorf("write zip: %w", err)
+		}
+		// The previous file's data descriptor may have been flushed
+		// together with this header; the local header is the last thing
+		// written.
+		local := int64(30 + len(fh.Name) + len(fh.Extra))
+		e.DataOffset = cw.n
+		e.HeaderOffset = cw.n - local
+		if e.HeaderOffset < before {
+			return nil, fmt.Errorf("zip offset bookkeeping failed for %s", fh.Name)
+		}
+		headers = append(headers, fh)
+		res.Entries = append(res.Entries, e)
+		return fw, nil
+	}
+
+	walkErr := walk(src, opts, func(rel string, info fs.FileInfo, full string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if rel == ManifestName {
+			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "reserved name"})
+			return nil
+		}
+		mode := info.Mode()
+		switch {
+		case mode.IsDir():
+			fh := &zip.FileHeader{Name: rel + "/", Method: zip.Store, Modified: info.ModTime()}
+			fh.SetMode(mode)
+			_, err := addHeader(fh, Entry{Path: rel + "/", Dir: true, Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+			if err == nil {
+				res.Dirs++
+			}
+			return err
+		case mode&fs.ModeSymlink != 0:
+			target, err := os.Readlink(full)
+			if err != nil {
+				res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "cannot read link"})
+				return nil
+			}
+			fh := &zip.FileHeader{Name: rel, Method: zip.Store, Modified: info.ModTime()}
+			fh.SetMode(mode)
+			fw, err := addHeader(fh, Entry{Path: rel, Link: target, Size: uint64(len(target)), Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+			if err != nil {
+				return err
+			}
+			sum := sha256.Sum256([]byte(target))
+			res.Entries[len(res.Entries)-1].SHA256 = hex.EncodeToString(sum[:])
+			if _, err := io.WriteString(fw, target); err != nil {
+				return fmt.Errorf("write zip: %w", err)
+			}
+			res.Files++
+			return nil
+		case !mode.IsRegular():
+			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "not a regular file"})
+			return nil
+		}
+
+		f, err := os.Open(full)
+		if err != nil {
+			if opts.LockedFiles == LockedFail {
+				return fmt.Errorf("%w: %s: %w", ErrLocked, rel, err)
+			}
+			res.Skipped = append(res.Skipped, Skipped{Path: rel, Reason: "in use or not readable"})
+			return nil
+		}
+		defer func() { _ = f.Close() }() // read-only
+		method := zip.Deflate
+		if opts.CompressionLevel == 0 || store[strings.ToLower(strings.TrimPrefix(path.Ext(rel), "."))] {
+			method = zip.Store
+		}
+		fh := &zip.FileHeader{Name: rel, Method: method, Modified: info.ModTime()}
+		fh.SetMode(mode)
+		fw, err := addHeader(fh, Entry{Path: rel, Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+		if err != nil {
+			return err
+		}
+		h := sha256.New()
+		n, err := copyBuffer(ctx, io.MultiWriter(fw, h), f, buf)
+		if err != nil {
+			var we writeError
+			if errors.As(err, &we) {
+				return fmt.Errorf("write zip: %w", we.err)
+			}
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return fmt.Errorf("%w: %s: %w", ErrReadFailed, rel, err)
+		}
+		e := &res.Entries[len(res.Entries)-1]
+		e.Size = n
+		e.SHA256 = hex.EncodeToString(h.Sum(nil))
+		res.Files++
+		res.Bytes += n
+		done += n
+		if opts.Progress != nil {
+			opts.Progress(done, rel)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return nil, walkErr
+	}
+
+	manifest := Manifest(res.Entries)
+	mh := &zip.FileHeader{Name: ManifestName, Method: zip.Deflate, Modified: time.Now()}
+	mw, err := zw.CreateHeader(mh)
+	if err != nil {
+		return nil, fmt.Errorf("zip header manifest: %w", err)
+	}
+	if _, err := mw.Write(manifest); err != nil {
+		return nil, fmt.Errorf("write zip: %w", err)
+	}
+	if err := zw.Close(); err != nil {
+		return nil, fmt.Errorf("finish zip: %w", err)
+	}
+	for i, fh := range headers {
+		e := &res.Entries[i]
+		e.CRC32 = fh.CRC32
+		e.Method = fh.Method
+		e.CompressedSize = fh.CompressedSize64
+		if fh.UncompressedSize64 != e.Size {
+			return nil, fmt.Errorf("zip size bookkeeping failed for %s", e.Path)
+		}
+	}
+	res.ZipSize = cw.n
+	res.Manifest = manifest
+	return res, nil
+}
+
+type writeError struct{ err error }
+
+func (e writeError) Error() string { return e.err.Error() }
+
+// copyBuffer copies src to dst, checking ctx between chunks. Write errors
+// are wrapped in writeError so callers can tell them from read errors.
+func copyBuffer(ctx context.Context, dst io.Writer, src io.Reader, buf []byte) (uint64, error) {
+	var n uint64
+	for {
+		if err := ctx.Err(); err != nil {
+			return n, err
+		}
+		r, rerr := src.Read(buf)
+		if r > 0 {
+			if _, werr := dst.Write(buf[:r]); werr != nil {
+				return n, writeError{werr}
+			}
+			n += uint64(r)
+		}
+		if rerr == io.EOF {
+			return n, nil
+		}
+		if rerr != nil {
+			return n, rerr
+		}
+	}
+}
+
+// Manifest returns the sha256sum-compatible manifest for the file entries.
+func Manifest(entries []Entry) []byte {
+	var b strings.Builder
+	for _, e := range entries {
+		if e.Dir {
+			continue
+		}
+		b.WriteString(ManifestLine(e.SHA256, e.Path))
+	}
+	return []byte(b.String())
+}
+
+// ManifestLine formats one sha256sum line. Names with a backslash or a
+// newline are escaped the way GNU sha256sum does.
+func ManifestLine(sum, name string) string {
+	if strings.ContainsAny(name, "\\\n\r") {
+		name = strings.NewReplacer(`\`, `\\`, "\n", `\n`, "\r", `\r`).Replace(name)
+		return `\` + sum + "  " + name + "\n"
+	}
+	return sum + "  " + name + "\n"
+}
+
+// MaxManifestSize bounds manifests read back from a disk.
+const MaxManifestSize = 256 << 20
+
+// ParseManifest parses a sha256sum file into name -> hex sum.
+func ParseManifest(r io.Reader) (map[string]string, error) {
+	out := map[string]string{}
+	sc := bufio.NewScanner(io.LimitReader(r, MaxManifestSize))
+	sc.Buffer(make([]byte, 64<<10), 1<<20)
+	for sc.Scan() {
+		line := sc.Text()
+		if line == "" {
+			continue
+		}
+		escaped := strings.HasPrefix(line, `\`)
+		line = strings.TrimPrefix(line, `\`)
+		sum, name, ok := strings.Cut(line, "  ")
+		if !ok || len(sum) != 64 {
+			return nil, fmt.Errorf("invalid manifest line")
+		}
+		if _, err := hex.DecodeString(sum); err != nil {
+			return nil, fmt.Errorf("invalid manifest line")
+		}
+		if escaped {
+			name = unescape(name)
+		}
+		if _, dup := out[name]; dup {
+			return nil, fmt.Errorf("duplicate manifest entry %q", name)
+		}
+		out[name] = strings.ToLower(sum)
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("read manifest: %w", err)
+	}
+	return out, nil
+}
+
+func unescape(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			i++
+			switch s[i] {
+			case 'n':
+				b.WriteByte('\n')
+			case 'r':
+				b.WriteByte('\r')
+			default:
+				b.WriteByte(s[i])
+			}
+			continue
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// walk visits every entry under src in sorted order, applying excludes.
+// rel is the slash path relative to src.
+func walk(src string, opts Options, fn func(rel string, info fs.FileInfo, full string) error) error {
+	var visit func(dir, rel string, depth int) error
+	visit = func(dir, rel string, depth int) error {
+		if depth > 256 {
+			return fmt.Errorf("folder nesting deeper than 256 levels at %s", rel)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if rel == "" {
+				return fmt.Errorf("read source folder: %w", err)
+			}
+			if opts.LockedFiles == LockedFail {
+				return fmt.Errorf("%w: %s: %w", ErrLocked, rel, err)
+			}
+			return nil
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+		for _, de := range entries {
+			name := de.Name()
+			r := name
+			if rel != "" {
+				r = rel + "/" + name
+			}
+			if excluded(opts.Exclude, name, r) {
+				continue
+			}
+			full := filepath.Join(dir, name)
+			info, err := os.Lstat(full)
+			if err != nil {
+				if opts.LockedFiles == LockedFail {
+					return fmt.Errorf("%w: %s: %w", ErrLocked, r, err)
+				}
+				continue
+			}
+			if info.Mode()&fs.ModeSymlink != 0 && opts.FollowSymlinks {
+				if target, err := os.Stat(full); err == nil && !target.IsDir() {
+					info = target
+				}
+			}
+			if err := fn(r, info, full); err != nil {
+				return err
+			}
+			if info.IsDir() {
+				if err := visit(full, r, depth+1); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return visit(src, "", 0)
+}
+
+func excluded(patterns []string, base, rel string) bool {
+	for _, p := range patterns {
+		target := base
+		if strings.Contains(p, "/") {
+			target = rel
+		}
+		if ok, _ := path.Match(p, target); ok {
+			return true
+		}
+		if ok, _ := path.Match(strings.ToLower(p), strings.ToLower(target)); ok && caseInsensitiveFS {
+			return true
+		}
+	}
+	return false
+}
+
+// Scan returns the number of files and bytes that Write would archive.
+func Scan(src string, opts Options) (files int, bytes uint64, err error) {
+	err = walk(src, opts, func(_ string, info fs.FileInfo, _ string) error {
+		if info.Mode().IsRegular() {
+			files++
+			bytes += uint64(max(info.Size(), 0))
+		}
+		return nil
+	})
+	return files, bytes, err
+}
