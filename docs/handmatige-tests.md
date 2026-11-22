@@ -1,0 +1,12 @@
+# Handmatige tests
+
+Dingen die alleen met echte hardware, Windows, Taakplanner, udev of de GUI
+te controleren zijn. In de bouwomgeving (Linux, zonder Windows-machine en
+zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
+
+## Windows (fase 7)
+
+- [ ] **T7.1** Een echte USB-schijf wordt gevonden: `usb-backup-cli disks` toont schijfletter, label, bestandssysteem, volume-serienummer en vrije ruimte. De systeemschijf ontbreekt.
+- [ ] **T7.2** `disks` toont op een echte schijf alle drie de kenmerken: volume-serienummer, partitie-ID (GPT-GUID, of `MBR:<signature>:<nummer>`) en hardware-serienummer. Controleer ook een goedkope stick zonder serienummer (hardware-serienummer leeg).
+- [ ] **T7.3** `usb-backup-cli status` toont Healthy, Warning, Unhealthy of Unknown; er verschijnt geen PowerShell-venster.
+- [ ] Veilig verwijderen (`ejectAfter: true` of de GUI-knop) werkt; een schijf die nog in gebruik is, geeft een duidelijke fout.
