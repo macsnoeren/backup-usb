@@ -74,7 +74,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T6.2 Ondertekende config** `usb-backup.json` wordt bij opslaan ondertekend met de sleutel uit de vault. Bij elke run eerst controleren; klopt het niet, dan exitcode 7. *Klaar als:* een handmatig aangepaste config geeft exitcode 7; `config set` met wachtwoord werkt.
 - [x] **T6.3 `enroll`** ID-bestand `Backup\disk-id.json` met UUID en serienummers, ondertekend; registratie in `usb-backup.disks.json`, ook ondertekend. Vraagt het vault-wachtwoord. *Klaar als:* een nep-schijf is daarna herkend als BACKUP1 voor oneven weken.
 - [x] **T6.4 Herkenning bij elke run** Handtekening ID-bestand, UUID in de lijst, volume-serienummer en partitie-ID gelijk, hardware-serienummer gelijk als vastgelegd (of verplicht bij `requireHardwareSerial`). Schijf zonder ID-bestand: stil negeren. *Klaar als:* tests voor een gekopieerd ID-bestand (exitcode 6), een gewone stick (stil), een geformatteerde schijf.
-- [ ] **T6.5 `disks` en `forget`** Geregistreerde en aangesloten schijven naast elkaar; `forget` verwijdert een registratie (met wachtwoord). *Klaar als:* tests voor beide commando's, ook met `--json`.
+- [x] **T6.5 `disks` en `forget`** Geregistreerde en aangesloten schijven naast elkaar; `forget` verwijdert een registratie (met wachtwoord). *Klaar als:* tests voor beide commando's, ook met `--json`.
 
 ## Fase 7 – Echte platformcode
 

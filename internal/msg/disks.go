@@ -12,3 +12,18 @@ func init() {
 		"disk.enrolled":      {EN: "%s registered for %s periods (ID %s).", NL: "%s geregistreerd voor %s periodes (ID %s)."},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.notRegistered":     {EN: "no registered disk %q", NL: "geen geregistreerde schijf %q"},
+		"disk.forgotten":        {EN: "%s is no longer registered. Its backups stay on the disk.", NL: "%s is niet meer geregistreerd. De back-ups blijven op de schijf staan."},
+		"disk.registered":       {EN: "Registered disks:", NL: "Geregistreerde schijven:"},
+		"disk.connected":        {EN: "Connected disks:", NL: "Aangesloten schijven:"},
+		"disk.none":             {EN: "  (none)", NL: "  (geen)"},
+		"disk.state.registered": {EN: "registered as %s", NL: "geregistreerd als %s"},
+		"disk.state.unknown":    {EN: "unknown disk (ID file does not match)", NL: "onbekende schijf (ID-bestand klopt niet)"},
+		"disk.state.plain":      {EN: "not a backup disk", NL: "geen back-upschijf"},
+		"disk.isConnected":      {EN: "connected at %s", NL: "aangesloten op %s"},
+		"disk.notConnected":     {EN: "not connected", NL: "niet aangesloten"},
+	})
+}
