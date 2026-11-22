@@ -53,6 +53,11 @@ type Options struct {
 	// ManifestTime is the modification time of the manifest entry; zero
 	// means now.
 	ManifestTime time.Time
+	// StoredEnd, if set, is called for every stored (uncompressed) entry
+	// once all its data has been written to w, before anything that
+	// follows it. It tells a streaming verifier where the data ends, which
+	// a zip with data descriptors does not say.
+	StoredEnd func(dataOffset, end int64)
 }
 
 // Entry describes one entry of the zip. The list of entries is the index.
@@ -228,6 +233,9 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			if _, err := io.WriteString(fw, target); err != nil {
 				return fmt.Errorf("write zip: %w", err)
 			}
+			if err := announce(zw, cw, opts, res.Entries[len(res.Entries)-1].DataOffset); err != nil {
+				return err
+			}
 			res.Files++
 			return nil
 		case !mode.IsRegular():
@@ -272,6 +280,11 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 				return ctx.Err()
 			}
 			return fmt.Errorf("%w: %s: %w", ErrReadFailed, rel, err)
+		}
+		if method == zip.Store {
+			if err := announce(zw, cw, opts, res.Entries[len(res.Entries)-1].DataOffset); err != nil {
+				return err
+			}
 		}
 		if after, err := f.Stat(); err != nil || uint64(max(after.Size(), 0)) != n || !after.ModTime().Equal(before.ModTime()) {
 			res.Warnings = append(res.Warnings, Skipped{Path: rel, Reason: "changed while it was read"})
@@ -325,6 +338,18 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	res.StreamSHA256 = hex.EncodeToString(streamHash.Sum(nil))
 	res.Manifest = manifest
 	return res, nil
+}
+
+// announce flushes a stored entry's data and reports where it ends.
+func announce(zw *zip.Writer, cw *countWriter, opts Options, dataOffset int64) error {
+	if opts.StoredEnd == nil {
+		return nil
+	}
+	if err := zw.Flush(); err != nil {
+		return fmt.Errorf("write zip: %w", err)
+	}
+	opts.StoredEnd(dataOffset, cw.n)
+	return nil
 }
 
 // pooledFlate returns its flate writer to the pool on Close, so archives
