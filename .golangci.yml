@@ -36,6 +36,9 @@ linters:
         linters: [gosec]
       - path: scripts/
         linters: [gosec]
+      # The translation table holds Dutch texts.
+      - path: internal/msg/
+        linters: [misspell]
 formatters:
   enable:
     - gofmt
