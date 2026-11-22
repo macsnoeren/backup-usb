@@ -73,16 +73,14 @@ func openSource(root *os.Root, folder, tag string, ids []age.Identity) (*openedS
 	} else {
 		src.zip, src.zipSize = f, st.Size()
 	}
+	// The archive itself opened with the key, so an index that does not
+	// read (missing, damaged, wrong size) is not fatal: fall back to the
+	// zip's own central directory and manifest.
 	ix, err := ReadIndex(root, folder, tag, ids)
-	switch {
-	case err == nil && ix.ZipSize == src.zipSize:
+	if err == nil && ix.ZipSize == src.zipSize && strings.EqualFold(ix.Tag, tag) {
 		src.index, src.fromIndex = ix, true
 		return src, nil
-	case err != nil && KindOf(err) == KindDecrypt:
-		src.Close()
-		return nil, err
 	}
-	// No usable index: read the zip itself.
 	if err := src.indexFromZip(tag, name); err != nil {
 		src.Close()
 		return nil, err
