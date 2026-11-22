@@ -35,7 +35,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T2.2 SHA-256 tijdens schrijven en manifest** Hash per bestand via `io.MultiWriter`, manifest als laatste entry `_backup/manifest.sha256` in `sha256sum`-formaat. *Klaar als:* `sha256sum -c` op een uitgepakte test-zip slaagt.
 - [x] **T2.3 Zip64 en store-extensies** Types uit `storeExtensions` zonder compressie. Zip64 boven 4 GB of 65.535 bestanden. *Klaar als:* unit-test met 70.000 kleine bestanden; een test met een bestand groter dan 4 GB achter een build-tag `long`.
 - [x] **T2.4 Uitsluitingen en vergrendelde bestanden** `exclude` globaal en per bron. Een bestand dat niet te openen is: overslaan en melden (`lockedFiles: skip`) of falen (`fail`). *Klaar als:* tests voor beide instellingen; het rapport noemt het overgeslagen bestand.
-- [ ] **T2.5 Pakket `verify`** Zip openen, elk bestand uitpakken naar `io.Discard`, CRC-32 laten controleren, SHA-256 vergelijken met het manifest, aantal moet kloppen. *Klaar als:* één gewijzigde byte en een ontbrekende entry worden allebei gevonden.
+- [x] **T2.5 Pakket `verify`** Zip openen, elk bestand uitpakken naar `io.Discard`, CRC-32 laten controleren, SHA-256 vergelijken met het manifest, aantal moet kloppen. *Klaar als:* één gewijzigde byte en een ontbrekende entry worden allebei gevonden.
 - [ ] **T2.6 Hash van de hele zip en hernoemen** `<naam>.sha256` schrijven, `Sync()`, pas na geslaagde controle `.part` hernoemen. Achtergebleven `.part` bij start opruimen. *Klaar als:* een gesimuleerde fout laat geen `.part` en geen half eindbestand achter.
 
 ## Fase 3 – Back-up-flow met nep-schijven
