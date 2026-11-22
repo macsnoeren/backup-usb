@@ -13,6 +13,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
+	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
 	"github.com/macsnoeren/backup-usb/internal/week"
 )
@@ -154,3 +155,5 @@ func exists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
 }
+
+func secmemFrom(s string) *secmem.Buffer { return secmem.From([]byte(s)) }
