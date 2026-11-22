@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 // FakeDisk is one fake disk in a fake disk file. Only used by tests and by
@@ -16,6 +18,9 @@ type FakeDisk struct {
 	Unmounted bool `json:"unmounted,omitempty"`
 	// Ejected is set by Eject.
 	Ejected bool `json:"ejected,omitempty"`
+	// Capacity, if set, makes the free space Capacity minus the bytes
+	// stored under Mount, so deleting files frees space.
+	Capacity uint64 `json:"capacity,omitempty"`
 }
 
 // FakeFile is the content of the file named by USB_BACKUP_FAKE_DISKS.
@@ -83,7 +88,28 @@ func (f *FakeFinder) Space(_ context.Context, v Volume) (uint64, uint64, error) 
 	if err != nil {
 		return 0, 0, err
 	}
-	return ff.Disks[i].FreeBytes, ff.Disks[i].TotalBytes, nil
+	d := ff.Disks[i]
+	if d.Capacity > 0 {
+		used := du(d.Mount)
+		if used >= d.Capacity {
+			return 0, d.Capacity, nil
+		}
+		return d.Capacity - used, d.Capacity, nil
+	}
+	return d.FreeBytes, d.TotalBytes, nil
+}
+
+func du(dir string) uint64 {
+	var n uint64
+	_ = filepath.WalkDir(dir, func(_ string, de fs.DirEntry, err error) error {
+		if err == nil && de.Type().IsRegular() {
+			if info, err := de.Info(); err == nil {
+				n += uint64(max(info.Size(), 0))
+			}
+		}
+		return nil
+	})
+	return n
 }
 
 // Health implements Finder.
