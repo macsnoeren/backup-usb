@@ -24,7 +24,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 ## Fase 1 – Basisbouwstenen
 
 - [x] **T1.1 Pakket `week`** ISO-week via `time.ISOWeek()`, mapnaam volgens `folderPattern` (`{jaar}\{week}` met voorloopnul), schema's `isoWeek`, `day`, `month`. *Klaar als:* tests voor 2026-W53, 2027-W01, week 5 wordt `05`, en elk schema.
-- [ ] **T1.2 Schijfkeuze** Functie die bij een datum en de rotatie-instelling (`oddEven`, `roundRobin`, `any`) zegt welke schijfnaam aan de beurt is. *Klaar als:* tabeltest, inclusief week 53 gevolgd door week 1 (beide oneven).
+- [x] **T1.2 Schijfkeuze** Functie die bij een datum en de rotatie-instelling (`oddEven`, `roundRobin`, `any`) zegt welke schijfnaam aan de beurt is. *Klaar als:* tabeltest, inclusief week 53 gevolgd door week 1 (beide oneven).
 - [ ] **T1.3 Pakket `config`: laden en standaardwaarden** Struct met alle sleutels uit de instellingentabel, standaardwaarden, laden uit JSON, configuratiemap per platform (`C:\ProgramData\USB Backup`, `/etc/usb-backup` of `~/.config/usb-backup`). *Klaar als:* ontbrekend bestand geeft de standaardwaarden; een onbekende sleutel geeft een duidelijke fout.
 - [ ] **T1.4 Config-validatie** Tags (letters, cijfers, `-`, `_`, uniek), bestaande bronpaden, `keepPerDisk >= 0`, geldig `folderPattern`, geldige enums. *Klaar als:* elke ongeldige waarde in een tabeltest geeft een eigen, leesbare fout.
 - [ ] **T1.5 Pakket `logx`** Logboek met tijdstempel, niveaus, omwisselen boven `logMaxSizeMB`, `logKeep` oude bestanden. *Klaar als:* test schrijft voorbij de grens en controleert de omgewisselde bestanden.
