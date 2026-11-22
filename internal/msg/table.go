@@ -56,11 +56,15 @@ Never pass passwords as arguments: use --password-stdin or the console prompt.
 
 func init() {
 	add(map[string]entry{
-		"err.write":     {EN: "writing to the backup disk failed", NL: "schrijven naar de back-upschijf is mislukt"},
-		"err.read":      {EN: "reading a file failed", NL: "lezen van een bestand is mislukt"},
-		"err.locked":    {EN: "a file could not be opened (lockedFiles: fail)", NL: "een bestand kon niet worden geopend (lockedFiles: fail)"},
-		"err.cancelled": {EN: "cancelled", NL: "geannuleerd"},
-		"err.verify":    {EN: "verification of %s failed; old backups were not deleted", NL: "controle van %s is mislukt; oude back-ups zijn niet verwijderd"},
+		"err.write":        {EN: "writing to the backup disk failed", NL: "schrijven naar de back-upschijf is mislukt"},
+		"err.read":         {EN: "reading a file failed", NL: "lezen van een bestand is mislukt"},
+		"err.locked":       {EN: "a file could not be opened (lockedFiles: fail)", NL: "een bestand kon niet worden geopend (lockedFiles: fail)"},
+		"err.cancelled":    {EN: "cancelled", NL: "geannuleerd"},
+		"err.fat32":        {EN: "%s uses FAT32, which cannot hold a zip larger than 4 GB; use exFAT or NTFS", NL: "%s gebruikt FAT32, dat geen zip groter dan 4 GB aankan; gebruik exFAT of NTFS"},
+		"err.space":        {EN: "not enough free space: %s needed, %s free; nothing was deleted", NL: "te weinig vrije ruimte: %s nodig, %s vrij; er is niets verwijderd"},
+		"err.spaceUnknown": {EN: "the free space of the disk cannot be read", NL: "de vrije ruimte van de schijf kan niet worden gelezen"},
+		"err.notWritable":  {EN: "the backup disk is not writable", NL: "de back-upschijf is niet schrijfbaar"},
+		"err.verify":       {EN: "verification of %s failed; old backups were not deleted", NL: "controle van %s is mislukt; oude back-ups zijn niet verwijderd"},
 	})
 }
 
