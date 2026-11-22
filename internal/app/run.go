@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+
+	"filippo.io/age"
+
 	"errors"
 	"fmt"
 	"io/fs"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/archive"
 	"github.com/macsnoeren/backup-usb/internal/config"
+	"github.com/macsnoeren/backup-usb/internal/crypt"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/fsx"
 	"github.com/macsnoeren/backup-usb/internal/logx"
@@ -323,6 +327,17 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		}
 	}
 
+	// Encryption: on when the recipients file exists (auto) or required
+	// (age). Never write unencrypted data when it should be encrypted.
+	enc, err := encryptionFor(deps.ConfigDir, cfg)
+	if err != nil {
+		return rep, err
+	}
+	if enc != nil {
+		rep.Encrypted = true
+		rep.Keys = enc.Fingerprints()
+	}
+
 	// Disk checks.
 	need := SpaceNeed{MinFreePercent: cfg.MinFreePercent}
 	var sizes []uint64
@@ -388,7 +403,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	warnings := false
 	for i, s := range sources {
 		deps.emit(Event{Event: "state", State: "backup", Tag: s.Tag, Index: i + 1, Count: len(sources), Disk: c.Reg.Name})
-		sr := SourceReport{Tag: s.Tag, Archive: cfg.ArchiveFile(s.Tag)}
+		sr := SourceReport{Tag: s.Tag, Archive: archiveName(cfg, s.Tag, enc != nil)}
 		files, _, _ := archive.Scan(s.Path, archiveOptions(cfg, s))
 		if files == 0 && isEmptyDir(s.Path) {
 			sr.Status = StatusEmpty
@@ -407,7 +422,13 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			}
 			deps.emit(Event{Event: "progress", Tag: s.Tag, Pct: pct, Done: done, Total: total})
 		}
-		out, err := WriteVerifiedZip(ctx, ZipJob{Src: s.Path, Root: root, Rel: path.Join(folder, sr.Archive), Opts: aopts, Verify: cfg.VerifyAfterBackup})
+		job := ZipJob{Src: s.Path, Root: root, Rel: path.Join(folder, sr.Archive), Opts: aopts, Verify: cfg.VerifyAfterBackup}
+		var out *ZipOutcome
+		if enc != nil {
+			out, err = WriteVerifiedEncrypted(ctx, EncJob{ZipJob: job, Recipients: enc.age})
+		} else {
+			out, err = WriteVerifiedZip(ctx, job)
+		}
 		if err != nil {
 			sr.Status = StatusFailed
 			sr.Error = errorText(p, err)
@@ -421,7 +442,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			}
 			continue
 		}
-		fillSource(&sr, out, cfg.VerifyAfterBackup)
+		fillSource(&sr, out, cfg.VerifyAfterBackup || enc != nil)
 		if sr.SkippedCount > 0 || sr.WarningCount > 0 {
 			warnings = true
 		}
@@ -441,7 +462,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 
 	// Everything verified: record state, then rotate.
 	state.AddPattern(cfg.FolderPattern, cfg.Schedule)
-	state.Folders[folder] = FolderRecord{Time: now}
+	state.Folders[folder] = FolderRecord{Time: now, Keys: rep.Keys}
 	folders, err := rotate.Find(root, patterns, cfg.Schedule)
 	if err != nil {
 		deps.Log.Warn("cannot list folders for rotation", "err", err)
@@ -600,7 +621,7 @@ func dryRun(ctx context.Context, deps *Deps, rep *RunReport, c *Candidate, root 
 		rep.FreeBytes = free
 	}
 	for _, s := range cfg.Sources {
-		rep.Sources = append(rep.Sources, SourceReport{Tag: s.Tag, Status: StatusDryRun, Archive: cfg.ArchiveFile(s.Tag)})
+		rep.Sources = append(rep.Sources, SourceReport{Tag: s.Tag, Status: StatusDryRun, Archive: archiveName(cfg, s.Tag, rep.Encrypted)})
 	}
 	rep.DryRun = info
 	rep.Status = StatusDryRun
@@ -629,4 +650,44 @@ func emptyRoot() (*os.Root, error) {
 	r, err := os.OpenRoot(dir)
 	_ = os.Remove(dir)
 	return r, err
+}
+
+// encryption holds the recipients of an encrypted run.
+type encryption struct {
+	*Recipients
+	age []age.Recipient
+}
+
+// encryptionFor decides whether this run encrypts. It returns nil for an
+// unencrypted run, and an error (KindDiskCheck, exit code 10) when
+// encryption is required but the recipients are missing or invalid.
+func encryptionFor(dir string, cfg *config.Config) (*encryption, error) {
+	if cfg.Encryption == config.EncryptionNone {
+		return nil, nil
+	}
+	p := cfg.RecipientsPath(dir)
+	rec, err := ReadRecipients(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		if cfg.Encryption == config.EncryptionAge {
+			return nil, Errorf(KindDiskCheck, nil, "err.noRecipients", p)
+		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, Errorf(KindDiskCheck, err, "err.badRecipients", p)
+	}
+	rs, err := rec.AgeRecipients()
+	if err != nil {
+		return nil, Errorf(KindDiskCheck, err, "err.badRecipients", p)
+	}
+	return &encryption{Recipients: rec, age: rs}, nil
+}
+
+// archiveName is the file name of a source's archive.
+func archiveName(cfg *config.Config, tag string, encrypted bool) string {
+	n := cfg.ArchiveFile(tag)
+	if encrypted {
+		n += crypt.Suffix
+	}
+	return n
 }

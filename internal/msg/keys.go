@@ -22,3 +22,10 @@ func init() {
 		"keys.created":        {EN: "Keys created.\n  vault:       %s\n  recipients:  %s\n  operational: %s (%s)\n  break-glass: fingerprint %s, written to %s\nStore the break-glass key offline now. Without the vault password AND without the break-glass key, the backups are worthless.", NL: "Sleutels gemaakt.\n  vault:       %s\n  ontvangers:  %s\n  operationeel: %s (%s)\n  break-glass: vingerafdruk %s, geschreven naar %s\nBewaar de break-glass-sleutel nu offline. Zonder vault-wachtwoord EN zonder break-glass-sleutel zijn de back-ups waardeloos."},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.noRecipients":  {EN: "encryption is required but %s is missing; nothing was written (run \"keys init\")", NL: "versleuteling is verplicht maar %s ontbreekt; er is niets geschreven (voer \"keys init\" uit)"},
+		"err.badRecipients": {EN: "the recipients file %s is invalid; nothing was written", NL: "het ontvangersbestand %s is ongeldig; er is niets geschreven"},
+	})
+}
