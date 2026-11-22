@@ -14,6 +14,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 // world is a complete fake machine: configuration folder, source folders,
@@ -58,6 +59,26 @@ func (w *world) writeConfig() {
 		w.t.Fatal(err)
 	}
 	testutil.WriteFile(w.t, w.cfgDir, config.FileName, string(data))
+}
+
+// set changes one setting.
+func (w *world) set(key string, v any) {
+	w.cfgData[key] = v
+	w.writeConfig()
+}
+
+// oldWeeks creates n week folders before the current week on a disk.
+func (w *world) oldWeeks(name string, n int) []string {
+	var rels []string
+	per := week.For(w.clock.Now(), week.ISOWeek)
+	pat, _ := week.ParsePattern(`{year}\{week}`, week.ISOWeek)
+	for i := 0; i < n; i++ {
+		per = week.For(per.Start.Add(-time.Hour), week.ISOWeek)
+		rel := pat.Folder(per)
+		testutil.WriteFile(w.t, w.disks.Disk(name).Mount, "Backup/"+rel+"/Data.zip", "old")
+		rels = append(rels, rel)
+	}
+	return rels
 }
 
 func uuid(t *testing.T) string {
