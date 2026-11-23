@@ -17,7 +17,7 @@ import (
 // the result event.
 var streamCommands = map[string]bool{
 	"run": true, "verify": true, "list": true, "restore": true, "status": true,
-	"disks": true, "enroll": true, "version": true,
+	"disks": true, "enroll": true, "version": true, "eject": true,
 }
 
 // streamer writes JSON lines to the real stdout.
@@ -41,6 +41,7 @@ type StreamResult struct {
 	Event   string          `json:"event"` // result or error
 	Code    int             `json:"code"`
 	Key     string          `json:"key,omitempty"`
+	Args    []any           `json:"args,omitempty"`
 	Message string          `json:"message,omitempty"`
 	Report  json.RawMessage `json:"report,omitempty"`
 	Output  string          `json:"output,omitempty"`
@@ -73,7 +74,7 @@ func (e *Env) runStream(c *ctx, cmd *command, args []string) int {
 		res.Event = "error"
 		var ae *app.Error
 		if errors.As(err, &ae) {
-			res.Key = ae.Key
+			res.Key, res.Args = ae.Key, ae.Args
 		}
 		res.Message = appErrText(c, err)
 		if res.Message == "" {

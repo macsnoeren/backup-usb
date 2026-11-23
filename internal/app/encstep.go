@@ -46,6 +46,9 @@ func WriteVerifiedEncrypted(ctx context.Context, job EncJob) (out *ZipOutcome, e
 		}
 	}
 	name := path.Base(job.Rel)
+	if job.OnVerify != nil {
+		job.OnVerify()
+	}
 	sum, size, err := HashFile(ctx, job.Root, part)
 	if err != nil {
 		return nil, Errorf(KindIO, err, "err.read")

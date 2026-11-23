@@ -33,3 +33,10 @@ func init() {
 		"err.noDisksRegistered": {EN: "no backup disks registered yet; register one with \"enroll\"", NL: "nog geen back-upschijven geregistreerd; registreer er een met \"enroll\""},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.eject":    {EN: "%s cannot be removed safely now (still in use?)", NL: "%s kan nu niet veilig worden verwijderd (nog in gebruik?)"},
+		"disk.ejected": {EN: "%s can be removed now.", NL: "%s kan nu worden verwijderd."},
+	})
+}

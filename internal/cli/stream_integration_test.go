@@ -135,3 +135,26 @@ func TestJSONStreamPassword(t *testing.T) {
 		t.Fatalf("%d %s", code, out)
 	}
 }
+
+func TestJSONStreamArgsAndEject(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.disks.Remove("BACKUP1")
+	_, out, _ := w.run("run", "--json-stream")
+	lines := streamLines(t, out)
+	last := lines[len(lines)-1]
+	args, _ := last["args"].([]any)
+	if last["key"] != "err.wrongDisk" || len(args) != 3 || args[1] != "BACKUP1" || args[2] != "BACKUP2" {
+		t.Fatalf("%v", last)
+	}
+	w.mustRun(0, "run", "--any-disk")
+	_, out, _ = w.run("run", "--any-disk", "--force", "--json-stream")
+	if !strings.Contains(out, `"state":"verifying"`) {
+		t.Fatal("no verifying state")
+	}
+	w.mustRun(0, "eject")
+	if code, _, _ := w.run("status", "--json"); code != 0 {
+		t.Fatal("status after eject")
+	}
+	w.mustRun(2, "eject")
+}

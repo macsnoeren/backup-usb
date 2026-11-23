@@ -463,7 +463,11 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 			}
 			deps.emit(Event{Event: "progress", Tag: s.Tag, Pct: pct, Done: done, Total: total})
 		}
-		job := ZipJob{Src: s.Path, Root: root, Rel: path.Join(folder, sr.Archive), Opts: aopts, Verify: cfg.VerifyAfterBackup}
+		idx := i
+		job := ZipJob{Src: s.Path, Root: root, Rel: path.Join(folder, sr.Archive), Opts: aopts, Verify: cfg.VerifyAfterBackup,
+			OnVerify: func() {
+				deps.emit(Event{Event: "state", State: "verifying", Tag: s.Tag, Index: idx + 1, Count: len(sources), Disk: c.Reg.Name})
+			}}
 		var out *ZipOutcome
 		if enc != nil {
 			out, err = WriteVerifiedEncrypted(ctx, EncJob{ZipJob: job, Recipients: enc.age})

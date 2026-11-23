@@ -26,6 +26,8 @@ type ZipJob struct {
 	Rel    string
 	Opts   archive.Options
 	Verify bool
+	// OnVerify is called when writing is done and checking starts.
+	OnVerify func()
 }
 
 // ZipOutcome is the result of a written, verified and renamed zip.
@@ -63,6 +65,9 @@ func WriteVerifiedZip(ctx context.Context, job ZipJob) (out *ZipOutcome, err err
 		}
 	}
 	name := path.Base(job.Rel)
+	if job.OnVerify != nil {
+		job.OnVerify()
+	}
 	if job.Verify {
 		if err := verifyInRoot(ctx, job.Root, part, verify.Options{ExpectedFiles: res.Files, Entries: res.AllEntries()}); err != nil {
 			return nil, Errorf(KindVerify, err, "err.verify", name)
