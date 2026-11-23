@@ -17,6 +17,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/msg"
 	"github.com/macsnoeren/backup-usb/internal/password"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
+	"github.com/macsnoeren/backup-usb/internal/task"
 	"github.com/macsnoeren/backup-usb/internal/volume"
 )
 
@@ -46,6 +47,10 @@ type Env struct {
 	Console password.Source
 	// LockPath overrides the single-instance lock (tests).
 	LockPath string
+	// Tasks replaces the task registrar (tests).
+	Tasks task.Registrar
+	// Executable replaces the path of this program (tests).
+	Executable string
 }
 
 // Run executes the command line in args (args[0] is the program name) and

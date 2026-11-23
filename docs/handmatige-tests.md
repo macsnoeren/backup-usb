@@ -17,3 +17,8 @@ zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
 - [ ] Een echte USB-stick die niet gekoppeld is, wordt bij `run` via `udisksctl` gekoppeld en daarna weer ontkoppeld (als gewone gebruiker), en als root naar `/run/usb-backup/<uuid>` met `nosuid,nodev,noexec`.
 - [ ] **T7.5** `status` toont de gezondheid via `smartctl -H` op een schijf die SMART doorgeeft; zonder smartmontools "Unknown".
 - [ ] **T7.7 (Windows)** `TestLongPaths` slaagt op de Windows-CI-runner (pad langer dan 260 tekens, backup en herstel).
+
+## Planning (fase 8)
+
+- [ ] **T8.2** `usb-backup-cli install` (Windows): de taak "USB Backup" verschijnt in Taakplanner, start bij het insteken van een geregistreerde schijf (met de GUI als `usb-backup.exe` ernaast staat) en toont het venster in de sessie van de gebruiker. `install --trigger daily --at 02:00` maakt "USB Backup (daily)". `uninstall --trigger all` haalt alles weg.
+- [ ] **T8.3** Op Linux (als root): `install --trigger daily` maakt `usb-backup-daily.timer` (zichtbaar in `systemctl list-timers`); `install --trigger usb` maakt de udev-regel en `usb-backup@.service`; insteken van een geregistreerde stick start de service (`journalctl -u 'usb-backup@*'`).

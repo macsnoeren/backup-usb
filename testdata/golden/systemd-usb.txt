@@ -1,0 +1,22 @@
+### 99-usb-backup.rules
+# USB Backup: start a backup when a registered disk is plugged in.
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="A41C-77E2", TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-backup@A41C-77E2.service"
+ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="0f3c1e2a-9b8d-4c7e-a6f5-112233445566", TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-backup@0f3c1e2a-9b8d-4c7e-a6f5-112233445566.service"
+
+### usb-backup@.service
+[Unit]
+Description=USB Backup to the disk with file system UUID %I
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/usb-backup-cli run --quiet-skip --wait 30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=12h
+
