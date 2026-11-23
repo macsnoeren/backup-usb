@@ -108,7 +108,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T10.1 `--json-stream`** De CLI schrijft voortgang en resultaat als JSON-regels naar stdout (`progress`, `state`, `result`, `error`) en leest een annuleersignaal van stdin. *Klaar als:* een test leest de regels van een volledige run; annuleren laat geen `.part` achter.
 - [x] **T10.2 Wachtwoord via pipe** Bij `--json-stream` leest de CLI het wachtwoord als eerste regel van stdin, gewist na gebruik. *Klaar als:* test met een pipe; het wachtwoord komt nergens in de uitvoer.
 - [x] **T10.3 Versiecontrole** De GUI controleert bij start of `usb-backup-cli.exe` dezelfde versie heeft. *Klaar als:* test met een afwijkende versie geeft een duidelijke fout.
-- [ ] **T10.4 `config` en import/export** `config add-source`, `remove-source`, `set`, `import`, `export` (zonder sleutels of vault). *Klaar als:* export op de ene en import op de andere nep-machine geeft dezelfde instellingen.
+- [x] **T10.4 `config` en import/export** `config add-source`, `remove-source`, `set`, `import`, `export` (zonder sleutels of vault). *Klaar als:* export op de ene en import op de andere nep-machine geeft dezelfde instellingen.
 
 ## Fase 11 – GUI (Windows)
 

@@ -27,3 +27,9 @@ func init() {
 		"disk.notConnected":     {EN: "not connected", NL: "niet aangesloten"},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.noDisksRegistered": {EN: "no backup disks registered yet; register one with \"enroll\"", NL: "nog geen back-upschijven geregistreerd; registreer er een met \"enroll\""},
+	})
+}

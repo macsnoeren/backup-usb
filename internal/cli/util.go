@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/msg"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/vault"
 )
@@ -38,3 +39,5 @@ func readSecretFile(p string, maxSize int64) (*secmem.Buffer, error) {
 	}
 	return buf, nil
 }
+
+func msgLang(s string) msg.Lang { return msg.Lang(s) }

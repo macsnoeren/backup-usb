@@ -242,6 +242,8 @@ func pickDisk(ctx context.Context, deps *Deps, cfg *config.Config, reg *disk.Reg
 			return nil, Errorf(KindWrongDisk, nil, "err.wrongDisk", per.Label(), strings.Join(dueOrAny(due), " / "), f.known[0].Reg.Name)
 		case len(f.unknown) > 0:
 			return nil, Errorf(KindUnknownDisk, nil, "err.unknownDisk", f.unknown[0])
+		case len(reg.Disks) == 0:
+			return nil, Errorf(KindNoDisk, nil, "err.noDisksRegistered")
 		default:
 			return nil, Errorf(KindNoDisk, nil, "err.noDisk", strings.Join(dueOrAny(due), " / "))
 		}
