@@ -85,7 +85,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T7.5 Linux: gezondheid** `smartctl -H` als het aanwezig is, anders onbekend. *Klaar als:* test met een nep-`smartctl` in het PATH.
 - [ ] **T7.6 Pakket `lock`** Windows: benoemde mutex `Global\UsbBackup`. Linux: `flock` op `/run/lock/usb-backup.lock`. Tweede instantie: exitcode 5. *Klaar als:* test start twee processen tegelijk.
 - [x] **T7.7 Lange paden en Linux-rechten** Paden langer dan 260 tekens op Windows. Op Linux eigenaar, groep en rechten in de zip; symlinks als link. *Klaar als:* tests op beide CI-runners.
-- [ ] **T7.8 `status`** Aangesloten back-upschijven: naam, gezondheid, vrije ruimte, aantal mappen, laatste back-up, en of er ooit met de break-glass-sleutel is getest. *Klaar als:* uitvoer als tekst en JSON.
+- [x] **T7.8 `status`** Aangesloten back-upschijven: naam, gezondheid, vrije ruimte, aantal mappen, laatste back-up, en of er ooit met de break-glass-sleutel is getest. *Klaar als:* uitvoer als tekst en JSON.
 
 ## Fase 8 – Planning en triggers
 
