@@ -49,10 +49,11 @@ func findVolume(ctx context.Context, deps *Deps, target string) (volume.Volume, 
 			continue
 		}
 		if v.Mount == "" {
-			m, _, err := deps.Finder.Mount(ctx, v)
+			m, undo, err := deps.Finder.Mount(ctx, v)
 			if err != nil {
 				return v, Errorf(KindDiskCheck, err, "err.mount", target)
 			}
+			deps.trackMount(undo)
 			v = m
 		}
 		return v, nil

@@ -63,16 +63,18 @@ func validArg(a string) bool {
 // at the start of the payload (the nonce).
 func ParseHeader(r *bufio.Reader) (*Header, error) {
 	read := 0
+	// ReadSlice never reads past the reader's buffer, so a huge line on a
+	// crafted disk cannot make the parser allocate much memory.
 	line := func() (string, error) {
-		s, err := r.ReadString('\n')
-		read += len(s)
-		if read > maxHeaderSize {
-			return "", headerErr("header too large")
+		b, err := r.ReadSlice('\n')
+		read += len(b)
+		if read > maxHeaderSize || errors.Is(err, bufio.ErrBufferFull) {
+			return "", headerErr("header line too long")
 		}
 		if err != nil {
 			return "", headerErr("header truncated")
 		}
-		return s, nil
+		return string(b), nil
 	}
 	first, err := line()
 	if err != nil {

@@ -214,8 +214,9 @@ func (windowsFinder) Health(ctx context.Context, v Volume) Health {
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	// The drive letter is validated above; it is the only input.
-	cmd := exec.CommandContext(ctx, ps, "-NoProfile", //nolint:gosec // full path; the only input is a validated drive letter "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
-		"(Get-Partition -DriveLetter "+letter+" | Get-Disk).HealthStatus")
+	args := []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+		"(Get-Partition -DriveLetter " + letter + " | Get-Disk).HealthStatus"}
+	cmd := exec.CommandContext(ctx, ps, args...) //nolint:gosec // full path; the only input is a validated drive letter
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.Output()
 	if err != nil {

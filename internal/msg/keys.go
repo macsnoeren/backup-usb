@@ -44,3 +44,9 @@ func init() {
 		"keys.yesNo":      {EN: " [y/N] ", NL: " [j/N] "},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.rewrapDamaged": {EN: "%s is damaged (it does not match its .sha256); it was not re-wrapped", NL: "%s is beschadigd (klopt niet met de .sha256); het is niet opnieuw ingepakt"},
+	})
+}

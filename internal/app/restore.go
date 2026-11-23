@@ -80,7 +80,7 @@ func Restore(ctx context.Context, deps *Deps, cfg *config.Config, opts RestoreOp
 	if dest == "" {
 		return nil, Errorf(KindUsage, nil, "err.restoreDest")
 	}
-	release, err := deps.acquireLock()
+	release, err := deps.AcquireLock()
 	if err != nil {
 		return nil, err
 	}

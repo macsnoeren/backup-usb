@@ -63,6 +63,20 @@ func (c *ctx) logger(cfg *config.Config) *logx.Logger {
 
 // deps builds the application dependencies.
 func (c *ctx) deps(cfg *config.Config) *app.Deps {
+	d := c.newDeps(cfg)
+	c.created = append(c.created, d)
+	return d
+}
+
+// unmountAll undoes the mounts made during the command.
+func (c *ctx) unmountAll() {
+	for _, d := range c.created {
+		d.Unmount()
+	}
+	c.created = nil
+}
+
+func (c *ctx) newDeps(cfg *config.Config) *app.Deps {
 	return &app.Deps{
 		Now:       c.env.Now,
 		Finder:    c.env.Finder,

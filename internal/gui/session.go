@@ -46,11 +46,17 @@ func (s *Session) Expired() bool {
 }
 
 // Password returns a copy of the password for one CLI call (the caller
-// wipes it), or nil when the session is over.
+// wipes it), or nil when the session is over. An expired session is ended
+// here too, so a click after the timeout cannot bring it back.
 func (s *Session) Password() []byte {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.pw == nil {
+		return nil
+	}
+	if s.now().Sub(s.last) >= s.timeout {
+		s.pw.Wipe()
+		s.pw = nil
 		return nil
 	}
 	s.last = s.now()

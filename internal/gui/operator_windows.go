@@ -31,7 +31,6 @@ func (o *operator) t(key string, args ...any) string { return o.main.p.T(key, ar
 
 // call runs a CLI command with the vault password; Touch keeps the session.
 func (o *operator) call(args ...string) Event {
-	o.session.Touch()
 	pw := o.session.Password()
 	if pw == nil {
 		return Event{Event: "error", Code: 13, Message: o.t("gui.loginWrong")}

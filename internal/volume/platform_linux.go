@@ -143,6 +143,10 @@ func (linuxFinder) Health(ctx context.Context, v Volume) Health {
 
 var uuidSafe = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
+// mountableFS are the file systems that are mounted at all; the type is
+// always given, so the kernel never has to guess from untrusted data.
+var mountableFS = map[string]bool{"vfat": true, "exfat": true, "ntfs": true, "ntfs3": true, "ext2": true, "ext3": true, "ext4": true, "btrfs": true, "xfs": true}
+
 // Mount mounts a volume that is not mounted: with udisksctl (no root
 // needed), or as root to /run/usb-backup/<uuid> with nosuid,nodev,noexec.
 // The returned function unmounts it again.
@@ -154,12 +158,15 @@ func (linuxFinder) Mount(ctx context.Context, v Volume) (Volume, func() error, e
 	if !devRe.MatchString(v.Device) {
 		return v, nothing, fmt.Errorf("invalid device %q", v.Device)
 	}
+	if !mountableFS[v.FileSystem] {
+		return v, nothing, fmt.Errorf("file system %q is not mounted by usb-backup", v.FileSystem)
+	}
 	if os.Geteuid() == 0 && mountPath != "" && uuidSafe.MatchString(v.VolumeSerial) {
 		dir := filepath.Join(mountBase, v.VolumeSerial)
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return v, nothing, err
 		}
-		if _, err := run(ctx, 60*time.Second, mountPath, "-o", "nosuid,nodev,noexec", "--", v.Device, dir); err != nil {
+		if _, err := run(ctx, 60*time.Second, mountPath, "-t", v.FileSystem, "-o", "nosuid,nodev,noexec", "--", v.Device, dir); err != nil {
 			return v, nothing, fmt.Errorf("mount: %w", err)
 		}
 		v.Mount = dir
@@ -171,15 +178,23 @@ func (linuxFinder) Mount(ctx context.Context, v Volume) (Volume, func() error, e
 			return err
 		}, nil
 	}
-	out, err := run(ctx, 60*time.Second, udisksctlPath, "mount", "--no-user-interaction", "-b", v.Device)
-	if err != nil {
+	if _, err := run(ctx, 60*time.Second, udisksctlPath, "mount", "--no-user-interaction", "-t", v.FileSystem, "-b", v.Device); err != nil {
 		return v, nothing, fmt.Errorf("udisksctl mount: %w", err)
 	}
-	m := ParseUdisksMount(string(out))
-	if m == "" || !filepath.IsAbs(m) {
-		return v, nothing, errors.New("udisksctl did not report a mount point")
+	// Take the mount point from the kernel, not from udisksctl's text (a
+	// label like "BACKUP." would be cut wrongly).
+	vols, err := linuxFinder{}.Volumes(ctx)
+	if err != nil {
+		return v, nothing, err
 	}
-	v.Mount = m
+	for _, x := range vols {
+		if x.Device == v.Device && x.Mount != "" && filepath.IsAbs(x.Mount) {
+			v.Mount = x.Mount
+		}
+	}
+	if v.Mount == "" {
+		return v, nothing, errors.New("mount point not found after udisksctl mount")
+	}
 	return v, func() error {
 		_, err := run(context.Background(), 60*time.Second, udisksctlPath, "unmount", "--no-user-interaction", "-b", v.Device)
 		return err

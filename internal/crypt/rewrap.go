@@ -3,16 +3,21 @@ package crypt
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"filippo.io/age"
 
 	"github.com/macsnoeren/backup-usb/internal/fsx"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
 )
+
+// ErrDamaged means the file to re-wrap is not the file that was written.
+var ErrDamaged = errors.New("file is damaged")
 
 // ErrDecrypt means the file key could not be unwrapped with the given keys
 // (wrong key or damaged header).
@@ -22,10 +27,12 @@ var ErrDecrypt = errors.New("cannot unwrap the file key")
 // file key is unwrapped with oldIDs, wrapped for recipients, the header MAC
 // recomputed and the payload copied unchanged to rel+".part". The part file
 // is then checked with check (an identity for one of the new recipients):
-// it must yield the same file key and the payload must be byte-equal. Only
-// then the part file replaces the original. On any failure the original is
-// left as it was.
-func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.Recipient, check age.Identity) (err error) {
+// it must yield the same file key and the payload must be byte-equal. When
+// expectedSHA is set, the original file must have that SHA-256 (from its
+// .sha256 file): a damaged file is never re-wrapped, so its damage cannot
+// be hidden behind a new hash. Only then the part file replaces the
+// original. On any failure the original is left as it was.
+func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.Recipient, check age.Identity, expectedSHA string) (err error) {
 	f, err := fsx.OpenRegular(root, rel)
 	if err != nil {
 		return err
@@ -64,9 +71,11 @@ func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.R
 		}
 	}()
 	h := sha256.New()
+	orig := sha256.New()
+	orig.Write(hdr.Marshal()) // byte-equal to the header on disk (strict parser)
 	_, werr := out.Write(nh.Marshal())
 	if werr == nil {
-		_, werr = io.Copy(io.MultiWriter(out, h), payload)
+		_, werr = io.Copy(io.MultiWriter(out, h, orig), payload)
 	}
 	serr := out.Sync()
 	cerr := out.Close()
@@ -74,6 +83,9 @@ func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.R
 		return fmt.Errorf("write %s: %w", part, err)
 	}
 	want := h.Sum(nil)
+	if expectedSHA != "" && hex.EncodeToString(orig.Sum(nil)) != strings.ToLower(expectedSHA) {
+		return fmt.Errorf("%w: the file does not match its .sha256", ErrDamaged)
+	}
 
 	// Check the new file with the new key before it replaces the old one.
 	if err := checkRewrapped(root, part, fileKey.Bytes(), check, want); err != nil {

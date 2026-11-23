@@ -98,7 +98,10 @@ func TestSessionTimeout(t *testing.T) {
 	if s.Expired() {
 		t.Fatal("activity did not extend the session")
 	}
-	now = now.Add(2 * time.Minute)
+	now = now.Add(6 * time.Minute)
+	if s.Password() != nil {
+		t.Fatal("a call after the timeout revived the session")
+	}
 	if !s.Expired() || s.Password() != nil {
 		t.Fatal("session did not end after the timeout")
 	}

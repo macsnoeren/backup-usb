@@ -36,6 +36,9 @@ func TestSystemdGolden(t *testing.T) {
 	if _, err := SystemdFiles(Spec{Trigger: USB, Command: "/x"}); err == nil {
 		t.Fatal("usb rule without disks")
 	}
+	if _, err := SystemdFiles(Spec{Trigger: Daily, At: "02:00", Command: "/usr/bin/x", Args: []string{"--config", "/x\nExecStartPre=/bin/sh -c id"}}); err == nil {
+		t.Fatal("newline injection accepted")
+	}
 	if got := systemdQuote(`a "b" $c 50%`); got != `"a \"b\" $$c 50%%"` {
 		t.Fatal(got)
 	}

@@ -52,13 +52,19 @@ func cmdKeysRotate(c *ctx, args []string) error {
 	if err != nil {
 		return err
 	}
+	deps := c.deps(cfg)
+	release, err := deps.AcquireLock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	v, pw, vp, err := c.openVaultFor(cfg, *stdin, *vaultPath)
 	if err != nil {
 		return err
 	}
 	defer v.Close()
 	defer pw.Wipe()
-	res, err := app.RotateKeys(c.deps(cfg), cfg, v, vp, pw, *full)
+	res, err := app.RotateKeys(deps, cfg, v, vp, pw, *full)
 	if err != nil {
 		return err
 	}
@@ -109,6 +115,12 @@ func cmdKeysRewrap(c *ctx, args []string) error {
 	if err != nil {
 		return err
 	}
+	deps := c.deps(cfg)
+	release, err := deps.AcquireLock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	v, pw, vp, err := c.openVaultFor(cfg, *stdin, *vaultPath)
 	if err != nil {
 		return err
@@ -117,7 +129,6 @@ func cmdKeysRewrap(c *ctx, args []string) error {
 	defer pw.Wipe()
 	ctx, cancel := c.context()
 	defer cancel()
-	deps := c.deps(cfg)
 	rep, err := app.RewrapDisk(ctx, deps, cfg, *target, v, vp, pw, *full)
 	if err != nil {
 		return err

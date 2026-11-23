@@ -17,6 +17,19 @@ func TimerName(t Trigger) string { return "usb-backup-" + string(t) }
 
 var fsUUIDRe = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
+// checkArgs refuses control characters (a newline would start a new
+// directive in the unit file).
+func checkArgs(s Spec) error {
+	for _, a := range append([]string{s.Command}, s.Args...) {
+		for _, r := range a {
+			if r < 0x20 || r == 0x7f {
+				return fmt.Errorf("control character in %q", a)
+			}
+		}
+	}
+	return nil
+}
+
 // systemdQuote quotes an argument for ExecStart.
 func systemdQuote(a string) string {
 	if a != "" && !strings.ContainsAny(a, " \t\"'\\$%;") {
@@ -51,6 +64,9 @@ TimeoutStartSec=12h
 // service.
 func SystemdFiles(s Spec) (map[string]string, error) {
 	if err := s.Validate(); err != nil {
+		return nil, err
+	}
+	if err := checkArgs(s); err != nil {
 		return nil, err
 	}
 	files := map[string]string{}

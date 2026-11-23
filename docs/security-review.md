@@ -70,3 +70,26 @@ Clean according to the review: path checks, hash check before naming,
 offset bounds, canonical JSON (duplicates, escapes, numbers), purpose
 separation, signature-before-data, ID file copy detection, operator key
 required for enroll/forget/config set, key wiping.
+
+## Phases 7–11 – platform code, scheduling, key rotation, JSON stream, GUI (T7.1–T11.11)
+
+Reviewed by a separate review agent over `git diff 34d5123..46c5e2f`, with
+exploit tests via `go test -overlay`.
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | `keys rewrap` opened the vault before taking the lock and saved its copy afterwards: a `keys rotate` (or `keys passwd`) in between was overwritten, losing the new private key. | medium | `keys rotate`, `keys rewrap` and `keys passwd` take the single-instance lock first and only then open the vault; the recipients file is written under the same lock. |
+| 2 | Rewrap copied a bit-rotted payload and wrote a fresh `.sha256`, hiding the damage. | medium | Archives are only re-wrapped when the original matches its `.sha256` (hashed while copying); indexes are decrypted completely first; otherwise the file is left alone with exit 12. Test. |
+| 3 | `/run/lock` is world-writable: any user could hold root's lock, or plant a FIFO that hung it. | medium-low | Root locks in `/run/usb-backup/` (root only), other users in their own runtime folder; opened with `O_NONBLOCK|O_NOFOLLOW` and must be a regular file of the process user. Tests with a FIFO and a symlink. On Windows another session can still create `Global\UsbBackup` first (accepted). |
+| 4 | Root mounted any file system type the stick claimed, and mounts were never undone. | low-medium | Only an allowlist (vfat, exfat, ntfs, ntfs3, ext2/3/4, btrfs, xfs) is mounted, always with `-t`; every mount is undone at the end of the command, an unrecognised volume at once. Test. |
+| 5 | The age header parser read whole lines before checking the size (1 GiB allocation). | low | `ReadSlice` on a 64 KiB buffer. Test with an 8 MiB line. |
+| 6 | The mount point was parsed from `udisksctl` text (`BACKUP.` → `BACKUP`). | low | Taken from the kernel (`lsblk` + `mountinfo`) after mounting. |
+| 7 | A misplaced `//nolint` comment swallowed PowerShell arguments. | low | Argument list fixed. |
+| 8 | Newlines in `install --config` could add directives to a root unit; root units could start a program writable by others. | low | Control characters refused; as root, the program and `--config` folder (and their parents) must belong to root and not be writable by others. Test. |
+| 9 | One click within 5 s after the GUI timeout revived the session; the password field became a Go string. | low | `Session.Password` ends an expired session itself; the password field is read with `GetWindowTextW` into a buffer that is wiped. |
+| 10 | `eject` took no lock and could dismount a disk mid-job. | low | `eject` takes the lock. |
+
+Clean according to the review: external programs (full paths, no shell,
+argument lists, `--` before devices), disk-controlled text in udev rules and
+Task XML, `nosuid,nodev,noexec` root mounts, header MAC and rewrap checks,
+pending-disk bookkeeping, password handling over stdin, error handling.

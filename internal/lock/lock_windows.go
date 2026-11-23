@@ -45,3 +45,6 @@ func fnv(s string) uint32 {
 	}
 	return h
 }
+
+// DefaultPath returns the name of the mutex.
+func DefaultPath() string { return `Global\` + Name }

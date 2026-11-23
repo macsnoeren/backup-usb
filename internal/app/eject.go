@@ -9,6 +9,12 @@ import (
 // Eject safely removes the connected backup disk (or the one matching
 // target).
 func Eject(ctx context.Context, deps *Deps, cfg *config.Config, target string) (string, error) {
+	// Never dismount a disk in the middle of a run or rewrap.
+	release, err := deps.AcquireLock()
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	disks, err := connectedDisks(ctx, deps, cfg, target)
 	if err != nil {
 		return "", err

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/fsx"
@@ -81,6 +82,21 @@ func (s *Systemd) Install(spec Spec) error {
 	if s.UnitDir == "" && os.Geteuid() != 0 {
 		return ErrNeedRoot
 	}
+	if s.UnitDir == "" {
+		// The unit runs as root: the program and the configuration folder
+		// must not be changeable by other users.
+		paths := []string{spec.Command}
+		for i, a := range spec.Args {
+			if a == "--config" && i+1 < len(spec.Args) {
+				paths = append(paths, spec.Args[i+1])
+			}
+		}
+		for _, p := range paths {
+			if err := rootOwned(p); err != nil {
+				return err
+			}
+		}
+	}
 	unitDir, rulesDir := s.dirs()
 	for name, content := range files {
 		dir := unitDir
@@ -101,6 +117,28 @@ func (s *Systemd) Install(spec Spec) error {
 		return s.run("udevadm", "control", "--reload")
 	}
 	return s.run("systemctl", "enable", "--now", TimerName(spec.Trigger)+".timer")
+}
+
+// rootOwned checks that p and every parent folder belong to root and are
+// not writable by group or others.
+func rootOwned(p string) error {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return err
+	}
+	for cur := abs; ; cur = filepath.Dir(cur) {
+		st, err := os.Stat(cur)
+		if err != nil {
+			return err
+		}
+		sys, ok := st.Sys().(*syscall.Stat_t)
+		if !ok || sys.Uid != 0 || st.Mode().Perm()&0o022 != 0 && st.Mode()&os.ModeSticky == 0 {
+			return fmt.Errorf("%s must belong to root and not be writable by others, because the scheduled task runs as root", cur)
+		}
+		if cur == filepath.Dir(cur) {
+			return nil
+		}
+	}
 }
 
 // Uninstall disables and removes the files of a trigger.

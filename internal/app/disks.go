@@ -56,7 +56,8 @@ func Disks(ctx context.Context, deps *Deps, cfg *config.Config) (*DisksReport, e
 	for _, v := range vols {
 		cv := ConnectedVolume{Volume: v, State: DiskPlain}
 		if v.Mount == "" && registeredSerial(reg, v.VolumeSerial) {
-			if m, _, err := deps.Finder.Mount(ctx, v); err == nil {
+			if m, undo, err := deps.Finder.Mount(ctx, v); err == nil {
+				deps.trackMount(undo)
 				v = m
 				cv.Volume = m
 			}

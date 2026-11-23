@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -30,7 +31,8 @@ type RotateResult struct {
 	Full         bool     `json:"full"`
 }
 
-// RotateKeys creates a new operational key: the old one is retired with all
+// RotateKeys (caller holds the lock and opened the vault after it) creates
+// a new operational key: the old one is retired with all
 // registered disks pending, the recipients file is replaced (new
 // operational + break-glass) and signed. New backups use the new key at
 // once; existing ones are re-wrapped per disk with RewrapDisk.
@@ -98,13 +100,10 @@ type RewrapReport struct {
 // RewrapDisk re-wraps (or with full re-encrypts) every encrypted archive
 // and index on the connected disk for the current recipients, checks each
 // file with the new key, updates the .sha256 files and keys.json, and takes
-// the disk off the pending lists in the vault (saved with pw).
+// the disk off the pending lists in the vault (saved with pw). The caller
+// holds the single-instance lock and opened the vault after taking it, so
+// no other key change can be overwritten by this one.
 func RewrapDisk(ctx context.Context, deps *Deps, cfg *config.Config, target string, v *vault.Vault, vaultPath string, pw *secmem.Buffer, forceFull bool) (*RewrapReport, error) {
-	release, err := deps.acquireLock()
-	if err != nil {
-		return nil, err
-	}
-	defer release()
 	enc, err := encryptionFor(deps.ConfigDir, cfg)
 	if err != nil {
 		return nil, err
@@ -188,18 +187,34 @@ func rewrapFolders(ctx context.Context, deps *Deps, cfg *config.Config, root *os
 				continue
 			}
 			deps.emit(Event{Event: "state", State: "rewrapping", Tag: n, Disk: rep.Disk})
-			if full {
+			isArchive := strings.HasSuffix(n, ".zip"+crypt.Suffix)
+			switch {
+			case full:
+				// Decrypting checks every chunk, so damage is found.
 				err = crypt.Reencrypt(root, rel, oldIDs, enc.age, check)
-			} else {
-				err = crypt.Rewrap(root, rel, oldIDs, enc.age, check)
+			case isArchive:
+				var want string
+				want, err = shaOf(root, rel)
+				if err == nil {
+					err = crypt.Rewrap(root, rel, oldIDs, enc.age, check, want)
+				}
+			default:
+				// An index has no .sha256: decrypt it completely first.
+				err = checkDecrypts(root, rel, oldIDs)
+				if err == nil {
+					err = crypt.Rewrap(root, rel, oldIDs, enc.age, check, "")
+				}
 			}
 			if err != nil {
+				if errors.Is(err, crypt.ErrDamaged) {
+					return Errorf(KindVerify, err, "err.rewrapDamaged", rel)
+				}
 				if errors.Is(err, crypt.ErrDecrypt) {
 					return Errorf(KindDecrypt, err, "err.rewrap", rel)
 				}
 				return Errorf(KindIO, err, "err.rewrap", rel)
 			}
-			if strings.HasSuffix(n, ".zip"+crypt.Suffix) {
+			if isArchive {
 				if err := rewriteSHA(ctx, root, rel); err != nil {
 					return err
 				}
@@ -242,6 +257,36 @@ func ageFilesIn(root *os.Root, folder string) ([]string, error) {
 	}
 	sort.Strings(out)
 	return out, nil
+}
+
+// shaOf reads the SHA-256 from the .sha256 file of rel.
+func shaOf(root *os.Root, rel string) (string, error) {
+	data, err := readLimited(root, rel+".sha256", 4096)
+	if err != nil {
+		return "", fmt.Errorf("%w: .sha256 missing", crypt.ErrDamaged)
+	}
+	sum, _, _ := strings.Cut(strings.TrimPrefix(string(data), `\`), "  ")
+	if len(sum) != 64 {
+		return "", fmt.Errorf("%w: .sha256 invalid", crypt.ErrDamaged)
+	}
+	return sum, nil
+}
+
+// checkDecrypts decrypts rel completely (age checks every chunk).
+func checkDecrypts(root *os.Root, rel string, ids []age.Identity) error {
+	f, err := fsx.OpenRegular(root, rel)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	r, err := age.Decrypt(f, ids...)
+	if err != nil {
+		return fmt.Errorf("%w: %w", crypt.ErrDecrypt, err)
+	}
+	if _, err := io.Copy(io.Discard, r); err != nil {
+		return fmt.Errorf("%w: %w", crypt.ErrDamaged, err)
+	}
+	return nil
 }
 
 func rewriteSHA(ctx context.Context, root *os.Root, rel string) error {

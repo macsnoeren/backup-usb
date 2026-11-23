@@ -1,6 +1,11 @@
 package gui
 
 import (
+	"syscall"
+	"unicode/utf16"
+	"unicode/utf8"
+	"unsafe"
+
 	"github.com/rodrigocfd/windigo/co"
 	"github.com/rodrigocfd/windigo/ui"
 )
@@ -42,13 +47,32 @@ func combo(p ui.Parent, x, y, w int, items ...string) *ui.ComboBox {
 	return ui.NewComboBox(p, ui.OptsComboBox().Position(ui.Dpi(x, y)).Width(ui.DpiX(w)).CtrlStyle(co.CBS_DROPDOWNLIST).Texts(items...).Select(0))
 }
 
-// takeSecret reads a password field into a byte slice and clears the
-// field. The control's own text and Go's string copy cannot be wiped; they
-// live only as long as this window.
+var (
+	user32                  = syscall.NewLazyDLL("user32.dll")
+	procGetWindowTextLength = user32.NewProc("GetWindowTextLengthW")
+	procGetWindowText       = user32.NewProc("GetWindowTextW")
+)
+
+// takeSecret reads a password field straight into a UTF-16 buffer, turns
+// it into UTF-8 bytes, wipes the buffer and clears the field. No Go string
+// copy of the password is made; the control's own memory is outside our
+// reach.
 func takeSecret(e *ui.Edit) []byte {
-	b := []byte(e.Text())
+	h := uintptr(e.Hwnd())
+	n, _, _ := procGetWindowTextLength.Call(h)
+	if n == 0 || n > 4096 {
+		e.SetText("")
+		return nil
+	}
+	buf := make([]uint16, n+1)
+	procGetWindowText.Call(h, uintptr(unsafe.Pointer(&buf[0])), n+1) //nolint:errcheck,gosec // Win32 call
+	out := make([]byte, 0, n*3)
+	for _, r := range utf16.Decode(buf[:n]) {
+		out = utf8.AppendRune(out, r)
+	}
+	clear(buf)
 	e.SetText("")
-	return b
+	return out
 }
 
 // askText asks for one line of text.

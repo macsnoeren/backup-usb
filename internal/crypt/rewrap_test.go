@@ -2,6 +2,8 @@ package crypt
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"os"
@@ -26,7 +28,7 @@ func TestRewrap(t *testing.T) {
 	r2, _ := age.ParseHybridRecipient(testutilRecipient(t, "operational2"))
 	bg, _ := age.ParseHybridRecipient(testutilRecipient(t, "breakglass"))
 	op2 := identity(t, "operational2")
-	if err := Rewrap(root, "Data.zip.age", []age.Identity{identity(t, "operational")}, []age.Recipient{r2, bg}, op2); err != nil {
+	if err := Rewrap(root, "Data.zip.age", []age.Identity{identity(t, "operational")}, []age.Recipient{r2, bg}, op2, ""); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, "Data.zip.age"))
@@ -61,12 +63,12 @@ func TestRewrap(t *testing.T) {
 	}
 
 	// With a key that does not fit: ErrDecrypt, file unchanged.
-	err := Rewrap(root, "Data.zip.age", []age.Identity{identity(t, "operational")}, []age.Recipient{r2, bg}, op2)
+	err := Rewrap(root, "Data.zip.age", []age.Identity{identity(t, "operational")}, []age.Recipient{r2, bg}, op2, "")
 	if !errors.Is(err, ErrDecrypt) {
 		t.Fatalf("err = %v", err)
 	}
 	// A check key that is not among the new recipients: refused, unchanged.
-	err = Rewrap(root, "Data.zip.age", []age.Identity{op2}, []age.Recipient{bg}, op2)
+	err = Rewrap(root, "Data.zip.age", []age.Identity{op2}, []age.Recipient{bg}, op2, "")
 	if err == nil {
 		t.Fatal("rewrap succeeded without a working new key")
 	}
@@ -76,5 +78,27 @@ func TestRewrap(t *testing.T) {
 	}
 	if e, _ := os.ReadDir(dir); len(e) != 1 {
 		t.Fatal("part file left after failure")
+	}
+}
+
+func TestRewrapRefusesDamagedFile(t *testing.T) {
+	dir := t.TempDir()
+	var buf bytes.Buffer
+	w, _ := age.Encrypt(&buf, recipients(t)...)
+	w.Write([]byte(strings.Repeat("x", 100000)))
+	w.Close()
+	data := buf.Bytes()
+	sum := sha256.Sum256(data)
+	data[len(data)/2] ^= 1 // bit rot after the backup was written
+	os.WriteFile(filepath.Join(dir, "a.zip.age"), data, 0o600)
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	r2, _ := age.ParseHybridRecipient(testutilRecipient(t, "operational2"))
+	err := Rewrap(root, "a.zip.age", []age.Identity{identity(t, "operational")}, []age.Recipient{r2}, identity(t, "operational2"), hex.EncodeToString(sum[:]))
+	if !errors.Is(err, ErrDamaged) {
+		t.Fatalf("damaged file re-wrapped: %v", err)
+	}
+	if after, _ := os.ReadFile(filepath.Join(dir, "a.zip.age")); !bytes.Equal(after, data) {
+		t.Fatal("file changed")
 	}
 }

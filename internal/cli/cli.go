@@ -99,6 +99,9 @@ type ctx struct {
 	helpOut io.Writer
 	// stream is set with --json-stream.
 	stream *streamer
+	// created are the Deps of this command; their mounts are undone at the
+	// end.
+	created []*app.Deps
 }
 
 type globalOptions struct {
@@ -137,6 +140,7 @@ func (e *Env) Run(args []string) int {
 			break
 		}
 	}
+	defer c.unmountAll()
 	if stream {
 		return e.runStream(c, cmd, rest)
 	}

@@ -104,6 +104,13 @@ func TestParseHeaderErrors(t *testing.T) {
 	}
 }
 
+func TestHugeHeaderLine(t *testing.T) {
+	data := append([]byte("age-encryption.org/v1\n-> X25519 "), bytes.Repeat([]byte("A"), 8<<20)...)
+	if _, err := ParseHeader(bufio.NewReaderSize(bytes.NewReader(data), 64<<10)); err == nil {
+		t.Fatal("huge line accepted")
+	}
+}
+
 func mustExtract(t *testing.T, data []byte) []byte {
 	h, err := age.ExtractHeader(bytes.NewReader(data))
 	if err != nil {

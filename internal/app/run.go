@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/ed25519"
+	"sync"
 
 	"filippo.io/age"
 
@@ -58,10 +60,34 @@ type Deps struct {
 	Events func(Event)
 	// LockPath overrides the single-instance lock (tests).
 	LockPath string
+
+	mountMu sync.Mutex
+	mounts  []func() error
 }
 
-// acquireLock makes sure only one backup runs at a time (exit code 5).
-func (d *Deps) acquireLock() (func(), error) {
+// trackMount remembers a mount this program made, so it is undone at the
+// end of the command.
+func (d *Deps) trackMount(undo func() error) {
+	d.mountMu.Lock()
+	d.mounts = append(d.mounts, undo)
+	d.mountMu.Unlock()
+}
+
+// Unmount undoes every mount made through these Deps.
+func (d *Deps) Unmount() {
+	d.mountMu.Lock()
+	m := d.mounts
+	d.mounts = nil
+	d.mountMu.Unlock()
+	for i := len(m) - 1; i >= 0; i-- {
+		if err := m[i](); err != nil {
+			d.Log.Warn("unmount failed", "err", err)
+		}
+	}
+}
+
+// AcquireLock makes sure only one backup runs at a time (exit code 5).
+func (d *Deps) AcquireLock() (func(), error) {
 	release, err := lock.Acquire(d.LockPath)
 	if errors.Is(err, lock.ErrBusy) {
 		return nil, Errorf(KindBusy, nil, "err.busy")
@@ -152,38 +178,56 @@ func scanDisks(ctx context.Context, deps *Deps, reg *disk.Registry, requireHW bo
 		if target != "" && !matchesTarget(v, target) {
 			continue
 		}
+		undo := func() error { return nil }
 		if v.Mount == "" {
 			if !registeredSerial(reg, v.VolumeSerial) {
 				continue
 			}
-			m, _, err := deps.Finder.Mount(ctx, v)
+			m, u, err := deps.Finder.Mount(ctx, v)
 			if err != nil {
 				deps.Log.Warn("cannot mount volume", "device", v.Device, "err", err)
 				continue
 			}
-			v = m
+			v, undo = m, u
 		}
-		id, raw, err := disk.ReadIDFile(v.Mount)
-		if errors.Is(err, disk.ErrNoIDFile) {
-			if target != "" {
-				f.unknown = append(f.unknown, v.Label)
-			}
-			continue // an ordinary stick: ignore silently
-		}
-		if err != nil {
-			deps.Log.Warn("unreadable ID file", "device", v.Device, "err", err)
-			f.unknown = append(f.unknown, v.Label)
-			continue
-		}
-		r, err := disk.Match(v, id, raw, reg, requireHW, pub)
-		if err != nil {
-			deps.Log.Warn("disk not recognised", "device", v.Device, "label", v.Label, "reason", err)
-			f.unknown = append(f.unknown, v.Label)
-			continue
-		}
-		f.known = append(f.known, Candidate{Vol: v, Reg: *r})
+		recognised := false
+		func() {
+			defer func() {
+				if recognised {
+					deps.trackMount(undo)
+				} else if err := undo(); err != nil {
+					deps.Log.Warn("unmount failed", "device", v.Device, "err", err)
+				}
+			}()
+			recognised = recogniseVolume(deps, f, v, reg, requireHW, pub, target)
+		}()
 	}
 	return f, nil
+}
+
+// recogniseVolume reads the ID file of a mounted volume and adds it to f as
+// known or unknown. It reports whether the volume is a registered disk.
+func recogniseVolume(deps *Deps, f *found, v volume.Volume, reg *disk.Registry, requireHW bool, pub ed25519.PublicKey, target string) bool {
+	id, raw, err := disk.ReadIDFile(v.Mount)
+	if errors.Is(err, disk.ErrNoIDFile) {
+		if target != "" {
+			f.unknown = append(f.unknown, v.Label)
+		}
+		return false // an ordinary stick: ignore silently
+	}
+	if err != nil {
+		deps.Log.Warn("unreadable ID file", "device", v.Device, "err", err)
+		f.unknown = append(f.unknown, v.Label)
+		return false
+	}
+	r, err := disk.Match(v, id, raw, reg, requireHW, pub)
+	if err != nil {
+		deps.Log.Warn("disk not recognised", "device", v.Device, "label", v.Label, "reason", err)
+		f.unknown = append(f.unknown, v.Label)
+		return false
+	}
+	f.known = append(f.known, Candidate{Vol: v, Reg: *r})
+	return true
 }
 
 func registeredSerial(reg *disk.Registry, serial string) bool {
@@ -327,7 +371,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	if err != nil {
 		return nil, err
 	}
-	release, err := deps.acquireLock()
+	release, err := deps.AcquireLock()
 	if err != nil {
 		return nil, err
 	}

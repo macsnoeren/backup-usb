@@ -149,6 +149,11 @@ func cmdKeysPasswd(c *ctx, args []string) error {
 	if *vaultPath == "" {
 		*vaultPath = cfg.Vault()
 	}
+	release, err := c.deps(cfg).AcquireLock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	oldPw, err := c.readPassword(*stdin)
 	if err != nil {
 		return err

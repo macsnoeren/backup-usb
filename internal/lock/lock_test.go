@@ -7,7 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	_ "github.com/macsnoeren/backup-usb/internal/testutil" // -update flag
 )
@@ -61,4 +63,28 @@ func TestTwoProcesses(t *testing.T) {
 		t.Fatal(err)
 	}
 	release2()
+}
+
+func TestLockRefusesSpecialFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Symlink(filepath.Join(dir, "elsewhere"), filepath.Join(dir, "link.lock")); err == nil {
+		if _, err := Acquire(filepath.Join(dir, "link.lock")); err == nil {
+			t.Fatal("symlink lock file accepted")
+		}
+	}
+	if err := mkfifo(filepath.Join(dir, "fifo.lock")); err == nil {
+		done := make(chan error, 1)
+		go func() { _, err := Acquire(filepath.Join(dir, "fifo.lock")); done <- err }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("FIFO lock file accepted")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("a FIFO at the lock path hangs Acquire")
+		}
+	}
+	if p := DefaultPath(); p == "" || strings.HasPrefix(p, "/run/lock") {
+		t.Fatalf("default lock path %q", p)
+	}
 }
