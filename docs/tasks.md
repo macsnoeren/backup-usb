@@ -83,7 +83,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T7.3 Windows: gezondheid** `HealthStatus` van `MSFT_Disk` via een verborgen PowerShell-aanroep of WMI. Onbekend als het niet lukt. *Klaar als:* `status` toont Healthy, Warning, Unhealthy of onbekend.
 - [x] **T7.4 Linux: schijven vinden en koppelen** `lsblk --json`, `/proc/self/mountinfo`, filesystem-UUID, `PARTUUID`, `ID_SERIAL` uit `/run/udev/data`. Niet gekoppeld: via `udisksctl mount` of als root naar `/run/usb-backup/<uuid>`, na afloop ontkoppelen. *Klaar als:* CI-test met een loop-device als nep-USB.
 - [x] **T7.5 Linux: gezondheid** `smartctl -H` als het aanwezig is, anders onbekend. *Klaar als:* test met een nep-`smartctl` in het PATH.
-- [ ] **T7.6 Pakket `lock`** Windows: benoemde mutex `Global\UsbBackup`. Linux: `flock` op `/run/lock/usb-backup.lock`. Tweede instantie: exitcode 5. *Klaar als:* test start twee processen tegelijk.
+- [x] **T7.6 Pakket `lock`** Windows: benoemde mutex `Global\UsbBackup`. Linux: `flock` op `/run/lock/usb-backup.lock`. Tweede instantie: exitcode 5. *Klaar als:* test start twee processen tegelijk.
 - [x] **T7.7 Lange paden en Linux-rechten** Paden langer dan 260 tekens op Windows. Op Linux eigenaar, groep en rechten in de zip; symlinks als link. *Klaar als:* tests op beide CI-runners.
 - [x] **T7.8 `status`** Aangesloten back-upschijven: naam, gezondheid, vrije ruimte, aantal mappen, laatste back-up, en of er ooit met de break-glass-sleutel is getest. *Klaar als:* uitvoer als tekst en JSON.
 
