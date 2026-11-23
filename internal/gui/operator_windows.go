@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -87,16 +86,6 @@ func (o *operator) watchTimeout(m *ui.Modal) {
 	})
 }
 
-// operatorTimeout is the setting operatorTimeoutMinutes.
-func operatorTimeout(c CLI) time.Duration {
-	if ev := c.Call(context.Background(), nil, "config", "show", "operatorTimeoutMinutes"); ev.Event == "result" {
-		if n, err := strconv.Atoi(strings.TrimSpace(ev.Output)); err == nil && n > 0 {
-			return time.Duration(n) * time.Minute
-		}
-	}
-	return 5 * time.Minute
-}
-
 // onGear opens the settings: after the vault password, or, when there are
 // no keys yet, after the first-time setup.
 func onGear(mw *mainWindow) {
@@ -151,7 +140,7 @@ func firstSetup(mw *mainWindow) {
 		return
 	}
 	o.breakglassScreen(mw.wnd, file)
-	o.session = NewSession(pw, operatorTimeout(mw.cli), time.Now) // takes pw over
+	o.session = NewSession(pw, mw.cli.OperatorTimeout(context.Background()), time.Now) // takes pw over
 	o.settings()
 	o.session.End()
 }
@@ -178,7 +167,7 @@ func showOperatorLogin(mw *mainWindow) {
 			_, _ = m.Hwnd().MessageBox(text, p("gui.title"), co.MB_ICONWARNING)
 			return
 		}
-		sess = NewSession(pw, operatorTimeout(mw.cli), time.Now)
+		sess = NewSession(pw, mw.cli.OperatorTimeout(context.Background()), time.Now)
 		closeModal(m)
 	})
 	cancel.On().BnClicked(func() { closeModal(m) })
@@ -229,8 +218,8 @@ func (o *operator) about(parent ui.Parent) {
 // --- General and sources (T11.6) ---
 
 func (o *operator) loadConfig() *config.Config {
-	ev := o.plain("config", "show")
-	cfg, err := config.Parse([]byte(ev.Output))
+	o.session.Touch()
+	cfg, err := o.main.cli.Config(context.Background())
 	if err != nil {
 		return config.Defaults()
 	}
@@ -443,9 +432,7 @@ func (o *operator) keys(parent ui.Parent) {
 			return
 		}
 		ev := o.call("keys", "rotate")
-		var r app.RotateResult
-		_ = json.Unmarshal([]byte(ev.Output), &r)
-		o.report(m, ev, strings.TrimSpace(ev.Output))
+		o.report(m, ev, ev.Text())
 	})
 	update.On().BnClicked(func() {
 		ev := o.call("keys", "rewrap", "--keep-old", "--json")
@@ -453,7 +440,7 @@ func (o *operator) keys(parent ui.Parent) {
 			return
 		}
 		var r app.RewrapReport
-		_ = json.Unmarshal([]byte(ev.Output), &r)
+		_ = json.Unmarshal([]byte(ev.Text()), &r)
 		for _, id := range r.OldKeysFree {
 			if ans, _ := m.Hwnd().MessageBox(o.t("keys.oldFree", id), o.t("gui.title"), co.MB_YESNO|co.MB_ICONQUESTION); ans == co.ID_YES {
 				o.report(m, o.call("keys", "rewrap", "--remove-old"), o.t("keys.oldRemoved", id))

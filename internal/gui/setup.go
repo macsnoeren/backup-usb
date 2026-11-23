@@ -24,8 +24,13 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/config"
+	"github.com/macsnoeren/backup-usb/internal/msg"
 )
 
 // GearAction is what the gear button does.
@@ -73,8 +78,8 @@ func (c CLI) KeysState(ctx context.Context) (app.KeysState, error) {
 		return app.KeysState{}, errors.New(ev.Message)
 	}
 	var st app.KeysState
-	if err := json.Unmarshal([]byte(ev.Output), &st); err != nil || st.State == "" {
-		return app.KeysState{}, fmt.Errorf("unexpected answer from usb-backup-cli: %q", ev.Output)
+	if err := json.Unmarshal([]byte(ev.Text()), &st); err != nil || st.State == "" {
+		return app.KeysState{}, fmt.Errorf("unexpected answer from usb-backup-cli: %q", ev.Text())
 	}
 	return st, nil
 }
@@ -85,4 +90,32 @@ func (c CLI) KeysState(ctx context.Context) (app.KeysState, error) {
 func IsNewFile(path string) bool {
 	_, err := os.Lstat(path)
 	return errors.Is(err, fs.ErrNotExist)
+}
+
+// Config reads the settings.
+func (c CLI) Config(ctx context.Context) (*config.Config, error) {
+	ev := c.Call(ctx, nil, "config", "show")
+	if ev.Event != "result" {
+		return nil, errors.New(ev.Message)
+	}
+	return config.Parse([]byte(ev.Text()))
+}
+
+// OperatorTimeout reads operatorTimeoutMinutes (5 minutes if unreadable).
+func (c CLI) OperatorTimeout(ctx context.Context) time.Duration {
+	if ev := c.Call(ctx, nil, "config", "show", "operatorTimeoutMinutes"); ev.Event == "result" {
+		if n, err := strconv.Atoi(ev.Text()); err == nil && n > 0 {
+			return time.Duration(n) * time.Minute
+		}
+	}
+	return 5 * time.Minute
+}
+
+// Language reads the language setting.
+func (c CLI) Language(ctx context.Context) msg.Lang {
+	l := strings.Trim(c.Call(ctx, nil, "config", "show", "language").Text(), `"`)
+	if l == "nl" || l == "en" {
+		return msg.Lang(l)
+	}
+	return msg.Default
 }

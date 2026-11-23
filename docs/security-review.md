@@ -119,5 +119,10 @@ Self-review of the diff (no separate agent).
 | 3 | `keys init` saved the vault before it found out that the settings folder was not writable. | medium | Writability is checked first; a failed run removes only the files it created. Tests. |
 | 4 | After a password change the new session was not wiped when the settings closed. | low | The current session is ended. |
 
+The window also read JSON answers from `output` while the CLI puts them in
+`report`, so settings, language, timeout and the rewrap result were ignored
+(the fake CLI in the tests had the wrong format). Fixed with `Event.Text`;
+`TestRealCLI` now drives the real CLI.
+
 Skipping the password gives no extra rights: a user who may not write the
 settings folder is refused by the CLI, and existing keys are never replaced.

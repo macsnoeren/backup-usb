@@ -79,7 +79,7 @@ func Main(args []string) int {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		err = cli.CheckVersion(ctx, Version)
 		if err == nil {
-			lang = configLanguage(ctx, cli)
+			lang = cli.Language(ctx)
 		}
 		cancel()
 	}
@@ -94,16 +94,6 @@ func Main(args []string) int {
 	}
 	m := newMainWindow(cli, p, auto)
 	return m.wnd.RunAsMain()
-}
-
-// configLanguage reads the language setting.
-func configLanguage(ctx context.Context, c CLI) msg.Lang {
-	ev := c.Call(ctx, nil, "config", "show", "language")
-	l := strings.Trim(strings.TrimSpace(ev.Output), `"`)
-	if l == "nl" || l == "en" {
-		return msg.Lang(l)
-	}
-	return msg.Default
 }
 
 func newMainWindow(cli CLI, p msg.Printer, auto bool) *mainWindow {

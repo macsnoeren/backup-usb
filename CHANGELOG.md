@@ -19,6 +19,8 @@ as the release notes.
   starts the setup; the new command `keys check` tells the two apart.
 - Windows: the main window stayed frozen after the break-glass screen, and
   choosing an existing file for the break-glass key deleted that file.
+- Windows: the settings screens ignored the real settings (folders, language
+  and timeout were read from the wrong field of the CLI's answer).
 - `keys init` without administrator rights left a vault behind that blocked
   every later attempt; it now checks first and undoes a failed run.
 

@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/macsnoeren/backup-usb/internal/cli"
 	_ "github.com/macsnoeren/backup-usb/internal/testutil" // -update flag
 )
 
@@ -61,6 +62,8 @@ func TestMain(m *testing.M) {
 			time.Sleep(5 * time.Millisecond)
 		}
 		os.Exit(0)
+	case "real":
+		os.Exit(cli.Run(os.Args, os.Stdin, os.Stdout, os.Stderr))
 	case "crash":
 		fmt.Println(`{"event":"state","state":"backup"}`)
 		os.Exit(2)

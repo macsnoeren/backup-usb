@@ -51,6 +51,15 @@ type Event struct {
 	Output  string          `json:"output,omitempty"`
 }
 
+// Text is what the command printed. The CLI puts valid JSON (also a bare
+// number or a quoted word) in Report and anything else in Output.
+func (e Event) Text() string {
+	if e.Output == "" {
+		return strings.TrimSpace(string(e.Report))
+	}
+	return strings.TrimSpace(e.Output)
+}
+
 // CLI starts usb-backup-cli as a child process.
 type CLI struct {
 	// Path is the CLI executable.

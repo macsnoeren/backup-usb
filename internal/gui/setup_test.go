@@ -21,7 +21,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 )
@@ -47,7 +49,7 @@ func TestGearAction(t *testing.T) {
 }
 
 func TestKeysStateCall(t *testing.T) {
-	c := fakeCLI(t, "stream", `FAKE_LINES={"event":"result","code":0,"output":"{\"state\":\"none\",\"vault\":\"v\",\"writable\":true}"}`)
+	c := fakeCLI(t, "stream", `FAKE_LINES={"event":"result","code":0,"report":{"state":"none","vault":"v","writable":true}}`)
 	st, err := c.KeysState(context.Background())
 	if err != nil || st.State != app.KeysNone || !st.Writable || st.Vault != "v" {
 		t.Fatalf("%+v %v", st, err)
@@ -72,5 +74,63 @@ func TestIsNewFile(t *testing.T) {
 	}
 	if IsNewFile(old) || !IsNewFile(filepath.Join(dir, "new.txt")) {
 		t.Fatal("IsNewFile")
+	}
+}
+
+// TestRealCLI drives the real usb-backup-cli like the window does on a
+// fresh installation, so the two cannot disagree about the format.
+func TestRealCLI(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("would use the settings folder of the machine")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_RUNTIME_DIR", home)
+	ctx := context.Background()
+	c := fakeCLI(t, "real")
+
+	st, err := c.KeysState(ctx)
+	if err != nil || ActionFor(st) != GearSetup {
+		t.Fatalf("fresh installation: %+v %v", st, err)
+	}
+	pw := []byte("correct horse battery")
+	bg := filepath.Join(home, "breakglass.txt")
+	if ev := c.Call(ctx, [][]byte{pw, pw}, "keys", "init", "--breakglass-out", bg); ev.Event != "result" {
+		t.Fatalf("keys init: %+v", ev)
+	}
+	if st, err = c.KeysState(ctx); err != nil || ActionFor(st) != GearLogin {
+		t.Fatalf("after setup: %+v %v", st, err)
+	}
+	if ev := c.Call(ctx, [][]byte{[]byte("wrong password!")}, "keys", "status"); ev.Event != "error" || ev.Key != "err.vaultPassword" {
+		t.Fatalf("wrong password: %+v", ev)
+	}
+	src := filepath.Join(home, "Documents")
+	if err := os.Mkdir(src, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"keys", "status"},
+		{"config", "add-source", "--tag", "Data", "--path", src},
+		{"config", "set", "operatorTimeoutMinutes", "7"},
+		{"config", "set", "language", "nl"},
+	} {
+		if ev := c.Call(ctx, [][]byte{pw}, args...); ev.Event != "result" {
+			t.Fatalf("%v: %+v", args, ev)
+		}
+	}
+	cfg, err := c.Config(ctx)
+	if err != nil || len(cfg.Sources) != 1 || cfg.Sources[0].Tag != "Data" {
+		t.Fatalf("settings: %+v %v", cfg, err)
+	}
+	if d := c.OperatorTimeout(ctx); d != 7*time.Minute {
+		t.Fatalf("timeout %v", d)
+	}
+	if l := c.Language(ctx); l != "nl" {
+		t.Fatalf("language %q", l)
+	}
+	ev := c.Call(ctx, [][]byte{pw}, "keys", "rotate")
+	if ev.Event != "result" || ev.Text() == "" {
+		t.Fatalf("keys rotate: %+v", ev)
 	}
 }
