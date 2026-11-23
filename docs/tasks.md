@@ -96,7 +96,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 
 ## Fase 9 – Sleutelrotatie
 
-- [ ] **T9.1 age-header lezen en schrijven** Eigen code volgens de age-specificatie: header parsen, stanza's vervangen, header-MAC opnieuw berekenen. *Klaar als:* een header opnieuw geschreven met dezelfde ontvangers is byte-gelijk; filippo.io/age opent het resultaat.
+- [x] **T9.1 age-header lezen en schrijven** Eigen code volgens de age-specificatie: header parsen, stanza's vervangen, header-MAC opnieuw berekenen. *Klaar als:* een header opnieuw geschreven met dezelfde ontvangers is byte-gelijk; filippo.io/age opent het resultaat.
 - [ ] **T9.2 Rewrap van één bestand** Bestandssleutel uitpakken met de oude sleutel, inpakken voor de nieuwe ontvangers, inhoud ongewijzigd kopiëren naar `.part`, controleren met de nieuwe sleutel, hernoemen. *Klaar als:* na rewrap werkt de oude operationele sleutel niet meer, de nieuwe en de break-glass wel.
 - [ ] **T9.3 `keys rotate`** Nieuw operationeel sleutelpaar, oude op `uitgefaseerd`, alle geregistreerde schijven in `pendingDisks`, nieuwe `usb-backup.recipients`. *Klaar als:* nieuwe back-ups gebruiken de nieuwe sleutel; de vault bevat beide.
 - [ ] **T9.4 `keys rewrap` en `keys status`** Alle `.age`-bestanden op een schijf omzetten, schijf uit `pendingDisks`. Als alle schijven klaar zijn: vragen of de oude sleutel definitief weg mag. *Klaar als:* integratietest met twee nep-schijven na elkaar.

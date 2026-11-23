@@ -138,3 +138,5 @@ func TestFailureRemovesPart(t *testing.T) {
 		t.Fatal("part file left behind")
 	}
 }
+
+func testutilRecipient(t *testing.T, name string) string { return testutil.TestRecipient(t, name) }
