@@ -92,6 +92,7 @@ func cmdVerify(c *ctx, args []string) error {
 	fs.StringVar(&opts.Tag, "tag", "", "check only this source `tag`")
 	fs.BoolVar(&opts.All, "all", false, "check every period folder")
 	c.addKeyFlags(fs, &k)
+	full := fs.Bool("full", false, "unpack encrypted backups completely (asks the vault password)")
 	asJSON := fs.Bool("json", false, "print the result as JSON")
 	pos, err := c.parse(fs, args)
 	if err != nil {
@@ -104,7 +105,7 @@ func cmdVerify(c *ctx, args []string) error {
 	if err != nil {
 		return err
 	}
-	ks, err := c.loadKeys(cfg, k, false)
+	ks, err := c.loadKeys(cfg, k, *full)
 	if err != nil {
 		return err
 	}

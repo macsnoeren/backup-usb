@@ -15,6 +15,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
+	"github.com/macsnoeren/backup-usb/internal/password"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
@@ -234,3 +235,8 @@ func (w *world) diskSerial(idFile []byte, field string) string {
 }
 
 func isWindows() bool { return runtime.GOOS == "windows" }
+
+// passwordReader is a console that answers with pw.
+func passwordReader(pw string) password.Source {
+	return password.Reader{R: strings.NewReader(pw + "\n")}
+}

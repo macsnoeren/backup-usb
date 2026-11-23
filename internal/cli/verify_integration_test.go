@@ -87,3 +87,16 @@ func TestBreakglassNotRecordedWithoutDecryption(t *testing.T) {
 		t.Fatal("break-glass recorded as tested without decrypting anything")
 	}
 }
+
+func TestVerifyFullAsksPassword(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.keysInit()
+	w.mustRun(0, "run")
+	env := w.env()
+	env.Console = passwordReader(testPassword)
+	code, out, errOut := run(t, env, "verify", "--full", "--vault", w.vaultPath())
+	if code != 0 || strings.Count(out, "files unpacked") != 2 {
+		t.Fatalf("%d %s %s", code, out, errOut)
+	}
+}
