@@ -82,3 +82,23 @@ func TestRunEncryptionRequiredButNoKeys(t *testing.T) {
 		t.Fatal("encryption none")
 	}
 }
+
+func TestRecipientsAreSigned(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.keysInit()
+	p := w.cfgDir + "/usb-backup.recipients"
+	data, _ := os.ReadFile(p)
+	// An extra recipient added by someone else: refused.
+	x, _ := age.GenerateHybridIdentity()
+	os.WriteFile(p, append(append([]byte(nil), data...), []byte(x.Recipient().String()+"\n")...), 0o644)
+	w.mustRun(7, "run")
+	// Removed: with keys present this is not "no encryption" but exit 10.
+	os.Remove(p)
+	w.mustRun(10, "run")
+	if exists(w.diskFile("BACKUP1", "Backup/2026")) {
+		t.Fatal("something was written")
+	}
+	os.WriteFile(p, data, 0o644)
+	w.mustRun(0, "run")
+}

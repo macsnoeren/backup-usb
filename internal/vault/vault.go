@@ -195,13 +195,19 @@ func (v *Vault) SigningKey() *secmem.Buffer {
 	return secmem.From(priv)
 }
 
-// SigningPublic returns the Ed25519 public key.
+// SigningPublic returns the Ed25519 public key, derived from the private
+// key (not taken from the metadata).
 func (v *Vault) SigningPublic() (ed25519.PublicKey, error) {
-	pub, err := base64.StdEncoding.DecodeString(v.Meta.SigningPublic)
-	if err != nil || len(pub) != ed25519.PublicKeySize {
-		return nil, errors.New("invalid signing public key in vault")
+	if v.signing.Len() != ed25519.SeedSize {
+		return nil, errors.New("invalid signing key in vault")
 	}
-	return pub, nil
+	priv := ed25519.NewKeyFromSeed(v.signing.Bytes())
+	defer secmem.Wipe(priv)
+	pub, ok := priv.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, errors.New("invalid signing key in vault")
+	}
+	return append(ed25519.PublicKey(nil), pub...), nil
 }
 
 // Close wipes every secret.

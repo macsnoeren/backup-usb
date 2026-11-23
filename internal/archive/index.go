@@ -16,7 +16,7 @@ import (
 const (
 	IndexSuffix = ".index.gz"
 	// MaxIndexSize bounds a decompressed index read from a disk.
-	MaxIndexSize = 1 << 30
+	MaxIndexSize = 128 << 20
 )
 
 // Index describes every entry of one archive, so a backup can be browsed

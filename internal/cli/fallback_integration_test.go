@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/macsnoeren/backup-usb/internal/archive"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
 )
 
@@ -37,5 +38,22 @@ func TestRestoreWithoutIndex(t *testing.T) {
 		if !strings.Contains(out, "notes/todo.txt") || !strings.Contains(errOut, "Index missing") {
 			t.Fatalf("%s: list %q %q", damage, out, errOut)
 		}
+	}
+}
+
+// A plaintext index planted next to an encrypted archive is never used.
+func TestPlantedPlaintextIndexIgnored(t *testing.T) {
+	w := newWorld(t)
+	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	bg := w.keysInit()
+	w.mustRun(0, "run")
+	os.Remove(w.diskFile("BACKUP1", "Backup/2026/47/Data.index.age"))
+	forged := &archive.Index{Version: 1, Tag: "Data", Entries: []archive.Entry{{Path: "evil.txt", Size: 4, DataOffset: 0, CompressedSize: 4}}}
+	f, _ := os.Create(w.diskFile("BACKUP1", "Backup/2026/47/Data.index.gz"))
+	forged.Encode(f)
+	f.Close()
+	out, errOut := w.mustRun(0, "list", "--tag", "Data", "--identity", bg)
+	if strings.Contains(out, "evil.txt") || !strings.Contains(errOut, "Index missing") {
+		t.Fatalf("planted index used:\n%s\n%s", out, errOut)
 	}
 }

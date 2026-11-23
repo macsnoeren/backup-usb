@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -62,31 +61,27 @@ func WriteIndex(root *os.Root, folder, tag, period, archiveName string, created 
 	return fsx.RootRename(root, part, rel)
 }
 
-// ReadIndex reads the index of a tag in a folder, decrypting it with ids
-// if it is encrypted. A missing index gives fs.ErrNotExist.
-func ReadIndex(root *os.Root, folder, tag string, ids []age.Identity) (*archive.Index, error) {
-	for _, enc := range []bool{true, false} {
-		f, err := fsx.OpenRegular(root, path.Join(folder, IndexName(tag, enc)))
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = f.Close() }() // read-only
-		if !enc {
-			return archive.DecodeIndex(f)
-		}
-		if len(ids) == 0 {
-			return nil, errNeedKey
-		}
-		r, err := age.Decrypt(f, ids...)
-		if err != nil {
-			return nil, Errorf(KindDecrypt, err, "err.decrypt", path.Join(folder, IndexName(tag, true)))
-		}
-		return archive.DecodeIndex(r)
+// ReadIndex reads the index of a tag in a folder. For an encrypted archive
+// only the encrypted index counts (decrypted with ids): a plaintext index
+// next to an encrypted archive could have been planted by anyone. A
+// missing index gives fs.ErrNotExist.
+func ReadIndex(root *os.Root, folder, tag string, encrypted bool, ids []age.Identity) (*archive.Index, error) {
+	f, err := fsx.OpenRegular(root, path.Join(folder, IndexName(tag, encrypted)))
+	if err != nil {
+		return nil, err
 	}
-	return nil, os.ErrNotExist
+	defer func() { _ = f.Close() }() // read-only
+	if !encrypted {
+		return archive.DecodeIndex(f)
+	}
+	if len(ids) == 0 {
+		return nil, errNeedKey
+	}
+	r, err := age.Decrypt(f, ids...)
+	if err != nil {
+		return nil, Errorf(KindDecrypt, err, "err.decrypt", path.Join(folder, IndexName(tag, true)))
+	}
+	return archive.DecodeIndex(r)
 }
 
 var errNeedKey = Errorf(KindUsage, nil, "err.needKey")

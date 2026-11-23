@@ -16,6 +16,8 @@ const (
 	PurposeConfig   = "config"
 	PurposeRegistry = "registry"
 	PurposeDiskID   = "disk-id"
+	// PurposeRecipients covers usb-backup.recipients: who can decrypt.
+	PurposeRecipients = "recipients"
 )
 
 // SignatureField is the JSON field that holds an embedded signature.

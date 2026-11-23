@@ -35,7 +35,7 @@ func TestIndexMatchesZip(t *testing.T) {
 			if encrypted && exists(w.diskFile("BACKUP1", "Backup/2026/47/"+tag+".index.gz")) {
 				t.Fatal("unencrypted index next to an encrypted backup")
 			}
-			ix, err := app.ReadIndex(root, "2026/47", tag, ids)
+			ix, err := app.ReadIndex(root, "2026/47", tag, encrypted, ids)
 			if err != nil {
 				t.Fatalf("%s: %v", tag, err)
 			}

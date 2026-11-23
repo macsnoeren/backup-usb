@@ -54,7 +54,7 @@ func TestRestoreChecksHash(t *testing.T) {
 	w.mustRun(0, "run")
 	// Damage the unencrypted index: a wrong SHA-256 for todo.txt.
 	root, _ := os.OpenRoot(w.diskFile("BACKUP1", "Backup"))
-	ix, err := app.ReadIndex(root, "2026/47", "Data", nil)
+	ix, err := app.ReadIndex(root, "2026/47", "Data", false, nil)
 	root.Close()
 	if err != nil {
 		t.Fatal(err)
@@ -86,18 +86,19 @@ func TestRestoreSymlinks(t *testing.T) {
 	os.Symlink("notes/todo.txt", filepath.Join(w.srcDir, "Data", "inside"))
 	os.Symlink("/etc/passwd", filepath.Join(w.srcDir, "Data", "outside"))
 	os.Symlink("../../escape", filepath.Join(w.srcDir, "Data", "notes", "up"))
+	os.Symlink("../notes", filepath.Join(w.srcDir, "Data", "notes", "sideways"))
 	w.mustRun(0, "run")
 	to := t.TempDir()
 	out, _ := w.mustRun(0, "restore", "--tag", "Data", "--to", to)
 	if target, err := os.Readlink(filepath.Join(to, "inside")); err != nil || target != "notes/todo.txt" {
 		t.Fatalf("inside link: %v %v", target, err)
 	}
-	for _, l := range []string{"outside", "notes/up"} {
+	for _, l := range []string{"outside", "notes/up", "notes/sideways"} {
 		if _, err := os.Lstat(filepath.Join(to, l)); err == nil {
 			t.Fatalf("link %s pointing outside was restored", l)
 		}
 	}
-	if strings.Count(out, "points outside") != 2 {
+	if strings.Count(out, "points outside") != 3 {
 		t.Fatalf("%s", out)
 	}
 }

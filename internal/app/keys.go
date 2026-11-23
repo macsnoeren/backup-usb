@@ -20,6 +20,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/fsx"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
+	"github.com/macsnoeren/backup-usb/internal/sign"
 	"github.com/macsnoeren/backup-usb/internal/vault"
 )
 
@@ -66,10 +67,17 @@ func (r *Recipients) AgeRecipients() ([]age.Recipient, error) {
 // ReadRecipients reads the recipients file. Comment lines "# operational"
 // and "# break-glass" mark the line that follows.
 func ReadRecipients(path string) (*Recipients, error) {
-	data, err := config.ReadLimited(path, 256<<10)
+	data, err := config.ReadLimited(path, maxRecipientsFile)
 	if err != nil {
 		return nil, err
 	}
+	return ParseRecipients(data)
+}
+
+const maxRecipientsFile = 256 << 10
+
+// ParseRecipients parses the content of a recipients file.
+func ParseRecipients(data []byte) (*Recipients, error) {
 	r := &Recipients{}
 	mark := ""
 	sc := bufio.NewScanner(bytes.NewReader(data))
@@ -224,11 +232,11 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	if err := v.Save(o.VaultPath, o.Password); err != nil {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
-	if err := fsx.WriteFileAtomic(recPath, RecipientsFile(k.ID, opRcp, bgRcp), 0o644); err != nil {
-		return nil, Errorf(KindIO, err, "err.write")
-	}
 	sk := v.SigningKey()
 	defer sk.Wipe()
+	if err := writeSigned(recPath, RecipientsFile(k.ID, opRcp, bgRcp), sk, sign.PurposeRecipients); err != nil {
+		return nil, err
+	}
 	if err := signExisting(o.ConfigDir, o.Config, sk); err != nil {
 		return nil, err
 	}

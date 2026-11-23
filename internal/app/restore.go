@@ -262,20 +262,36 @@ func restoreFile(ctx context.Context, root *os.Root, src *openedSource, e archiv
 	if err := out.Close(); err != nil {
 		return Errorf(KindIO, err, "err.restoreWrite", final)
 	}
-	if _, err := root.Lstat(final); err == nil {
-		return Errorf(KindIO, fs.ErrExist, "err.restoreWrite", final)
-	}
-	if err := root.Rename(tmp, final); err != nil {
+	if err := placeNoReplace(root, tmp, final); err != nil {
 		return Errorf(KindIO, err, "err.restoreWrite", final)
 	}
 	ok = true
 	if runtime.GOOS != "windows" && e.Mode != 0 {
-		_ = root.Chmod(final, fs.FileMode(e.Mode)&0o777)
+		// No setuid/setgid/sticky, and never writable for group or others.
+		_ = root.Chmod(final, fs.FileMode(e.Mode)&0o777&^0o022)
 	}
 	if !e.Modified.IsZero() {
 		_ = root.Chtimes(final, time.Now(), e.Modified)
 	}
 	return nil
+}
+
+// placeNoReplace gives tmp the name final without ever replacing an
+// existing file: a hard link fails if final exists (no race), then tmp is
+// removed. Where hard links are not supported (FAT), it falls back to a
+// rename after a check.
+func placeNoReplace(root *os.Root, tmp, final string) error {
+	err := root.Link(tmp, final)
+	if err == nil {
+		return root.Remove(tmp)
+	}
+	if errors.Is(err, fs.ErrExist) {
+		return err
+	}
+	if _, err := root.Lstat(final); err == nil {
+		return fs.ErrExist
+	}
+	return root.Rename(tmp, final)
 }
 
 // restoreLink recreates a symlink, but only a relative one that stays inside
@@ -297,12 +313,16 @@ func restoreLink(root *os.Root, rel string, e archive.Entry, src *openedSource) 
 		}
 		target = string(b)
 	}
-	if filepath.IsAbs(target) || strings.HasPrefix(target, "/") || strings.ContainsRune(target, 0) {
+	// Only links that point down: no absolute target and no ".." at all.
+	// A lexical check of ".." is not enough, because earlier links in the
+	// same tree can make "a/l/.." mean something else.
+	if filepath.IsAbs(target) || strings.HasPrefix(target, "/") || strings.ContainsAny(target, "\x00\\") {
 		return "link points outside the restored folder"
 	}
-	resolved := path.Clean(path.Join(path.Dir(rel), target))
-	if resolved == ".." || strings.HasPrefix(resolved, "../") {
-		return "link points outside the restored folder"
+	for _, comp := range strings.Split(target, "/") {
+		if comp == ".." {
+			return "link points outside the restored folder"
+		}
 	}
 	if _, err := root.Lstat(rel); err == nil {
 		return "a file with this name already exists"

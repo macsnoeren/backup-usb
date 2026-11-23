@@ -747,14 +747,25 @@ func encryptionFor(dir string, cfg *config.Config) (*encryption, error) {
 	if cfg.Encryption == config.EncryptionNone {
 		return nil, nil
 	}
+	pub, err := SigningKey(dir)
+	if err != nil {
+		return nil, err
+	}
+	// Once keys exist, "auto" means encrypted: removing the recipients
+	// file must never silently switch to unencrypted backups.
+	required := cfg.Encryption == config.EncryptionAge || pub != nil
 	p := cfg.RecipientsPath(dir)
-	rec, err := ReadRecipients(p)
+	data, err := readSigned(p, maxRecipientsFile, pub, sign.PurposeRecipients)
 	if errors.Is(err, fs.ErrNotExist) {
-		if cfg.Encryption == config.EncryptionAge {
+		if required {
 			return nil, Errorf(KindDiskCheck, nil, "err.noRecipients", p)
 		}
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	rec, err := ParseRecipients(data)
 	if err != nil {
 		return nil, Errorf(KindDiskCheck, err, "err.badRecipients", p)
 	}

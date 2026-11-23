@@ -48,3 +48,25 @@ API boundary; no secrets in logs, errors or JSON; encryption fails closed;
 rotation is root-scoped and pattern-strict; the stream verifier cannot
 deadlock or panic; disk recognition requires registry, ID file and volume to
 agree.
+
+## Phases 5 and 6 – index, list, restore, signatures, enroll (T5.1–T6.5)
+
+Reviewed by a separate review agent over `git diff 01e9841..ec46241`, with an
+exploit test via `go test -overlay`.
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | For an encrypted archive, a missing `<tag>.index.age` fell back to a plaintext `<tag>.index.gz`, which anyone could plant: chosen file names in `list`, and known-content or link entries that passed restore. | high | `ReadIndex` only accepts the index type that matches the archive's encryption; otherwise restore falls back to the zip itself. Test with a planted index. |
+| 2 | The symlink check was lexical only: earlier restored links could make `a/l/..` point outside the destination. | medium | Links with an absolute target or any `..` component are not restored. Test with `../notes`. |
+| 3 | Anyone with the public keys (world-readable) can build an encrypted backup that verifies and restores. | medium (design) | Inherent to age (confidentiality, not authenticity) and to unattended backups. Documented under "Open punten"; restore never overwrites, so planted content cannot replace existing files. |
+| 4 | `usb-backup.recipients` was unsigned, and with `encryption: auto` its removal silently switched to unencrypted backups. | medium | Signed with purpose `recipients` by `keys init`; once a signing key exists, `auto` requires encryption: removed → exit 10, changed → exit 7. Test. |
+| 5 | Index up to 1 GiB decompressed could exhaust memory. | low | Limit 128 MiB. Restore size per file is bounded by the size in the index and the temporary file is removed when the hash fails. |
+| 6 | Race between the existence check and the rename could overwrite a file created in between. | low | Hard link (fails if the name exists) and remove, falling back to check-and-rename only where hard links are not supported. |
+| 7 | Restored modes allowed group/world write. | low | Masked with `&^ 0o022`. |
+| 8 | `enroll` wrote the ID file before the registry; a refused chmod on FAT stopped it. | low | Registry first; read-only/hidden is best effort. |
+| 9 | Replay of an old signed list, deleted `signing.pub`, terminal escapes in fallback names, vault check via stored metadata. | low/info | Replay and deletion need admin rights (documented boundary). Fallback names now pass `SafeRelOS`; the vault's public key is derived from its seed. |
+
+Clean according to the review: path checks, hash check before naming,
+offset bounds, canonical JSON (duplicates, escapes, numbers), purpose
+separation, signature-before-data, ID file copy detection, operator key
+required for enroll/forget/config set, key wiping.

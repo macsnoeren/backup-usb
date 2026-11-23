@@ -78,7 +78,7 @@ func openSource(root *os.Root, folder, tag string, ids []age.Identity) (*openedS
 	// The archive itself opened with the key, so an index that does not
 	// read (missing, damaged, wrong size) is not fatal: fall back to the
 	// zip's own central directory and manifest.
-	ix, err := ReadIndex(root, folder, tag, ids)
+	ix, err := ReadIndex(root, folder, tag, encrypted, ids)
 	if err == nil && ix.ZipSize == src.zipSize && strings.EqualFold(ix.Tag, tag) {
 		src.index, src.fromIndex = ix, true
 		return src, nil
@@ -111,6 +111,9 @@ func (s *openedSource) indexFromZip(tag, name string) error {
 			}
 			s.manifest = m
 			continue
+		}
+		if _, err := fsx.SafeRelOS(f.Name, "linux"); err != nil {
+			continue // a name no restore would accept; never shown either
 		}
 		off, err := f.DataOffset()
 		if err != nil {

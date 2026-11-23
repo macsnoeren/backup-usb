@@ -110,11 +110,14 @@ func Enroll(ctx context.Context, deps *Deps, cfg *config.Config, o EnrollOptions
 		Name: o.Name, Weeks: o.Weeks, ID: id, VolumeSerial: v.VolumeSerial, PartitionID: v.PartitionID,
 		HardwareSerial: v.HardwareSerial, Enrolled: deps.Now().Format(time.DateOnly),
 	}
-	if err := writeIDFile(v.Mount, r, o.Key); err != nil {
-		return nil, err
-	}
+	// Registry first: if writing the disk fails, the new entry only makes
+	// a disk unknown that was not enrolled yet; the other order could leave
+	// a disk whose new UUID is in no registry.
 	reg.Disks = append(reg.Disks, r)
 	if err := SaveRegistry(deps.ConfigDir, cfg, reg, o.Key); err != nil {
+		return nil, err
+	}
+	if err := writeIDFile(v.Mount, r, o.Key); err != nil {
 		return nil, err
 	}
 	deps.Log.Info("disk enrolled", "name", r.Name, "weeks", r.Weeks, "id", r.ID, "volumeSerial", r.VolumeSerial)
@@ -146,8 +149,7 @@ func writeIDFile(mount string, r disk.Registration, key *secmem.Buffer) error {
 	if err := fsx.RootWriteFileAtomic(root, disk.IDFileName, signed, 0o644); err != nil {
 		return Errorf(KindIO, err, "err.write")
 	}
-	if err := fsx.Protect(root, disk.IDFileName); err != nil {
-		return Errorf(KindIO, err, "err.write")
-	}
+	// Read-only/hidden is a convenience; some file systems refuse it.
+	_ = fsx.Protect(root, disk.IDFileName)
 	return nil
 }
