@@ -89,7 +89,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 
 ## Fase 8 – Planning en triggers
 
-- [ ] **T8.1 Windows: taak-XML** XML-definitie voor de USB-trigger (gebeurtenis 1006 in `Microsoft-Windows-Partition/Diagnostic`), dagelijks en wekelijks. InteractiveToken, LeastPrivilege, IgnoreNew, 12 uur maximum. Pad met spaties en `&` correct ge-escaped. *Klaar als:* golden-file-test voor elke trigger.
+- [x] **T8.1 Windows: taak-XML** XML-definitie voor de USB-trigger (gebeurtenis 1006 in `Microsoft-Windows-Partition/Diagnostic`), dagelijks en wekelijks. InteractiveToken, LeastPrivilege, IgnoreNew, 12 uur maximum. Pad met spaties en `&` correct ge-escaped. *Klaar als:* golden-file-test voor elke trigger.
 - [ ] **T8.2 Windows: `install` en `uninstall`** XML als UTF-16 LE met BOM, registreren met `schtasks /Create /XML /F` in een verborgen venster. *Klaar als:* handmatige test: taak verschijnt in Taakplanner en start bij inpluggen.
 - [ ] **T8.3 Linux: cron, systemd en udev** `install --trigger daily|weekly` maakt een systemd-timer; `--trigger usb` een udev-regel op filesystem-UUID die `usb-backup@<uuid>.service` start. *Klaar als:* gegenereerde unit-bestanden in een golden-file-test; handmatige test op een Linux-machine.
 - [ ] **T8.4 `--quiet-skip` en `--wait`** Geen melding bij exitcode 2 tot en met 4; wachttijd op een schijf (standaard 0 bij de CLI, 30 bij de trigger). *Klaar als:* tests voor beide vlaggen.
