@@ -1,6 +1,7 @@
 package lock
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
 	"unsafe"
@@ -30,7 +31,7 @@ func Acquire(path string) (func(), error) {
 	if h == 0 {
 		return nil, fmt.Errorf("create mutex: %w", callErr)
 	}
-	if errno, ok := callErr.(syscall.Errno); ok && errno == errorAlreadyExists {
+	if errors.Is(callErr, syscall.Errno(errorAlreadyExists)) {
 		_ = syscall.CloseHandle(syscall.Handle(h))
 		return nil, ErrBusy
 	}
