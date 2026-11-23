@@ -270,10 +270,20 @@ func restoreFile(ctx context.Context, root *os.Root, src *openedSource, e archiv
 		// No setuid/setgid/sticky, and never writable for group or others.
 		_ = root.Chmod(final, fs.FileMode(e.Mode)&0o777&^0o022)
 	}
+	restoreOwner(root, final, e)
 	if !e.Modified.IsZero() {
 		_ = root.Chtimes(final, time.Now(), e.Modified)
 	}
 	return nil
+}
+
+// restoreOwner sets owner and group from the backup when running as root
+// on Unix; otherwise the files belong to whoever restores them.
+func restoreOwner(root *os.Root, rel string, e archive.Entry) {
+	if runtime.GOOS == "windows" || os.Geteuid() != 0 || e.UID == nil || e.GID == nil {
+		return
+	}
+	_ = root.Lchown(rel, int(*e.UID), int(*e.GID))
 }
 
 // placeNoReplace gives tmp the name final without ever replacing an
@@ -330,5 +340,6 @@ func restoreLink(root *os.Root, rel string, e archive.Entry, src *openedSource) 
 	if err := root.Symlink(target, rel); err != nil {
 		return "link cannot be created"
 	}
+	restoreOwner(root, rel, e)
 	return ""
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -211,3 +212,5 @@ func (w *world) diskSerial(idFile []byte, field string) string {
 	s, _ := m[field].(string)
 	return s
 }
+
+func isWindows() bool { return runtime.GOOS == "windows" }

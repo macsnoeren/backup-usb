@@ -16,3 +16,4 @@ zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
 - [ ] **T7.4** CI-stap "Loop-device tests" (`sudo go test -tags integration,loopdev ./internal/volume/...`) is groen op GitHub (nog niet gedraaid).
 - [ ] Een echte USB-stick die niet gekoppeld is, wordt bij `run` via `udisksctl` gekoppeld en daarna weer ontkoppeld (als gewone gebruiker), en als root naar `/run/usb-backup/<uuid>` met `nosuid,nodev,noexec`.
 - [ ] **T7.5** `status` toont de gezondheid via `smartctl -H` op een schijf die SMART doorgeeft; zonder smartmontools "Unknown".
+- [ ] **T7.7 (Windows)** `TestLongPaths` slaagt op de Windows-CI-runner (pad langer dan 260 tekens, backup en herstel).

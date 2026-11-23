@@ -9,7 +9,7 @@
   "finished": "2026-11-18T10:00:00Z",
   "encrypted": false,
   "health": "Healthy",
-  "freeBytes": 68719476736,
+  "freeBytes": 0,
   "folderCount": 1,
   "messages": [
     "Verification OK. You can remove the disk."
@@ -22,8 +22,8 @@
       "files": 2,
       "dirs": 1,
       "bytes": 2008,
-      "zipBytes": 2735,
-      "sha256": "f6cc2e80df4abd1cfee22254af38ec315a9d3a7a7599fa5ae86c572c3a357524",
+      "zipBytes": 0,
+      "sha256": "<sha256>",
       "verified": true,
       "skippedCount": 0,
       "warningCount": 0
@@ -35,8 +35,8 @@
       "files": 1,
       "dirs": 1,
       "bytes": 7,
-      "zipBytes": 509,
-      "sha256": "3c1b9837b8dd29f882c1ea213243874072e6ed1f76cc6cbed20ca47dc7b54868",
+      "zipBytes": 0,
+      "sha256": "<sha256>",
       "verified": true,
       "skippedCount": 0,
       "warningCount": 0

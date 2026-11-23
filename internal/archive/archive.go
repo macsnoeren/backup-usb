@@ -6,6 +6,7 @@ import (
 	"compress/flate"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -68,6 +69,8 @@ type Entry struct {
 	Size           uint64    `json:"size"`
 	Modified       time.Time `json:"modified"`
 	Mode           uint32    `json:"mode,omitempty"`
+	UID            *uint32   `json:"uid,omitempty"`
+	GID            *uint32   `json:"gid,omitempty"`
 	SHA256         string    `json:"sha256,omitempty"`
 	CRC32          uint32    `json:"crc32"`
 	Method         uint16    `json:"method"`
@@ -170,6 +173,9 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 
 	addHeader := func(fh *zip.FileHeader, e Entry) (io.Writer, error) {
 		before := cw.n
+		if e.UID != nil && e.GID != nil {
+			fh.Extra = append(fh.Extra, unixOwnerExtra(*e.UID, *e.GID)...)
+		}
 		fw, err := zw.CreateHeader(fh)
 		if err != nil {
 			return nil, fmt.Errorf("zip header %s: %w", fh.Name, err)
@@ -211,7 +217,7 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 		case mode.IsDir():
 			fh := &zip.FileHeader{Name: rel + "/", Method: zip.Store, Modified: info.ModTime()}
 			fh.SetMode(mode)
-			_, err := addHeader(fh, Entry{Path: rel + "/", Dir: true, Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+			_, err := addHeader(fh, withOwner(Entry{Path: rel + "/", Dir: true, Modified: info.ModTime(), Mode: uint32(mode.Perm())}, info))
 			if err == nil {
 				res.Dirs++
 			}
@@ -224,7 +230,7 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 			}
 			fh := &zip.FileHeader{Name: rel, Method: zip.Store, Modified: info.ModTime()}
 			fh.SetMode(mode)
-			fw, err := addHeader(fh, Entry{Path: rel, Link: target, Size: uint64(len(target)), Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+			fw, err := addHeader(fh, withOwner(Entry{Path: rel, Link: target, Size: uint64(len(target)), Modified: info.ModTime(), Mode: uint32(mode.Perm())}, info))
 			if err != nil {
 				return err
 			}
@@ -265,7 +271,7 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 		}
 		fh := &zip.FileHeader{Name: rel, Method: method, Modified: info.ModTime()}
 		fh.SetMode(mode)
-		fw, err := addHeader(fh, Entry{Path: rel, Modified: info.ModTime(), Mode: uint32(mode.Perm())})
+		fw, err := addHeader(fh, withOwner(Entry{Path: rel, Modified: info.ModTime(), Mode: uint32(mode.Perm())}, info))
 		if err != nil {
 			return err
 		}
@@ -338,6 +344,23 @@ func Write(ctx context.Context, src string, w io.Writer, opts Options) (*Result,
 	res.StreamSHA256 = hex.EncodeToString(streamHash.Sum(nil))
 	res.Manifest = manifest
 	return res, nil
+}
+
+// unixOwnerExtra is the Info-ZIP "ux" extra field (0x7875) with the
+// numeric owner and group, as zip and unzip on Unix write and read it.
+func unixOwnerExtra(uid, gid uint32) []byte {
+	b := []byte{0x75, 0x78, 11, 0, 1, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0}
+	binary.LittleEndian.PutUint32(b[6:], uid)
+	binary.LittleEndian.PutUint32(b[11:], gid)
+	return b
+}
+
+// withOwner fills the owner of an entry from the file info.
+func withOwner(e Entry, info fs.FileInfo) Entry {
+	if uid, gid, ok := ownerOf(info); ok {
+		e.UID, e.GID = &uid, &gid
+	}
+	return e
 }
 
 // announce flushes a stored entry's data and reports where it ends.

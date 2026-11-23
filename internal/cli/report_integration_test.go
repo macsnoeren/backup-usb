@@ -5,7 +5,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
-	"runtime"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -36,9 +36,6 @@ func stableSources(t *testing.T, dir string) {
 }
 
 func TestReportGoldenFiles(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("file attributes in the zip differ on Windows, so the hashes do too")
-	}
 	w := newWorld(t)
 	w.clock.Set(time.Date(2026, 11, 18, 10, 0, 0, 0, time.UTC))
 	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
@@ -46,10 +43,26 @@ func TestReportGoldenFiles(t *testing.T) {
 	out, _ := w.mustRun(0, "run", "--json")
 	mount := w.disks.Disk("BACKUP1").Mount
 	norm := strings.NewReplacer(mount, "<mount>", strings.ReplaceAll(mount, `\`, `\\`), "<mount>")
-	testutil.Golden(t, "run-week47.json", []byte(norm.Replace(out)))
+	// Hashes and zip sizes depend on the owner and group IDs (and file
+	// attributes on Windows) of the machine; they are checked elsewhere.
+	testutil.Golden(t, "run-week47.json", []byte(stable(norm.Replace(out))))
 	report, err := os.ReadFile(w.diskFile("BACKUP1", "Backup/2026/47/report.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	testutil.Golden(t, "run-week47-report.txt", report)
+	testutil.Golden(t, "run-week47-report.txt", []byte(stable(string(report))))
+}
+
+var (
+	hexRe     = regexp.MustCompile(`[0-9a-f]{64}`)
+	zipJSONRe = regexp.MustCompile(`"zipBytes": \d+`)
+	zipTextRe = regexp.MustCompile(`Zip size:( +)[0-9.]+ [KMG]?i?B`)
+	freeRe    = regexp.MustCompile(`"freeBytes": \d+`)
+)
+
+func stable(s string) string {
+	s = hexRe.ReplaceAllString(s, "<sha256>")
+	s = zipJSONRe.ReplaceAllString(s, `"zipBytes": 0`)
+	s = zipTextRe.ReplaceAllString(s, "Zip size:$1<size>")
+	return freeRe.ReplaceAllString(s, `"freeBytes": 0`)
 }

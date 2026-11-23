@@ -15,16 +15,16 @@ Folders:       1
   Archive:     Data.zip
   Files:       2
   Size:        2.0 KiB
-  Zip size:    2.7 KiB
-  SHA-256:     f6cc2e80df4abd1cfee22254af38ec315a9d3a7a7599fa5ae86c572c3a357524
+  Zip size:    <size>
+  SHA-256:     <sha256>
   Verified:    OK
 
 [Books] OK
   Archive:     Books.zip
   Files:       1
   Size:        7 B
-  Zip size:    509 B
-  SHA-256:     3c1b9837b8dd29f882c1ea213243874072e6ed1f76cc6cbed20ca47dc7b54868
+  Zip size:    <size>
+  SHA-256:     <sha256>
   Verified:    OK
 
 Verification OK. You can remove the disk.
