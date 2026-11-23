@@ -12,7 +12,7 @@ GOLANGCI_LINT := $(call tool,golangci-lint)
 GOVULNCHECK   := $(call tool,govulncheck)
 GOSEC         := $(call tool,gosec)
 
-.PHONY: gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
+.PHONY: setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
         build-windows build-linux build-testbin clean
 
 all: lint test build-linux build-windows
@@ -57,6 +57,15 @@ build-windows:
 build-linux:
 	GOOS=linux GOARCH=amd64 $(BUILD) -ldflags "$(LDFLAGS)" -o dist/linux-amd64/usb-backup-cli ./cmd/usb-backup-cli
 	GOOS=linux GOARCH=arm64 $(BUILD) -ldflags "$(LDFLAGS)" -o dist/linux-arm64/usb-backup-cli ./cmd/usb-backup-cli
+
+MAKENSIS ?= makensis
+NFPM := $(call tool,nfpm)
+SEMVER := $(shell echo $(VERSION) | sed 's/^v//; s/-dirty//')
+
+# Windows setup (NSIS runs on Linux).
+setup-windows: build-windows
+	cp README.md LICENSE dist/
+	$(MAKENSIS) -V2 -DVERSION=$(SEMVER) -DDIST=$(CURDIR)/dist -DOUT=$(CURDIR)/dist/USB-Backup-Setup.exe packaging/windows/usb-backup.nsi
 
 # Test binary with fake disks and a fake clock (build tag "fakes"). Never ship it.
 build-testbin:

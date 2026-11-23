@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -324,14 +325,19 @@ func ParseIdentityFile(data []byte) ([]age.Identity, []string, error) {
 // successfully. It holds only a time stamp.
 const BreakglassTestedFile = "usb-backup.breakglass-tested"
 
-// RecordBreakglassTest writes the time stamp.
-func RecordBreakglassTest(dir string, now time.Time) error {
-	return fsx.WriteFileAtomic(path.Join(dir, BreakglassTestedFile), []byte(now.Format(time.RFC3339)+"\n"), 0o644)
+// RecordBreakglassTest writes the time stamp into the log folder (which the
+// operator can write without administrator rights).
+func RecordBreakglassTest(dir string, cfg *config.Config, now time.Time) error {
+	d := cfg.LogDir(dir)
+	if err := os.MkdirAll(d, 0o750); err != nil {
+		return err
+	}
+	return fsx.WriteFileAtomic(filepath.Join(d, BreakglassTestedFile), []byte(now.Format(time.RFC3339)+"\n"), 0o644)
 }
 
 // BreakglassTested returns when the break-glass key was last tested.
-func BreakglassTested(dir string) (time.Time, bool) {
-	data, err := config.ReadLimited(path.Join(dir, BreakglassTestedFile), 256)
+func BreakglassTested(dir string, cfg *config.Config) (time.Time, bool) {
+	data, err := config.ReadLimited(filepath.Join(cfg.LogDir(dir), BreakglassTestedFile), 256)
 	if err != nil {
 		return time.Time{}, false
 	}

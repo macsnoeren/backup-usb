@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/config"
 )
 
 func TestVerifyWithKeys(t *testing.T) {
@@ -30,7 +31,7 @@ func TestVerifyWithKeys(t *testing.T) {
 	if strings.Count(out, "files unpacked and checked") != 4 || !strings.Contains(out, "break-glass key works") {
 		t.Fatalf("verify with break-glass:\n%s", out)
 	}
-	if _, ok := app.BreakglassTested(w.cfgDir); !ok {
+	if _, ok := app.BreakglassTested(w.cfgDir, config.Defaults()); !ok {
 		t.Fatal("break-glass test not recorded")
 	}
 	// With the vault password.
@@ -82,7 +83,7 @@ func TestBreakglassNotRecordedWithoutDecryption(t *testing.T) {
 	w.mustRun(0, "run") // unencrypted week
 	bg := w.keysInit()
 	w.mustRun(0, "verify", "--identity", bg)
-	if _, ok := app.BreakglassTested(w.cfgDir); ok {
+	if _, ok := app.BreakglassTested(w.cfgDir, config.Defaults()); ok {
 		t.Fatal("break-glass recorded as tested without decrypting anything")
 	}
 }

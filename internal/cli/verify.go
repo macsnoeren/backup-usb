@@ -115,7 +115,7 @@ func cmdVerify(c *ctx, args []string) error {
 	deps := c.deps(cfg)
 	rep, err := app.Verify(ctx, deps, cfg, opts)
 	if err == nil && ks.breakglass && rep != nil && rep.Decrypted > 0 {
-		if rerr := app.RecordBreakglassTest(c.configDir(), c.env.Now()); rerr != nil {
+		if rerr := app.RecordBreakglassTest(c.configDir(), cfg, c.env.Now()); rerr != nil {
 			deps.Log.Warn("cannot record break-glass test", "err", rerr)
 		}
 	}

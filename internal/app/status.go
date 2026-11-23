@@ -52,7 +52,7 @@ func Status(ctx context.Context, deps *Deps, cfg *config.Config) (*StatusReport,
 	if due == nil {
 		rep.Due = []string{}
 	}
-	if t, ok := BreakglassTested(deps.ConfigDir); ok {
+	if t, ok := BreakglassTested(deps.ConfigDir, cfg); ok {
 		rep.BreakglassTested = &t
 	}
 	if enc, err := encryptionFor(deps.ConfigDir, cfg); err == nil && enc != nil {

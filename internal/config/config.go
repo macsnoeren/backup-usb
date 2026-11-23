@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/macsnoeren/backup-usb/internal/week"
@@ -232,9 +233,15 @@ func (c *Config) DisksPath(dir string) string { return Resolve(dir, c.DisksFile)
 // RecipientsPath returns the recipients file.
 func (c *Config) RecipientsPath(dir string) string { return Resolve(dir, c.RecipientsFile) }
 
-// LogDir returns the directory of the log file.
+// LogDir returns the directory of the log file. On Windows the default is
+// the "logs" folder in the configuration folder: the configuration folder
+// itself is writable for administrators only, the logs folder also for the
+// users who run backups.
 func (c *Config) LogDir(dir string) string {
 	if c.LogPath == "" {
+		if runtime.GOOS == "windows" {
+			return filepath.Join(dir, "logs")
+		}
 		return dir
 	}
 	return Resolve(dir, c.LogPath)

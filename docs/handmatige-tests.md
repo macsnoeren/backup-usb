@@ -38,3 +38,7 @@ De logica van het statusscherm (alle toestanden, teksten, resterende tijd), de t
 - [ ] **T11.9** Planning: USB-trigger aan/uit en een dagelijkse of wekelijkse taak verschijnen in Taakplanner.
 - [ ] **T11.10** Bladeren: weken en bronmappen links, mappen rechts (dubbelklik, Omhoog, Zoeken), een los bestand terugzetten naar het bureaublad (`Bureaublad\Restored` als standaard) en naar de oorspronkelijke plek; Break-glass testen met het bestand.
 - [ ] **T11.11** Logboek openen; taal omzetten naar Nederlands en terug (na herstart van het venster).
+
+## Installers (fase 12)
+
+- [ ] **T12.1** `USB-Backup-Setup.exe` (gebouwd met `make setup-windows`): installeren naar `C:\Program Files\USB Backup`, startmenu, `usb-backup-cli` in PATH (nieuwe console), vermelding in Apps en onderdelen, `C:\ProgramData\USB Backup` alleen schrijfbaar voor beheerders (`icacls`) en `logs` ook voor gebruikers; na installatie opent het venster. Bijwerken: nieuwe setup over de oude, instellingen en registraties blijven. Verwijderen: exe's en taken weg, configuratie en vault blijven tenzij aangevinkt. Stil: `/S`.

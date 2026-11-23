@@ -62,7 +62,7 @@ func cmdRestore(c *ctx, args []string) error {
 		rep, err = app.Restore(ctx, c.deps(cfg), cfg, opts)
 	}
 	if err == nil && ks.breakglass && rep != nil && rep.Decrypted {
-		_ = app.RecordBreakglassTest(c.configDir(), c.env.Now())
+		_ = app.RecordBreakglassTest(c.configDir(), cfg, c.env.Now())
 	}
 	if *asJSON && rep != nil {
 		if jerr := writeJSON(c.env.Stdout, rep); jerr != nil {
