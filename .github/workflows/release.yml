@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Maurice Snoeren
 
+# Pushing a tag v<version> builds and publishes a GitHub release with the
+# Windows setup, .deb, .rpm, .tar.gz and .zip files, SHA256SUMS signed with
+# cosign, and the CHANGELOG.md section of that version as release notes.
+# A tag like v1.2.3-rc1 becomes a pre-release with the "Unreleased" notes.
 name: release
 
 on:
@@ -8,31 +12,71 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: write # create the release
-  id-token: write # keyless signing of SHA256SUMS with cosign
+  contents: read
 
 jobs:
-  release:
+  notes:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release notes from CHANGELOG.md
+        run: sh scripts/release-notes.sh "$GITHUB_REF_NAME" > release-notes.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  test:
+    needs: notes
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install tools
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: make lint
+      - run: make test test-integration test-e2e
+      - run: govulncheck ./...
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # keyless signing of SHA256SUMS with cosign
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version-file: go.mod
       - name: Install tools
         run: |
           sudo apt-get update
           sudo apt-get install -y nsis osslsigncode
       - uses: sigstore/cosign-installer@v3
-      - name: Tests before releasing
-        run: go test ./... && go test -tags integration ./...
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --release-notes ${{ runner.temp }}/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}

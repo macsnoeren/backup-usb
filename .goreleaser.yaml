@@ -144,8 +144,12 @@ release:
   github:
     owner: macsnoeren
     name: backup-usb
+  # v1.2.3-rc1 and the like become a pre-release.
+  prerelease: auto
   extra_files:
     - glob: dist/USB-Backup-Setup.exe
 
+# The release notes come from CHANGELOG.md (scripts/release-notes.sh, passed
+# with --release-notes in .github/workflows/release.yml), not from git log.
 changelog:
-  sort: asc
+  disable: true

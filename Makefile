@@ -29,7 +29,7 @@ GOLANGCI_LINT := $(call tool,golangci-lint)
 GOVULNCHECK   := $(call tool,govulncheck)
 GOSEC         := $(call tool,gosec)
 
-.PHONY: notices setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
+.PHONY: notices release-check setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
         build-windows build-linux build-testbin clean
 
 all: lint test build-linux build-windows
@@ -108,6 +108,13 @@ build-testbin:
 # after changing go.mod; a test fails when it is out of date.
 notices:
 	GO=$(GO) sh scripts/third-party-notices.sh
+
+# Before pushing a tag: make release-check TAG=v1.2.3 prints the release
+# notes from CHANGELOG.md and checks the GoReleaser configuration.
+release-check:
+	@test -n "$(TAG)" || { echo "usage: make release-check TAG=v1.2.3" >&2; exit 64; }
+	sh scripts/release-notes.sh $(TAG)
+	$(call tool,goreleaser) check
 
 clean:
 	rm -rf dist coverage.out

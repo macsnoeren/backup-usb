@@ -30,6 +30,7 @@ work). Linux: `usb-backup-cli`.
 7. [Command reference and exit codes](#7-command-reference-and-exit-codes)
 8. [Files and folders](#8-files-and-folders)
 9. [Building and testing](#9-building-and-testing)
+10. [License](#10-license)
 
 ## 1. Install
 
@@ -328,6 +329,27 @@ make lint security                     # golangci-lint, govulncheck, gosec, race
 make build-windows build-linux         # dist/
 make setup-windows packages-linux      # installers (needs makensis and nfpm)
 ```
+
+### Releasing
+
+Changes are listed in [`CHANGELOG.md`](CHANGELOG.md). To publish version
+1.2.3:
+
+1. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [1.2.3] - YYYY-MM-DD`,
+   add a new empty `## [Unreleased]` above it and update the links at the
+   bottom.
+2. `make release-check TAG=v1.2.3` shows the release notes and checks the
+   GoReleaser configuration.
+3. Commit, then `git tag -a v1.2.3 -m v1.2.3 && git push origin main v1.2.3`.
+
+The tag starts `.github/workflows/release.yml`: it refuses a tag without a
+dated changelog section, runs the tests on Linux and Windows, and then
+publishes a GitHub release with the Windows setup (`USB-Backup-Setup.exe`),
+`.deb`, `.rpm` and `.tar.gz` for Linux (amd64 and arm64), `.zip` files for
+Windows, and `SHA256SUMS` signed with cosign. The changelog section becomes
+the release notes. A tag such as `v1.2.3-rc1` is published as a pre-release
+with the `Unreleased` notes. Windows files are code-signed when the secrets
+`WINDOWS_CERT_PFX_BASE64` and `WINDOWS_CERT_PASSWORD` are set.
 
 Design and build plan (in Dutch): `docs/DESIGN.md`, `docs/tasks.md`.
 Security reviews: `docs/security-review.md`. Checks that need real hardware
