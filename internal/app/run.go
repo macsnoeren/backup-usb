@@ -395,6 +395,11 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		deps.Log.Warn("disk state unreadable, starting a new one", "err", err)
 		state = &DiskState{Version: 1, Folders: map[string]FolderRecord{}}
 	}
+	if enc != nil && needsUpdate(state, currentFingerprints(deps.ConfigDir, cfg)) {
+		// The backup goes on; the operator re-wraps later (needs the
+		// vault password, which a run never asks for).
+		rep.addMessage(p, "msg.needsUpdate", c.Reg.Name)
+	}
 	patterns := append(state.RotationPatterns(cfg.Schedule), pattern)
 	pol := rotate.Policy{KeepPerDisk: cfg.KeepPerDisk, KeepMinDays: cfg.KeepMinDays}
 

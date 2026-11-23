@@ -33,6 +33,17 @@ type world struct {
 	stdin   string
 	ctx     context.Context
 	cfgData map[string]any
+	bgKey   string
+	removed map[string]testutil.FakeDisk
+}
+
+// addBack plugs a removed fake disk in again.
+func (w *world) addBack(name string) {
+	d, ok := w.removed[name]
+	if !ok {
+		w.t.Fatalf("%s was not removed", name)
+	}
+	w.disks.Add(d)
 }
 
 // newWorld sets up two fake disks and a source folder "Data" with files.
@@ -146,6 +157,15 @@ func (w *world) enrollUnsigned(weeks map[string]string) {
 	}
 	testutil.WriteFile(w.t, w.cfgDir, config.DefaultDisksFile, string(data))
 	w.resign()
+}
+
+// unplug removes a disk and remembers it for addBack.
+func (w *world) unplug(name string) {
+	if w.removed == nil {
+		w.removed = map[string]testutil.FakeDisk{}
+	}
+	w.removed[name] = *w.disks.Disk(name)
+	w.disks.Remove(name)
 }
 
 func (w *world) env() *Env {

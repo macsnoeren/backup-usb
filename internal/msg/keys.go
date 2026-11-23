@@ -29,3 +29,18 @@ func init() {
 		"err.badRecipients": {EN: "the recipients file %s is invalid; nothing was written", NL: "het ontvangersbestand %s is ongeldig; er is niets geschreven"},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.oneDisk":     {EN: "connect exactly one backup disk, or choose one with --target", NL: "sluit precies één back-upschijf aan, of kies er een met --target"},
+		"err.rewrap":      {EN: "re-wrapping %s failed; the old file was kept", NL: "opnieuw inpakken van %s is mislukt; het oude bestand is bewaard"},
+		"msg.needsUpdate": {EN: "Disk %s must be updated by the operator (keys rewrap): it still has backups for a retired key.", NL: "Schijf %s moet door de beheerder worden bijgewerkt (keys rewrap): er staan nog back-ups voor een uitgefaseerde sleutel op."},
+		"keys.rotated":    {EN: "New operational key %s (fingerprint %s). Key %s is retired; disks to update: %s. New backups use the new key now.", NL: "Nieuwe operationele sleutel %s (vingerafdruk %s). Sleutel %s is uitgefaseerd; bij te werken schijven: %s. Nieuwe back-ups gebruiken nu de nieuwe sleutel."},
+		"keys.rewrapped":  {EN: "%s: %d files re-wrapped, %d already current.", NL: "%s: %d bestanden opnieuw ingepakt, %d waren al bijgewerkt."},
+		"keys.oldFree":    {EN: "The old key %s is no longer needed anywhere. Delete it permanently?", NL: "De oude sleutel %s is nergens meer nodig. Definitief verwijderen?"},
+		"keys.oldRemoved": {EN: "Key %s deleted from the vault.", NL: "Sleutel %s uit de vault verwijderd."},
+		"keys.oldKept":    {EN: "Key %s kept (delete later with \"keys rewrap --remove-old\" or answer yes).", NL: "Sleutel %s bewaard (later verwijderen met \"keys rewrap --remove-old\" of ja antwoorden)."},
+		"keys.statusLine": {EN: "%s  %s  %-8s  created %s%s%s", NL: "%s  %s  %-8s  gemaakt %s%s%s"},
+		"keys.yesNo":      {EN: " [y/N] ", NL: " [j/N] "},
+	})
+}

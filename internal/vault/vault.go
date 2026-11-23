@@ -48,6 +48,9 @@ type Key struct {
 	Created      string   `json:"created"`
 	Retired      string   `json:"retired,omitempty"`
 	PendingDisks []string `json:"pendingDisks"`
+	// FullRewrap is set by "keys rotate --full": pending disks are
+	// re-encrypted with a new file key, not only re-wrapped.
+	FullRewrap bool `json:"fullRewrap,omitempty"`
 }
 
 // Meta is everything in the vault that is not secret.

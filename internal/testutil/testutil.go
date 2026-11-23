@@ -185,6 +185,14 @@ func (s *FakeDiskSet) Remove(label string) {
 	s.Save()
 }
 
+// Add plugs in a disk (again).
+func (s *FakeDiskSet) Add(d FakeDisk) {
+	s.mu.Lock()
+	s.data.Disks = append(s.data.Disks, d)
+	s.mu.Unlock()
+	s.Save()
+}
+
 // Save writes the JSON file.
 func (s *FakeDiskSet) Save() {
 	s.mu.Lock()

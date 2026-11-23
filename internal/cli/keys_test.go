@@ -28,6 +28,7 @@ func (w *world) keysInit() string {
 	defer func() { w.stdin = "" }()
 	w.mustRun(0, "keys", "init", "--vault", w.vaultPath(), "--breakglass-out", bg, "--password-stdin")
 	w.resignIDFiles()
+	w.bgKey = bg
 	return bg
 }
 
