@@ -128,7 +128,7 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 
 - [x] **T12.1 Windows-setup (NSIS)** Installeert naar `C:\Program Files\USB Backup`, startmenu, PATH, Apps en onderdelen, configuratiemap met de juiste rechten. Na installatie de wizard. Stil installeren met `/S`. Verwijderen laat configuratie, vault en USB-schijven staan, tenzij aangevinkt. *Klaar als:* handmatige test: installeren, bijwerken, verwijderen.
 - [x] **T12.2 Linux-pakketten (nfpm)** `.deb`, `.rpm` en `.tar.gz` met `install.sh`. Installeert binary, `/etc/usb-backup` (root, 0644), systemd-units, udev-regel, man-page. Er draait niets automatisch. *Klaar als:* nfpm-uitvoer gecontroleerd met dpkg --contents en rpm -qlp in CI; handmatig installeren en verwijderen op een Debian- of Ubuntu-machine.
-- [ ] **T12.3 Ondertekenen** `osslsigncode` voor setup en exe's, als er een certificaat in de CI-secrets staat; anders overslaan met een waarschuwing. *Klaar als:* de CI-stap slaagt in beide gevallen.
+- [x] **T12.3 Ondertekenen** `osslsigncode` voor setup en exe's, als er een certificaat in de CI-secrets staat; anders overslaan met een waarschuwing. *Klaar als:* de CI-stap slaagt in beide gevallen.
 - [ ] **T12.4 GoReleaser** Bij een git-tag: Windows amd64 en arm64, Linux amd64 en arm64, setup, pakketten, `SHA256SUMS` met handtekening, als release op GitHub. *Klaar als:* een test-tag levert alle bestanden op.
 - [ ] **T12.5 README** Installeren, eerste keer instellen (wizard of CLI), gebruik, herstellen, noodherstel met break-glass, exitcodes. *Klaar als:* een nieuwe gebruiker kan met alleen de README een back-up maken en een bestand terugzetten.
 

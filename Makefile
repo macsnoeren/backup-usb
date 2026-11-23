@@ -65,7 +65,7 @@ CLEANVER := $(patsubst %-dirty,%,$(VERSION))
 SEMVER := $(if $(filter v%,$(CLEANVER)),$(patsubst v%,%,$(CLEANVER)),0.0.0-dev+$(CLEANVER))
 
 # Windows setup (NSIS runs on Linux).
-setup-windows: build-windows
+setup-windows: # after build-windows (and signing); does not rebuild, so signatures stay
 	cp README.md LICENSE dist/
 	$(MAKENSIS) -V2 -DVERSION=$(SEMVER) -DDIST=$(CURDIR)/dist -DOUT=$(CURDIR)/dist/USB-Backup-Setup.exe packaging/windows/usb-backup.nsi
 

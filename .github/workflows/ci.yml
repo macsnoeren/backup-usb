@@ -63,11 +63,21 @@ jobs:
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y nsis rpm
+          sudo apt-get install -y nsis rpm osslsigncode
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Sign Windows executables (skipped without certificate)
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: scripts/sign-windows.sh dist/usb-backup.exe dist/usb-backup-cli.exe
       - name: Windows setup (NSIS)
         run: make setup-windows
+      - name: Sign Windows setup (skipped without certificate)
+        env:
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: scripts/sign-windows.sh dist/USB-Backup-Setup.exe
       - name: Linux packages (deb, rpm, tar.gz)
         run: make packages-linux
       - name: Check package contents
