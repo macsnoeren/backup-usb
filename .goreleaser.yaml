@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Maurice Snoeren
+
 # GoReleaser configuration: on a git tag, build everything and publish it as
 # a GitHub release. See .github/workflows/release.yml.
 version: 2
@@ -55,6 +58,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - THIRD-PARTY-NOTICES.txt
       - packaging/linux/install.sh
       - packaging/linux/usb-backup@.service
       - packaging/linux/usb-backup.service
@@ -64,7 +68,7 @@ archives:
     ids: [cli-windows, gui]
     formats: [zip]
     name_template: "usb-backup-{{ .Version }}-windows-{{ .Arch }}"
-    files: [README.md, LICENSE]
+    files: [README.md, LICENSE, THIRD-PARTY-NOTICES.txt]
 
 nfpms:
   - id: packages
@@ -75,7 +79,7 @@ nfpms:
     homepage: https://github.com/macsnoeren/backup-usb
     maintainer: USB Backup <noreply@example.invalid>
     description: Verified, encrypted backups of folders to registered USB disks. Nothing runs automatically after installation.
-    license: GPL-3.0
+    license: GPL-3.0-or-later
     formats: [deb, rpm]
     bindir: /usr/bin
     recommends: [udisks2, smartmontools]
@@ -100,6 +104,18 @@ nfpms:
         file_info: { mode: 0644 }
       - src: README.md
         dst: /usr/share/doc/usb-backup/README.md
+        file_info: { mode: 0644 }
+      - src: LICENSE
+        dst: /usr/share/doc/usb-backup/copyright
+        packager: deb
+        file_info: { mode: 0644 }
+      - src: LICENSE
+        dst: /usr/share/licenses/usb-backup/LICENSE
+        packager: rpm
+        type: license
+        file_info: { mode: 0644 }
+      - src: THIRD-PARTY-NOTICES.txt
+        dst: /usr/share/doc/usb-backup/THIRD-PARTY-NOTICES.txt
         file_info: { mode: 0644 }
     scripts:
       preremove: packaging/linux/scripts/preremove.sh

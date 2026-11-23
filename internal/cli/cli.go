@@ -1,3 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Maurice Snoeren
+//
+// This file is part of USB Backup.
+//
+// USB Backup is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// USB Backup is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+// PARTICULAR PURPOSE. See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// USB Backup. If not, see <https://www.gnu.org/licenses/>.
+
 // Package cli implements the usb-backup-cli commands, flags and exit codes.
 package cli
 
@@ -23,6 +40,9 @@ import (
 
 // Version is the program version, set by main.
 var Version = "dev"
+
+// License is the SPDX identifier of the program's license (see LICENSE).
+const License = "GPL-3.0-or-later"
 
 // Env holds everything a command touches outside the process. Run builds the
 // production Env; tests build their own.
@@ -266,9 +286,11 @@ func cmdVersion(c *ctx, args []string) error {
 	if *asJSON {
 		return writeJSON(c.env.Stdout, map[string]string{
 			"version": Version, "go": runtime.Version(), "os": runtime.GOOS, "arch": runtime.GOARCH,
+			"license": License,
 		})
 	}
 	fmt.Fprintln(c.env.Stdout, c.p.T("version", Version, runtime.Version(), runtime.GOOS, runtime.GOARCH))
+	fmt.Fprintln(c.env.Stdout, c.p.T("license"))
 	return nil
 }
 

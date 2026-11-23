@@ -1,3 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Maurice Snoeren
+//
+// This file is part of USB Backup.
+//
+// USB Backup is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 3 of the License, or (at your option) any later
+// version.
+//
+// USB Backup is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+// PARTICULAR PURPOSE. See the GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along with
+// USB Backup. If not, see <https://www.gnu.org/licenses/>.
+
 package msg
 
 // table is the translation table. Keys are stable identifiers; every key has
@@ -52,6 +69,10 @@ Never pass passwords as arguments: use --password-stdin or the console prompt.
 	"err.usage":            {NL: "verkeerd gebruik: %s", EN: "wrong usage: %s"},
 	"err.passwordArgument": {NL: "een wachtwoord mag nooit als argument worden meegegeven; gebruik --password-stdin of de vraag op de console", EN: "a password must never be passed as an argument; use --password-stdin or the console prompt"},
 	"version":              {NL: "usb-backup-cli versie %s (%s, %s/%s)", EN: "usb-backup-cli version %s (%s, %s/%s)"},
+	"license": {
+		EN: "Copyright (C) 2026 Maurice Snoeren\nLicense GPLv3+: GNU GPL version 3 or later <https://www.gnu.org/licenses/gpl-3.0.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.",
+		NL: "Copyright (C) 2026 Maurice Snoeren\nLicentie GPLv3+: GNU GPL versie 3 of later <https://www.gnu.org/licenses/gpl-3.0.html>.\nDit is vrije software: je mag het aanpassen en verder verspreiden.\nEr is GEEN GARANTIE, voor zover de wet dat toestaat.",
+	},
 }
 
 func init() {

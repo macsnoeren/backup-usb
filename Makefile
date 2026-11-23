@@ -1,3 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Maurice Snoeren
+#
+# This file is part of USB Backup.
+#
+# USB Backup is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# USB Backup is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# USB Backup. If not, see <https://www.gnu.org/licenses/>.
+
 # USB Backup – build and test targets. No Docker: everything runs with go test.
 
 GO       ?= go
@@ -12,7 +29,7 @@ GOLANGCI_LINT := $(call tool,golangci-lint)
 GOVULNCHECK   := $(call tool,govulncheck)
 GOSEC         := $(call tool,gosec)
 
-.PHONY: setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
+.PHONY: notices setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
         build-windows build-linux build-testbin clean
 
 all: lint test build-linux build-windows
@@ -66,13 +83,13 @@ SEMVER := $(if $(filter v%,$(CLEANVER)),$(patsubst v%,%,$(CLEANVER)),0.0.0-dev+$
 
 # Windows setup (NSIS runs on Linux).
 setup-windows: # after build-windows (and signing); does not rebuild, so signatures stay
-	cp README.md LICENSE dist/
+	cp README.md LICENSE THIRD-PARTY-NOTICES.txt dist/
 	$(MAKENSIS) -V2 -DVERSION=$(SEMVER) -DDIST=$(CURDIR)/dist -DOUT=$(CURDIR)/dist/USB-Backup-Setup.exe packaging/windows/usb-backup.nsi
 
 # Linux packages: .deb and .rpm (nfpm) and .tar.gz with install.sh, for
 # amd64 and arm64.
 LINUX_TAR_FILES := packaging/linux/install.sh packaging/linux/usb-backup@.service \
-	packaging/linux/usb-backup.service packaging/linux/usb-backup.timer packaging/linux/usb-backup-cli.1 README.md LICENSE
+	packaging/linux/usb-backup.service packaging/linux/usb-backup.timer packaging/linux/usb-backup-cli.1 README.md LICENSE THIRD-PARTY-NOTICES.txt
 packages-linux: build-linux
 	for a in amd64 arm64; do \
 		mkdir -p dist/nfpm && cp dist/linux-$$a/usb-backup-cli dist/nfpm/usb-backup-cli || exit 1; \
@@ -86,6 +103,11 @@ packages-linux: build-linux
 # Test binary with fake disks and a fake clock (build tag "fakes"). Never ship it.
 build-testbin:
 	$(BUILD) -tags fakes -ldflags "-X main.version=$(VERSION)" -o dist/test/usb-backup-cli$(shell $(GO) env GOEXE) ./cmd/usb-backup-cli
+
+# THIRD-PARTY-NOTICES.txt: the licenses of the compiled-in modules. Rerun
+# after changing go.mod; a test fails when it is out of date.
+notices:
+	GO=$(GO) sh scripts/third-party-notices.sh
 
 clean:
 	rm -rf dist coverage.out

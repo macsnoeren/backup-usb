@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Maurice Snoeren
+
 # Not enabled by the package. Enable with:
 #   systemctl enable --now usb-backup.timer
 # or use "usb-backup-cli install --trigger daily --at 02:00".

@@ -333,4 +333,23 @@ Design and build plan (in Dutch): `docs/DESIGN.md`, `docs/tasks.md`.
 Security reviews: `docs/security-review.md`. Checks that need real hardware
 or Windows: `docs/handmatige-tests.md`.
 
-License: GPL-3.0 (see `LICENSE`).
+## 10. License
+
+Copyright (C) 2026 Maurice Snoeren
+
+USB Backup is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version (SPDX: `GPL-3.0-or-later`).
+
+USB Backup is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License in [`LICENSE`](LICENSE)
+for more details.
+
+Every source file starts with this notice. `usb-backup-cli version` and
+"About" in the settings window show it too. The dependencies keep their own
+licenses, all compatible with the GPL: `filippo.io/age`, `filippo.io/hpke`,
+`golang.org/x/crypto` and `golang.org/x/sys` (BSD-3-Clause) and windigo
+(MIT). Their notices are in `THIRD-PARTY-NOTICES.txt` (`make notices`
+regenerates it) and ship with every package.

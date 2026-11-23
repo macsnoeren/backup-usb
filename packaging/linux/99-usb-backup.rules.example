@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Maurice Snoeren
+
 # Example only. "usb-backup-cli install --trigger usb" writes the real rule
 # to /etc/udev/rules.d/99-usb-backup.rules with the file system UUIDs of the
 # registered disks, for example:

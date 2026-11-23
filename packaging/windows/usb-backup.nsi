@@ -1,3 +1,20 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+; Copyright (C) 2026 Maurice Snoeren
+;
+; This file is part of USB Backup.
+;
+; USB Backup is free software: you can redistribute it and/or modify it under
+; the terms of the GNU General Public License as published by the Free Software
+; Foundation, either version 3 of the License, or (at your option) any later
+; version.
+;
+; USB Backup is distributed in the hope that it will be useful, but WITHOUT ANY
+; WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+; PARTICULAR PURPOSE. See the GNU General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License along with
+; USB Backup. If not, see <https://www.gnu.org/licenses/>.
+
 ; USB Backup - Windows setup (NSIS 3, builds on Linux with makensis).
 ;   makensis -DVERSION=1.2.3 -DDIST=../../dist -DOUT=../../dist/USB-Backup-Setup.exe packaging/windows/usb-backup.nsi
 ; Silent install: USB-Backup-Setup.exe /S
@@ -35,6 +52,7 @@ BrandingText "${APP} ${VERSION}"
 !define MUI_FINISHPAGE_RUN_TEXT "Open USB Backup to set it up (sources, disks, keys, schedule)"
 
 !insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "${DIST}\LICENSE"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
@@ -70,6 +88,7 @@ Section "USB Backup (required)" SecMain
   File "${DIST}\usb-backup-cli.exe"
   File "${DIST}\README.md"
   File "${DIST}\LICENSE"
+  File "${DIST}\THIRD-PARTY-NOTICES.txt"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Configuration folder: only administrators and SYSTEM may write; users
@@ -128,6 +147,7 @@ Section "un.USB Backup" UnSecMain
   Delete "$INSTDIR\usb-backup-cli.exe"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\LICENSE"
+  Delete "$INSTDIR\THIRD-PARTY-NOTICES.txt"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APP}.lnk"

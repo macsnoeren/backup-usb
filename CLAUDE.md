@@ -45,6 +45,7 @@ Een taak is pas klaar als de security-review geen open punten heeft. Een gevonde
 - Nep-schijven en nep-klok (`USB_BACKUP_FAKE_DISKS`, `USB_BACKUP_FAKE_NOW`) alleen met build-tag `fakes`, nooit in een productiebuild.
 - Afhankelijkheden zo min mogelijk: standaardbibliotheek, `filippo.io/age`, windigo (alleen GUI). Nieuwe afhankelijkheid alleen na een notitie onder "Open punten".
 - Fouten met context teruggeven (`fmt.Errorf("...: %w", err)`); exitcodes alleen in `internal/cli`, volgens de tabel in het ontwerp.
+- Licentie GPL-3.0-or-later. Elk nieuw bronbestand (`.go`, scripts, Makefile, packaging, workflows) begint met de licentiekop uit een bestaand bestand (SPDX-regel, copyright, GPL-tekst); `license_test.go` controleert dat. Na een wijziging in `go.mod`: `make notices` voor `THIRD-PARTY-NOTICES.txt`.
 - Alles in het Engels: code, commentaar, logberichten, gebruikersteksten (via de vertaaltabel `internal/msg`, standaardtaal `en`, Nederlands optioneel), bestandsnamen op de schijf, commitberichten en README. Alleen `docs/tasks.md` en `docs/DESIGN.md` blijven Nederlands.
 
 ## Beveiliging: altijd
