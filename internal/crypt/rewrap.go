@@ -1,0 +1,112 @@
+package crypt
+
+import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+
+	"filippo.io/age"
+
+	"github.com/macsnoeren/backup-usb/internal/fsx"
+	"github.com/macsnoeren/backup-usb/internal/secmem"
+)
+
+// ErrDecrypt means the file key could not be unwrapped with the given keys
+// (wrong key or damaged header).
+var ErrDecrypt = errors.New("cannot unwrap the file key")
+
+// Rewrap re-wraps the age file rel inside root for new recipients: the
+// file key is unwrapped with oldIDs, wrapped for recipients, the header MAC
+// recomputed and the payload copied unchanged to rel+".part". The part file
+// is then checked with check (an identity for one of the new recipients):
+// it must yield the same file key and the payload must be byte-equal. Only
+// then the part file replaces the original. On any failure the original is
+// left as it was.
+func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.Recipient, check age.Identity) (err error) {
+	f, err := fsx.OpenRegular(root, rel)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	hdr, payload, err := ReadHeader(f)
+	if err != nil {
+		return err
+	}
+	fk, err := age.DecryptHeader(hdr.Marshal(), oldIDs...)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrDecrypt, err)
+	}
+	fileKey := secmem.From(fk)
+	defer fileKey.Wipe()
+	nh := &Header{}
+	for _, r := range recipients {
+		ss, err := r.Wrap(fileKey.Bytes())
+		if err != nil {
+			return fmt.Errorf("wrap file key: %w", err)
+		}
+		nh.Stanzas = append(nh.Stanzas, ss...)
+	}
+	if err := nh.SetMAC(fileKey.Bytes()); err != nil {
+		return err
+	}
+
+	part := rel + fsx.PartSuffix
+	out, err := fsx.CreateExclusive(root, part, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = root.Remove(part)
+		}
+	}()
+	h := sha256.New()
+	_, werr := out.Write(nh.Marshal())
+	if werr == nil {
+		_, werr = io.Copy(io.MultiWriter(out, h), payload)
+	}
+	serr := out.Sync()
+	cerr := out.Close()
+	if err := errors.Join(werr, serr, cerr); err != nil {
+		return fmt.Errorf("write %s: %w", part, err)
+	}
+	want := h.Sum(nil)
+
+	// Check the new file with the new key before it replaces the old one.
+	if err := checkRewrapped(root, part, fileKey.Bytes(), check, want); err != nil {
+		return err
+	}
+	return fsx.RootRename(root, part, rel)
+}
+
+func checkRewrapped(root *os.Root, part string, fileKey []byte, check age.Identity, payloadSum []byte) error {
+	f, err := fsx.OpenRegular(root, part)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }() // read-only
+	hdr, payload, err := ReadHeader(f)
+	if err != nil {
+		return err
+	}
+	fk, err := age.DecryptHeader(hdr.Marshal(), check)
+	if err != nil {
+		return fmt.Errorf("re-wrapped header does not open with the new key: %w", err)
+	}
+	same := subtle.ConstantTimeCompare(fk, fileKey) == 1
+	secmem.Wipe(fk)
+	if !same {
+		return errors.New("re-wrapped header holds another file key")
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, payload); err != nil {
+		return fmt.Errorf("read back: %w", err)
+	}
+	if subtle.ConstantTimeCompare(h.Sum(nil), payloadSum) != 1 {
+		return errors.New("payload changed while re-wrapping")
+	}
+	return nil
+}
