@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the release
+  id-token: write # keyless signing of SHA256SUMS with cosign
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis osslsigncode
+      - uses: sigstore/cosign-installer@v3
+      - name: Tests before releasing
+        run: go test ./... && go test -tags integration ./...
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}

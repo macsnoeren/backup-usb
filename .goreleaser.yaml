@@ -1,0 +1,135 @@
+# GoReleaser configuration: on a git tag, build everything and publish it as
+# a GitHub release. See .github/workflows/release.yml.
+version: 2
+
+project_name: usb-backup
+dist: build/release
+
+before:
+  hooks:
+    - go mod verify
+    # The Windows setup is made from executables built and signed by make
+    # (NSIS runs on Linux); GoReleaser adds it via release.extra_files.
+    - make build-windows VERSION={{ .Tag }}
+    - scripts/sign-windows.sh dist/usb-backup.exe dist/usb-backup-cli.exe
+    - make setup-windows VERSION={{ .Tag }}
+    - scripts/sign-windows.sh dist/USB-Backup-Setup.exe
+
+builds:
+  - id: cli-linux
+    main: ./cmd/usb-backup-cli
+    binary: usb-backup-cli
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    goos: [linux]
+    goarch: [amd64, arm64]
+  - id: cli-windows
+    main: ./cmd/usb-backup-cli
+    binary: usb-backup-cli
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    hooks:
+      post:
+        - cmd: scripts/sign-windows.sh "{{ .Path }}"
+  - id: gui
+    main: ./cmd/usb-backup
+    binary: usb-backup
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags: ["-H windowsgui -s -w -X main.version={{ .Version }}"]
+    goos: [windows]
+    goarch: [amd64, arm64]
+    hooks:
+      post:
+        - cmd: scripts/sign-windows.sh "{{ .Path }}"
+
+archives:
+  - id: linux
+    ids: [cli-linux]
+    formats: [tar.gz]
+    name_template: "usb-backup-{{ .Version }}-linux-{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - packaging/linux/install.sh
+      - packaging/linux/usb-backup@.service
+      - packaging/linux/usb-backup.service
+      - packaging/linux/usb-backup.timer
+      - packaging/linux/usb-backup-cli.1
+  - id: windows
+    ids: [cli-windows, gui]
+    formats: [zip]
+    name_template: "usb-backup-{{ .Version }}-windows-{{ .Arch }}"
+    files: [README.md, LICENSE]
+
+nfpms:
+  - id: packages
+    ids: [cli-linux]
+    package_name: usb-backup
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: USB Backup
+    homepage: https://github.com/macsnoeren/backup-usb
+    maintainer: USB Backup <noreply@example.invalid>
+    description: Verified, encrypted backups of folders to registered USB disks. Nothing runs automatically after installation.
+    license: GPL-3.0
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    recommends: [udisks2, smartmontools]
+    contents:
+      - dst: /etc/usb-backup
+        type: dir
+        file_info: { mode: 0755, owner: root, group: root }
+      - src: packaging/linux/usb-backup@.service
+        dst: /usr/lib/systemd/system/usb-backup@.service
+        file_info: { mode: 0644 }
+      - src: packaging/linux/usb-backup.service
+        dst: /usr/lib/systemd/system/usb-backup.service
+        file_info: { mode: 0644 }
+      - src: packaging/linux/usb-backup.timer
+        dst: /usr/lib/systemd/system/usb-backup.timer
+        file_info: { mode: 0644 }
+      - src: packaging/linux/99-usb-backup.rules.example
+        dst: /usr/share/usb-backup/99-usb-backup.rules.example
+        file_info: { mode: 0644 }
+      - src: packaging/linux/usb-backup-cli.1
+        dst: /usr/share/man/man1/usb-backup-cli.1
+        file_info: { mode: 0644 }
+      - src: README.md
+        dst: /usr/share/doc/usb-backup/README.md
+        file_info: { mode: 0644 }
+    scripts:
+      preremove: packaging/linux/scripts/preremove.sh
+      postremove: packaging/linux/scripts/postremove.sh
+
+checksum:
+  name_template: SHA256SUMS
+  algorithm: sha256
+  extra_files:
+    - glob: dist/USB-Backup-Setup.exe
+
+# SHA256SUMS is signed with Sigstore cosign, keyless through the GitHub
+# Actions identity (no secret to manage). Check with:
+#   cosign verify-blob --certificate SHA256SUMS.pem --signature SHA256SUMS.sig \
+#     --certificate-identity-regexp 'github.com/macsnoeren/backup-usb' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com SHA256SUMS
+signs:
+  - id: checksums
+    artifacts: checksum
+    cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    args: ["sign-blob", "--yes", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}"]
+
+release:
+  github:
+    owner: macsnoeren
+    name: backup-usb
+  extra_files:
+    - glob: dist/USB-Backup-Setup.exe
+
+changelog:
+  sort: asc
