@@ -60,12 +60,28 @@ build-linux:
 
 MAKENSIS ?= makensis
 NFPM := $(call tool,nfpm)
-SEMVER := $(shell echo $(VERSION) | sed 's/^v//; s/-dirty//')
+# A semantic version for packages: v1.2.3 -> 1.2.3, anything else -> 0.0.0-dev+<id>.
+CLEANVER := $(patsubst %-dirty,%,$(VERSION))
+SEMVER := $(if $(filter v%,$(CLEANVER)),$(patsubst v%,%,$(CLEANVER)),0.0.0-dev+$(CLEANVER))
 
 # Windows setup (NSIS runs on Linux).
 setup-windows: build-windows
 	cp README.md LICENSE dist/
 	$(MAKENSIS) -V2 -DVERSION=$(SEMVER) -DDIST=$(CURDIR)/dist -DOUT=$(CURDIR)/dist/USB-Backup-Setup.exe packaging/windows/usb-backup.nsi
+
+# Linux packages: .deb and .rpm (nfpm) and .tar.gz with install.sh, for
+# amd64 and arm64.
+LINUX_TAR_FILES := packaging/linux/install.sh packaging/linux/usb-backup@.service \
+	packaging/linux/usb-backup.service packaging/linux/usb-backup.timer packaging/linux/usb-backup-cli.1 README.md LICENSE
+packages-linux: build-linux
+	for a in amd64 arm64; do \
+		mkdir -p dist/nfpm && cp dist/linux-$$a/usb-backup-cli dist/nfpm/usb-backup-cli || exit 1; \
+		for p in deb rpm; do VERSION=$(SEMVER) ARCH=$$a $(NFPM) package -f packaging/linux/nfpm.yaml -p $$p -t dist/ || exit 1; done; \
+		d=dist/tar/usb-backup-$(SEMVER)-linux-$$a; mkdir -p $$d; \
+		cp dist/linux-$$a/usb-backup-cli $(LINUX_TAR_FILES) $$d/ || exit 1; \
+		tar -C dist/tar -czf $$d.tar.gz usb-backup-$(SEMVER)-linux-$$a || exit 1; \
+		mv $$d.tar.gz dist/; \
+	done
 
 # Test binary with fake disks and a fake clock (build tag "fakes"). Never ship it.
 build-testbin:

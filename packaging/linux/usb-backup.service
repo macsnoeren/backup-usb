@@ -1,0 +1,16 @@
+# Started by usb-backup.timer (not enabled by the package).
+[Unit]
+Description=USB Backup (scheduled)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/usb-backup-cli run --quiet-skip
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=12h

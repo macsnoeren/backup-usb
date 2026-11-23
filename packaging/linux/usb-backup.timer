@@ -1,0 +1,12 @@
+# Not enabled by the package. Enable with:
+#   systemctl enable --now usb-backup.timer
+# or use "usb-backup-cli install --trigger daily --at 02:00".
+[Unit]
+Description=USB Backup (daily at 02:00)
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

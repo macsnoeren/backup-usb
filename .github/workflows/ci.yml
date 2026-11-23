@@ -60,6 +60,23 @@ jobs:
         run: make build-windows
       - name: Build for Linux (amd64, arm64)
         run: make build-linux
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis rpm
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Windows setup (NSIS)
+        run: make setup-windows
+      - name: Linux packages (deb, rpm, tar.gz)
+        run: make packages-linux
+      - name: Check package contents
+        run: |
+          for f in dist/*.deb; do dpkg --contents "$f"; done
+          for f in dist/*.rpm; do rpm -qlp "$f"; done
+          for f in dist/*.tar.gz; do tar -tzf "$f"; done
+          dpkg --contents dist/usb-backup_*_amd64.deb | grep -q ' ./usr/bin/usb-backup-cli$'
+          rpm -qlp dist/*x86_64.rpm | grep -qx /usr/bin/usb-backup-cli
       - uses: actions/upload-artifact@v4
         with:
           name: dist

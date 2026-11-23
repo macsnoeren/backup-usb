@@ -1,0 +1,66 @@
+.TH USB-BACKUP-CLI 1 "2026" "USB Backup" "User Commands"
+.SH NAME
+usb-backup-cli \- verified, encrypted backups to registered USB disks
+.SH SYNOPSIS
+.B usb-backup-cli
+.I command
+.RI [ flags ]
+.SH DESCRIPTION
+.B usb-backup-cli
+makes a verified zip of every source folder on the USB disk that is due in
+this period (odd/even ISO week by default), encrypted with age
+(post-quantum) when keys exist. Old period folders are only deleted after
+every new archive was verified.
+.SH COMMANDS
+.TP
+.B run
+Back up all source folders
+.RB ( \-\-target ", " \-\-any\-disk ", " \-\-tag ", " \-\-force ", " \-\-wait ", " \-\-dry\-run ", " \-\-quiet\-skip ", " \-\-json ).
+.TP
+.B verify
+Check backups again; \fB\-\-all\fR for every folder; with \fB\-\-identity\fR or \fB\-\-password\-stdin\fR also decrypt and unpack.
+.TP
+.B list
+Browse periods, sources and files
+.RB ( \-\-week ", " \-\-tag ", " \-\-path ", " \-\-search ).
+.TP
+.B restore
+Restore files (\fB\-\-tag\fR, \fB\-\-week\fR, \fB\-\-file\fR, \fB\-\-to\fR or \fB\-\-original\fR). Existing files are never overwritten.
+.TP
+.B status
+Connected backup disks: health, free space, folders, last backup.
+.TP
+.B enroll \fIdisk\fR \-\-name \fINAME\fR \-\-weeks odd|even
+Register a disk (vault password).
+.TP
+.BR disks ", " forget " \fIname\fR"
+Show or remove registrations.
+.TP
+.B keys init|passwd|rotate|rewrap|status
+Manage the keys.
+.TP
+.B config show|set|add\-source|remove\-source|import|export
+Manage the settings (signed by the operator).
+.TP
+.B install|uninstall \-\-trigger usb|daily|weekly
+Schedule backups (systemd timer, udev rule).
+.TP
+.BR eject ", " version ", " help
+.SH PASSWORDS
+Passwords are never taken from arguments or environment variables: use
+\fB\-\-password\-stdin\fR or the prompt.
+.SH EXIT STATUS
+0 success; 1 success with warnings; 2 no backup disk; 3 wrong disk for this
+period; 4 skipped (recently done); 5 another backup is running; 6 unknown
+disk; 7 settings or registrations changed without the operator; 10 disk
+check failed; 11 read or write error; 12 verification failed; 13 decryption
+or re-wrap failed; 64 wrong usage.
+.SH FILES
+.I /etc/usb-backup/
+(as root) or
+.I ~/.config/usb-backup/
+: settings, registrations, public keys, log.
+.SH SEE ALSO
+.BR age (1),
+.BR systemd.timer (5),
+.BR udev (7)

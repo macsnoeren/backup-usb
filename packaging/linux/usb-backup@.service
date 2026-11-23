@@ -1,0 +1,17 @@
+# Started by the udev rule that "usb-backup-cli install --trigger usb"
+# writes, with the file system UUID of a registered disk as instance.
+[Unit]
+Description=USB Backup to the disk with file system UUID %I
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/usb-backup-cli run --quiet-skip --wait 30
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictSUIDSGID=yes
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=12h

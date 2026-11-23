@@ -1,0 +1,4 @@
+# Example only. "usb-backup-cli install --trigger usb" writes the real rule
+# to /etc/udev/rules.d/99-usb-backup.rules with the file system UUIDs of the
+# registered disks, for example:
+# ACTION=="add", SUBSYSTEM=="block", ENV{ID_FS_UUID}=="A41C-77E2", TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-backup@A41C-77E2.service"

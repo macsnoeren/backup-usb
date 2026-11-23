@@ -1,0 +1,57 @@
+# nfpm package description for usb-backup-cli (.deb and .rpm).
+#   VERSION=1.2.3 ARCH=amd64 nfpm package -f packaging/linux/nfpm.yaml -p deb -t dist/
+# Nothing runs automatically after installation.
+name: usb-backup
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: utils
+priority: optional
+maintainer: USB Backup <noreply@example.invalid>
+description: |
+  Verified, encrypted backups of folders to registered USB disks.
+  Nothing runs automatically after installation: enable a trigger with
+  "usb-backup-cli install --trigger usb" or "--trigger daily".
+homepage: https://github.com/macsnoeren/backup-usb
+license: GPL-3.0
+recommends:
+  - udisks2
+  - smartmontools
+contents:
+  - src: dist/nfpm/usb-backup-cli
+    dst: /usr/bin/usb-backup-cli
+    file_info:
+      mode: 0755
+  - dst: /etc/usb-backup
+    type: dir
+    file_info:
+      mode: 0755
+      owner: root
+      group: root
+  - src: packaging/linux/usb-backup@.service
+    dst: /usr/lib/systemd/system/usb-backup@.service
+    file_info:
+      mode: 0644
+  - src: packaging/linux/usb-backup.service
+    dst: /usr/lib/systemd/system/usb-backup.service
+    file_info:
+      mode: 0644
+  - src: packaging/linux/usb-backup.timer
+    dst: /usr/lib/systemd/system/usb-backup.timer
+    file_info:
+      mode: 0644
+  - src: packaging/linux/99-usb-backup.rules.example
+    dst: /usr/share/usb-backup/99-usb-backup.rules.example
+    file_info:
+      mode: 0644
+  - src: packaging/linux/usb-backup-cli.1
+    dst: /usr/share/man/man1/usb-backup-cli.1
+    file_info:
+      mode: 0644
+  - src: README.md
+    dst: /usr/share/doc/usb-backup/README.md
+    file_info:
+      mode: 0644
+scripts:
+  preremove: packaging/linux/scripts/preremove.sh
+  postremove: packaging/linux/scripts/postremove.sh
