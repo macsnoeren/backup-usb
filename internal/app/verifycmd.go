@@ -170,6 +170,11 @@ func checkSHAFile(ctx context.Context, root *os.Root, rel string) error {
 
 // Verify checks existing backups again.
 func Verify(ctx context.Context, deps *Deps, cfg *config.Config, opts VerifyOptions) (*VerifyReport, error) {
+	release, err := deps.acquireLock()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	disks, err := connectedDisks(ctx, deps, cfg, opts.Target)
 	if err != nil {
 		return nil, err

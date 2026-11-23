@@ -70,6 +70,7 @@ func (c *ctx) deps(cfg *config.Config) *app.Deps {
 		ConfigDir: c.configDir(),
 		Lang:      c.p.Lang,
 		Sleep:     c.env.Sleep,
+		LockPath:  c.env.LockPath,
 	}
 }
 

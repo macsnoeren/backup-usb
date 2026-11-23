@@ -66,3 +66,10 @@ func init() {
 		"err.tampered": {EN: "settings or registrations were changed without the operator (signature does not match); nothing was done", NL: "instellingen of registraties zijn gewijzigd zonder beheerder (handtekening klopt niet); er is niets gedaan"},
 	})
 }
+
+func init() {
+	add(map[string]entry{
+		"err.busy": {EN: "another backup is running; try again later", NL: "er loopt al een back-up; probeer het later opnieuw"},
+		"err.lock": {EN: "the single-instance lock cannot be taken", NL: "de vergrendeling tegen dubbele start lukt niet"},
+	})
+}

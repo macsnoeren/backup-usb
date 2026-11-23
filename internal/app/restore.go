@@ -80,6 +80,11 @@ func Restore(ctx context.Context, deps *Deps, cfg *config.Config, opts RestoreOp
 	if dest == "" {
 		return nil, Errorf(KindUsage, nil, "err.restoreDest")
 	}
+	release, err := deps.acquireLock()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	disks, err := openDisks(ctx, deps, cfg, opts.Target)
 	if err != nil {
 		return nil, err

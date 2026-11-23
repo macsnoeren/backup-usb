@@ -19,6 +19,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/crypt"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/fsx"
+	"github.com/macsnoeren/backup-usb/internal/lock"
 	"github.com/macsnoeren/backup-usb/internal/logx"
 	"github.com/macsnoeren/backup-usb/internal/msg"
 	"github.com/macsnoeren/backup-usb/internal/rotate"
@@ -55,6 +56,20 @@ type Deps struct {
 	Sleep func(ctx context.Context, d time.Duration) error
 	// Events receives progress; may be nil.
 	Events func(Event)
+	// LockPath overrides the single-instance lock (tests).
+	LockPath string
+}
+
+// acquireLock makes sure only one backup runs at a time (exit code 5).
+func (d *Deps) acquireLock() (func(), error) {
+	release, err := lock.Acquire(d.LockPath)
+	if errors.Is(err, lock.ErrBusy) {
+		return nil, Errorf(KindBusy, nil, "err.busy")
+	}
+	if err != nil {
+		return nil, Errorf(KindIO, err, "err.lock")
+	}
+	return release, nil
 }
 
 func (d *Deps) emit(e Event) {
@@ -310,6 +325,11 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	if err != nil {
 		return nil, err
 	}
+	release, err := deps.acquireLock()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	reg, err := LoadRegistry(deps.ConfigDir, cfg)
 	if err != nil {
 		return nil, err

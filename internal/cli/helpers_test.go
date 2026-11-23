@@ -155,6 +155,7 @@ func (w *world) env() *Env {
 		ConfigDir: w.cfgDir,
 		Getenv:    func(string) string { return "" },
 		Context:   w.ctx,
+		LockPath:  filepath.Join(w.cfgDir, "test.lock"),
 		Sleep: func(_ context.Context, d time.Duration) error {
 			w.clock.Advance(d)
 			return nil

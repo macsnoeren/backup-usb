@@ -44,6 +44,8 @@ type Env struct {
 	Context context.Context
 	// Console replaces the console password prompt (tests).
 	Console password.Source
+	// LockPath overrides the single-instance lock (tests).
+	LockPath string
 }
 
 // Run executes the command line in args (args[0] is the program name) and
