@@ -12,7 +12,7 @@ GOLANGCI_LINT := $(call tool,golangci-lint)
 GOVULNCHECK   := $(call tool,govulncheck)
 GOSEC         := $(call tool,gosec)
 
-.PHONY: all test test-integration test-e2e test-long cover lint security fuzz \
+.PHONY: gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
         build-windows build-linux build-testbin clean
 
 all: lint test build-linux build-windows
@@ -39,7 +39,8 @@ lint:
 
 security:
 	$(GOVULNCHECK) ./...
-	$(GOSEC) -quiet -exclude-generated ./...
+	$(GOLANGCI_LINT) run --enable-only gosec ./...
+	GOOS=windows $(GOLANGCI_LINT) run --enable-only gosec ./...
 	$(GO) test -race ./...
 	$(GO) test -race -tags integration ./...
 	FUZZTIME=$(FUZZTIME) GO=$(GO) sh scripts/fuzz.sh
@@ -63,3 +64,8 @@ build-testbin:
 
 clean:
 	rm -rf dist coverage.out
+
+# Standalone gosec without the reviewed exceptions (//nolint:gosec with a
+# reason, G304/G703 in .golangci.yml): every finding, for a full audit.
+gosec-raw:
+	$(GOSEC) -quiet -exclude-generated ./...
