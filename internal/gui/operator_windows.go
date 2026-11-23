@@ -212,7 +212,7 @@ func (o *operator) settings() {
 
 // about shows the version and the license notice (GPL-3.0-or-later).
 func (o *operator) about(parent ui.Parent) {
-	_, _ = parent.Hwnd().MessageBox(o.t("gui.about", Version)+"\n\n"+o.t("license"), o.t("gui.tab.about"), co.MB_ICONINFORMATION)
+	o.main.showAbout(parent)
 }
 
 // --- General and sources (T11.6) ---

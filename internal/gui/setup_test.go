@@ -19,13 +19,16 @@ package gui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/msg"
 )
 
 func TestGearAction(t *testing.T) {
@@ -132,5 +135,32 @@ func TestRealCLI(t *testing.T) {
 	ev := c.Call(ctx, [][]byte{pw}, "keys", "rotate")
 	if ev.Event != "result" || ev.Text() == "" {
 		t.Fatalf("keys rotate: %+v", ev)
+	}
+}
+
+func TestAboutText(t *testing.T) {
+	a := AboutInfo{Version: "1.2.3", Go: "go1.99", Platform: "windows/amd64", Folder: `C:\ProgramData\USB Backup`}
+	for _, tc := range []struct {
+		state string
+		err   error
+		en    string
+		nl    string
+	}{
+		{app.KeysNone, nil, "Keys: not set up yet", "Sleutels: nog niet ingesteld"},
+		{app.KeysReady, nil, "Keys: set up\n", "Sleutels: ingesteld\n"},
+		{app.KeysNoVault, nil, "this user has no vault", "geen vault"},
+		{app.KeysIncomplete, nil, "Keys: incomplete", "Sleutels: onvolledig"},
+		{"", errors.New("settings changed"), "Keys: settings changed", "Sleutels: settings changed"},
+	} {
+		a.Keys.State, a.KeysErr = tc.state, tc.err
+		en, nl := AboutText(msg.Printer{Lang: msg.EN}, a), AboutText(msg.Printer{Lang: msg.NL}, a)
+		if !strings.Contains(en, tc.en) || !strings.Contains(nl, tc.nl) {
+			t.Errorf("%q:\n%s\n%s", tc.state, en, nl)
+		}
+		for _, want := range []string{"USB Backup 1.2.3", "go1.99", "windows/amd64", a.Folder, "Maurice Snoeren", "GPLv3+", "THIRD-PARTY-NOTICES.txt", homepage} {
+			if !strings.Contains(en, want) || !strings.Contains(nl, want) {
+				t.Errorf("no %q in the About box", want)
+			}
+		}
 	}
 }

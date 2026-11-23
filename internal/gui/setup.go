@@ -119,3 +119,24 @@ func (c CLI) Language(ctx context.Context) msg.Lang {
 	}
 	return msg.Default
 }
+
+const homepage = "https://github.com/macsnoeren/backup-usb"
+
+// AboutInfo is what the About box shows; nothing in it is secret.
+type AboutInfo struct {
+	Version, Go, Platform, Folder string
+	Keys                          app.KeysState
+	KeysErr                       error
+}
+
+// AboutText is the text of the About box.
+func AboutText(p msg.Printer, a AboutInfo) string {
+	keys := a.Keys.State
+	switch {
+	case a.KeysErr != nil:
+		keys = a.KeysErr.Error()
+	case keys == app.KeysNone, keys == app.KeysReady, keys == app.KeysNoVault, keys == app.KeysIncomplete:
+		keys = p.T("gui.keys." + keys)
+	}
+	return p.T("gui.about", a.Version, a.Go, a.Platform, a.Folder, keys) + "\n\n" + p.T("license") + "\n\n" + p.T("gui.aboutMore", homepage)
+}

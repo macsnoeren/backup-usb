@@ -24,6 +24,8 @@ import (
 	"syscall"
 	"unicode/utf16"
 	"unsafe"
+
+	"github.com/rodrigocfd/windigo/win"
 )
 
 var (
@@ -156,3 +158,21 @@ func desktopRestored() string {
 	}
 	return filepath.Join(home, "Desktop", "Restored")
 }
+
+var procAppendMenu = user32.NewProc("AppendMenuW")
+
+func appendMenuItem(menu win.HMENU, flags, id uintptr, text string) {
+	t, err := syscall.UTF16PtrFromString(text)
+	if err != nil {
+		return
+	}
+	procAppendMenu.Call(uintptr(menu), flags, id, uintptr(unsafe.Pointer(t))) //nolint:errcheck,gosec // Win32 call
+}
+
+func appendMenu(menu win.HMENU, id uintptr, text string) { appendMenuItem(menu, 0, id, text) } // MF_STRING
+
+func appendSubMenu(menu, sub win.HMENU, text string) {
+	appendMenuItem(menu, 0x10, uintptr(sub), text) // MF_POPUP
+}
+
+func appendMenuSeparator(menu win.HMENU) { appendMenuItem(menu, 0x800, 0, "") } // MF_SEPARATOR

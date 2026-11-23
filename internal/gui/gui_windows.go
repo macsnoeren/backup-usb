@@ -32,6 +32,7 @@ import (
 	"github.com/rodrigocfd/windigo/win"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/msg"
 )
 
@@ -43,6 +44,11 @@ const (
 	timerDevice    = 1
 	timerOperator  = 2
 	deviceSettleMs = 2500
+
+	// Menu commands; windigo numbers its controls down from 0xDFFF.
+	cmdSettings = 101
+	cmdExit     = 102
+	cmdAbout    = 103
 )
 
 // mainWindow is the status screen.
@@ -54,6 +60,7 @@ type mainWindow struct {
 	progress *ui.ProgressBar
 	action   *ui.Button
 	gear     *ui.Button
+	menu     win.HMENU
 	cli      CLI
 	p        msg.Printer
 	model    *Model
@@ -97,12 +104,14 @@ func Main(args []string) int {
 }
 
 func newMainWindow(cli CLI, p msg.Printer, auto bool) *mainWindow {
+	menu := newMainMenu(p.T)
 	wnd := ui.NewMain(ui.OptsMain().
+		Menu(menu).
 		ClassName(className).
 		Title(p.T("gui.title")).
 		Size(ui.Dpi(560, 300)).
 		Center(true))
-	m := &mainWindow{wnd: wnd, cli: cli, p: p, auto: auto, model: NewModel(p.Lang, time.Now)}
+	m := &mainWindow{wnd: wnd, menu: menu, cli: cli, p: p, auto: auto, model: NewModel(p.Lang, time.Now)}
 	m.gear = ui.NewButton(wnd, ui.OptsButton().Text(p.T("gui.btn.settings")).Position(ui.Dpi(510, 8)).Width(ui.DpiX(36)))
 	m.head = ui.NewStatic(wnd, ui.OptsStatic().Text(p.T("gui.checking")).Position(ui.Dpi(20, 40)).Size(ui.Dpi(520, 50)).CtrlStyle(co.SS_CENTER))
 	m.detail = ui.NewStatic(wnd, ui.OptsStatic().Text("").Position(ui.Dpi(20, 95)).Size(ui.Dpi(520, 40)).CtrlStyle(co.SS_CENTER))
@@ -134,12 +143,43 @@ func (m *mainWindow) events() {
 	})
 	m.action.On().BnClicked(func() { m.onAction() })
 	m.gear.On().BnClicked(func() { onGear(m) })
+	m.wnd.On().WmCommandAccelMenu(cmdSettings, func() { onGear(m) })
+	m.wnd.On().WmCommandAccelMenu(cmdExit, func() { _, _ = m.wnd.Hwnd().SendMessage(co.WM_CLOSE, 0, 0) })
+	m.wnd.On().WmCommandAccelMenu(cmdAbout, func() { m.showAbout(m.wnd) })
 	m.wnd.On().WmClose(func() {
 		if m.busy() {
 			return // never close during a backup; use Cancel
 		}
 		_ = m.wnd.Hwnd().DestroyWindow()
 	})
+}
+
+// newMainMenu makes the menu bar; 0 (no menu) if Windows refuses.
+func newMainMenu(t func(string, ...any) string) win.HMENU {
+	bar, err := win.CreateMenu()
+	if err != nil {
+		return 0
+	}
+	file, err1 := win.CreatePopupMenu()
+	help, err2 := win.CreatePopupMenu()
+	if err1 != nil || err2 != nil {
+		return 0
+	}
+	appendMenu(file, cmdSettings, t("gui.menu.settings"))
+	appendMenuSeparator(file)
+	appendMenu(file, cmdExit, t("gui.menu.exit"))
+	appendMenu(help, cmdAbout, t("gui.menu.about"))
+	appendSubMenu(bar, file, t("gui.menu.file"))
+	appendSubMenu(bar, help, t("gui.menu.help"))
+	return bar
+}
+
+// showAbout shows version, settings folder, key state and license. It needs
+// no password.
+func (m *mainWindow) showAbout(parent ui.Parent) {
+	a := AboutInfo{Version: Version, Go: runtime.Version(), Platform: runtime.GOOS + "/" + runtime.GOARCH, Folder: config.Dir()}
+	a.Keys, a.KeysErr = m.cli.KeysState(context.Background())
+	_, _ = parentHwnd(parent).MessageBox(AboutText(m.p, a), m.p.T("gui.tab.about"), co.MB_ICONINFORMATION)
 }
 
 func (m *mainWindow) busy() bool {
@@ -267,6 +307,10 @@ func (m *mainWindow) render(v View) {
 	}
 	icon := map[Color]string{Green: "✔ ", Orange: "⚠ ", Red: "✖ "}[v.Color]
 	_ = m.wnd.Hwnd().SetWindowText(strings.TrimSpace(icon + m.p.T("gui.title")))
-	// The gear is not available while a backup runs.
-	m.gear.Hwnd().EnableWindow(v.State != StateBusy && v.State != StateVerifying)
+	// The settings and closing are not available while a backup runs.
+	idle := v.State != StateBusy && v.State != StateVerifying
+	m.gear.Hwnd().EnableWindow(idle)
+	if m.menu != 0 {
+		_ = m.menu.EnableMenuItemByCmd(idle, cmdSettings, cmdExit)
+	}
 }

@@ -12,6 +12,13 @@ as the release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Windows: a menu bar with *File → Settings…*, *File → Exit* and
+  *Help → About USB Backup…*. The About box needs no password and shows the
+  version, platform, settings folder, whether keys are set up, and the
+  license.
+
 ### Fixed
 
 - Windows: on a fresh installation the gear asked for a vault password that

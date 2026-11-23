@@ -370,7 +370,7 @@ PARTICULAR PURPOSE. See the GNU General Public License in [`LICENSE`](LICENSE)
 for more details.
 
 Every source file starts with this notice. `usb-backup-cli version` and
-"About" in the settings window show it too. The dependencies keep their own
+*Help → About* in the window show it too. The dependencies keep their own
 licenses, all compatible with the GPL: `filippo.io/age`, `filippo.io/hpke`,
 `golang.org/x/crypto` and `golang.org/x/sys` (BSD-3-Clause) and windigo
 (MIT). Their notices are in `THIRD-PARTY-NOTICES.txt` (`make notices`
