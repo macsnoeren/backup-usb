@@ -171,6 +171,65 @@ func generateIdentity() (*secmem.Buffer, string, error) {
 	return secmem.From([]byte(id.String())), id.Recipient().String(), nil
 }
 
+// Key states (see CheckKeys).
+const (
+	KeysNone       = "none"       // no key files: first-time setup
+	KeysReady      = "ready"      // vault, recipients and signing key
+	KeysNoVault    = "no-vault"   // keys exist, but not the vault (another user, or lost)
+	KeysIncomplete = "incomplete" // a vault, but other key files are missing
+)
+
+// KeysState says which key files exist (public information only).
+type KeysState struct {
+	State string `json:"state"`
+	Vault string `json:"vault"`
+	// Writable is whether this user may change the configuration folder.
+	Writable bool `json:"writable"`
+}
+
+// CheckKeys looks which key files exist. It needs no password, so the
+// window can tell a fresh installation from a wrong password.
+func CheckKeys(dir string, cfg *config.Config, vaultPath string) KeysState {
+	st := KeysState{Vault: vaultPath, Writable: dirWritable(dir) == nil}
+	vaultThere := present(vaultPath)
+	rec, pub := present(cfg.RecipientsPath(dir)), present(filepath.Join(dir, config.SigningPubFile))
+	switch {
+	case vaultThere && rec && pub:
+		st.State = KeysReady
+	case vaultThere:
+		st.State = KeysIncomplete
+	case rec || pub:
+		st.State = KeysNoVault
+	default:
+		st.State = KeysNone
+	}
+	return st
+}
+
+// present reports whether something is at path. A path that cannot be
+// examined counts as present, so keys are never replaced by accident.
+func present(path string) bool {
+	_, err := os.Lstat(path)
+	return !errors.Is(err, fs.ErrNotExist)
+}
+
+// dirWritable checks that files can be made in dir, or, when it does not
+// exist yet, in its nearest existing parent. It leaves nothing behind.
+func dirWritable(dir string) error {
+	for {
+		f, err := os.CreateTemp(dir, ".usb-backup-probe-*")
+		if err == nil {
+			cerr := f.Close()
+			return errors.Join(cerr, os.Remove(f.Name()))
+		}
+		parent := filepath.Dir(dir)
+		if !errors.Is(err, fs.ErrNotExist) || parent == dir {
+			return err
+		}
+		dir = parent
+	}
+}
+
 // KeysInitOptions configure keys init.
 type KeysInitOptions struct {
 	ConfigDir string
@@ -203,12 +262,23 @@ type KeysInitResult struct {
 // the vault, and writes the break-glass private key to BreakglassOut.
 func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	recPath := o.Config.RecipientsPath(o.ConfigDir)
+	pubPath := filepath.Join(o.ConfigDir, config.SigningPubFile)
+	var created []string // removed again when a later step fails
 	if !o.Force {
-		for _, p := range []string{o.VaultPath, recPath, filepath.Join(o.ConfigDir, config.SigningPubFile)} {
-			if _, err := os.Stat(p); err == nil {
+		for _, p := range []string{o.VaultPath, recPath, pubPath} {
+			if present(p) {
 				return nil, Errorf(KindUsage, nil, "err.keysExist", p)
 			}
+			created = append(created, p)
 		}
+		if sig := recPath + config.SignatureSuffix; !present(sig) {
+			created = append(created, sig)
+		}
+	}
+	// Before anything is written: without this, a run without administrator
+	// rights left a vault that blocked every later attempt.
+	if err := dirWritable(o.ConfigDir); err != nil {
+		return nil, Errorf(KindIO, err, "err.configNotWritable", o.ConfigDir)
 	}
 	op, opRcp, err := generateIdentity()
 	if err != nil {
@@ -246,6 +316,16 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	if err := os.MkdirAll(o.ConfigDir, 0o755); err != nil { //nolint:gosec // configuration folder is readable by everyone
 		return nil, Errorf(KindIO, err, "err.write")
 	}
+	// None of these files existed before (checked above), and nothing can
+	// be encrypted for the new keys until this function succeeds.
+	done := false
+	defer func() {
+		if !done {
+			for _, p := range created {
+				_ = os.Remove(p)
+			}
+		}
+	}()
 	if err := v.Save(o.VaultPath, o.Password); err != nil {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
@@ -259,9 +339,10 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	}
 	pub, _ := v.SigningPublic()
 	pubText := base64.StdEncoding.EncodeToString(pub)
-	if err := fsx.WriteFileAtomic(filepath.Join(o.ConfigDir, config.SigningPubFile), []byte(pubText+"\n"), 0o644); err != nil {
+	if err := fsx.WriteFileAtomic(pubPath, []byte(pubText+"\n"), 0o644); err != nil {
 		return nil, Errorf(KindIO, err, "err.write")
 	}
+	done = true
 	return &KeysInitResult{
 		Vault: o.VaultPath, Recipients: recPath, OperationalKey: k.ID, OperationalRecipient: opRcp,
 		BreakglassFingerprint: vault.Fingerprint(bgRcp), BreakglassRecipient: bgRcp, SigningPublic: pubText,

@@ -143,7 +143,7 @@ func (m *mainWindow) events() {
 		}
 	})
 	m.action.On().BnClicked(func() { m.onAction() })
-	m.gear.On().BnClicked(func() { showOperatorLogin(m) })
+	m.gear.On().BnClicked(func() { onGear(m) })
 	m.wnd.On().WmClose(func() {
 		if m.busy() {
 			return // never close during a backup; use Cancel

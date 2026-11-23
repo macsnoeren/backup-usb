@@ -107,3 +107,17 @@ crafted disk was silently normalised instead of refused.
 | # | Finding | Severity | Resolution |
 | --- | --- | --- | --- |
 | 1 | CR/LF accepted in base64 of the age header (malleability). | low | `decodeB64` refuses CR and LF before decoding, as age does. Tests for a body line and the MAC line; the fuzz input is kept in `internal/crypt/testdata/fuzz` as a regression case. |
+
+## First-time setup in the window (T11.8, found by the user)
+
+Self-review of the diff (no separate agent).
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | The gear always asked the vault password, also without a vault: the first-time setup was unreachable. | functional | `keys check` (no password, public information only); setup only when no key file exists at all. Unreadable paths count as existing. Tests. |
+| 2 | The window deleted an existing file chosen for the break-glass key, before `keys init` could refuse: possibly the only copy of the current key. | high (data loss) | Never deleted; an existing file is refused. Test. |
+| 3 | `keys init` saved the vault before it found out that the settings folder was not writable. | medium | Writability is checked first; a failed run removes only the files it created. Tests. |
+| 4 | After a password change the new session was not wiped when the settings closed. | low | The current session is ended. |
+
+Skipping the password gives no extra rights: a user who may not write the
+settings folder is refused by the CLI, and existing keys are never replaced.

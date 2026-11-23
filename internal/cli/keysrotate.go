@@ -32,6 +32,7 @@ func init() {
 	keysCommands["rotate"] = cmdKeysRotate
 	keysCommands["rewrap"] = cmdKeysRewrap
 	keysCommands["status"] = cmdKeysStatus
+	keysCommands["check"] = cmdKeysCheck
 }
 
 // openVaultFor asks the vault password and opens the vault; the caller
@@ -218,5 +219,33 @@ func cmdKeysStatus(c *ctx, args []string) error {
 		fmt.Fprintln(c.env.Stdout, c.p.T("keys.statusLine", k.ID, k.Fingerprint, k.Status, k.Created, retired, pending))
 	}
 	fmt.Fprintln(c.env.Stdout, "break-glass", v.Meta.BreakglassFingerprint)
+	return nil
+}
+
+// cmdKeysCheck shows which key files exist. It asks no password: the window
+// uses it to tell a fresh installation from a wrong password.
+func cmdKeysCheck(c *ctx, args []string) error {
+	fs := c.newFlags("keys check")
+	vaultPath := fs.String("vault", "", "vault `file`")
+	asJSON := fs.Bool("json", false, "print as JSON")
+	pos, err := c.parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if err := noPositional(pos); err != nil {
+		return err
+	}
+	cfg, err := c.loadConfig()
+	if err != nil {
+		return err
+	}
+	if *vaultPath == "" {
+		*vaultPath = cfg.Vault()
+	}
+	st := app.CheckKeys(c.configDir(), cfg, *vaultPath)
+	if *asJSON {
+		return writeJSON(c.env.Stdout, st)
+	}
+	fmt.Fprintln(c.env.Stdout, c.p.T("keys.check", st.State, st.Vault, st.Writable))
 	return nil
 }

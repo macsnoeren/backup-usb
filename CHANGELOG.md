@@ -12,6 +12,16 @@ as the release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: on a fresh installation the gear asked for a vault password that
+  did not exist yet, so the first-time setup could not be reached. It now
+  starts the setup; the new command `keys check` tells the two apart.
+- Windows: the main window stayed frozen after the break-glass screen, and
+  choosing an existing file for the break-glass key deleted that file.
+- `keys init` without administrator rights left a vault behind that blocked
+  every later attempt; it now checks first and undoes a failed run.
+
 ## [0.1.0] - 2026-11-23
 
 First release.

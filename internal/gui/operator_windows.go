@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -88,6 +87,75 @@ func (o *operator) watchTimeout(m *ui.Modal) {
 	})
 }
 
+// operatorTimeout is the setting operatorTimeoutMinutes.
+func operatorTimeout(c CLI) time.Duration {
+	if ev := c.Call(context.Background(), nil, "config", "show", "operatorTimeoutMinutes"); ev.Event == "result" {
+		if n, err := strconv.Atoi(strings.TrimSpace(ev.Output)); err == nil && n > 0 {
+			return time.Duration(n) * time.Minute
+		}
+	}
+	return 5 * time.Minute
+}
+
+// onGear opens the settings: after the vault password, or, when there are
+// no keys yet, after the first-time setup.
+func onGear(mw *mainWindow) {
+	p, h := mw.p.T, mw.wnd.Hwnd()
+	st, err := mw.cli.KeysState(context.Background())
+	if err != nil {
+		_, _ = h.MessageBox(err.Error(), p("gui.title"), co.MB_ICONERROR)
+		return
+	}
+	switch ActionFor(st) {
+	case GearSetup:
+		firstSetup(mw)
+	case GearNeedAdmin:
+		_, _ = h.MessageBox(p("gui.needAdmin"), p("gui.title"), co.MB_ICONINFORMATION)
+	case GearNoVault:
+		_, _ = h.MessageBox(p("gui.noVault", st.Vault), p("gui.title"), co.MB_ICONWARNING)
+	case GearLoginIncomplete:
+		_, _ = h.MessageBox(p("gui.keysIncomplete", st.Vault), p("gui.title"), co.MB_ICONWARNING)
+		showOperatorLogin(mw)
+	default:
+		showOperatorLogin(mw)
+	}
+}
+
+// firstSetup makes the keys on a fresh installation and opens the settings
+// with the new password. The CLI refuses when there are keys already.
+func firstSetup(mw *mainWindow) {
+	o := &operator{main: mw}
+	h := mw.wnd.Hwnd()
+	if id, _ := h.MessageBox(o.t("gui.firstSetup"), o.t("gui.title"), co.MB_OKCANCEL|co.MB_ICONINFORMATION); id != co.ID_OK {
+		return
+	}
+	pw := o.askNewPassword(mw.wnd)
+	if pw == nil {
+		return
+	}
+	file := ""
+	for {
+		file = fileDialog(uintptr(h), true, o.t("gui.breakglassTitle"), "usb-backup-breakglass.txt")
+		if file == "" {
+			pw.Wipe()
+			return
+		}
+		if IsNewFile(file) {
+			break
+		}
+		_, _ = h.MessageBox(o.t("err.fileExists", file), o.t("gui.title"), co.MB_ICONWARNING)
+	}
+	ev := mw.cli.Call(context.Background(), [][]byte{pw.Bytes(), pw.Bytes()}, "keys", "init", "--breakglass-out", file)
+	if !o.report(mw.wnd, ev, "") {
+		pw.Wipe()
+		return
+	}
+	o.breakglassScreen(mw.wnd, file)
+	o.session = NewSession(pw, operatorTimeout(mw.cli), time.Now) // takes pw over
+	o.settings()
+	o.session.End()
+}
+
 // showOperatorLogin asks the vault password and opens the settings.
 func showOperatorLogin(mw *mainWindow) {
 	p := mw.p.T
@@ -101,18 +169,16 @@ func showOperatorLogin(mw *mainWindow) {
 		raw := takeSecret(pwEdit)
 		pw := secmem.From(raw)
 		ev := mw.cli.Call(context.Background(), [][]byte{pw.Bytes()}, "keys", "status")
-		if ev.Code != 0 {
+		if ev.Event != "result" {
 			pw.Wipe()
-			_, _ = m.Hwnd().MessageBox(p("gui.loginWrong"), p("gui.title"), co.MB_ICONWARNING)
+			text := ev.Message
+			if ev.Key == "err.vaultPassword" || text == "" {
+				text = p("gui.loginWrong")
+			}
+			_, _ = m.Hwnd().MessageBox(text, p("gui.title"), co.MB_ICONWARNING)
 			return
 		}
-		timeout := 5 * time.Minute
-		if ev2 := mw.cli.Call(context.Background(), nil, "config", "show", "operatorTimeoutMinutes"); ev2.Event == "result" {
-			if n, err := strconv.Atoi(strings.TrimSpace(ev2.Output)); err == nil && n > 0 {
-				timeout = time.Duration(n) * time.Minute
-			}
-		}
-		sess = NewSession(pw, timeout, time.Now)
+		sess = NewSession(pw, operatorTimeout(mw.cli), time.Now)
 		closeModal(m)
 	})
 	cancel.On().BnClicked(func() { closeModal(m) })
@@ -122,7 +188,7 @@ func showOperatorLogin(mw *mainWindow) {
 	}
 	o := &operator{main: mw, session: sess}
 	o.settings()
-	sess.End()
+	o.session.End() // a password change replaced the session
 }
 
 // settings is the operator screen: one button per section.
@@ -327,7 +393,8 @@ func (o *operator) breakglassScreen(parent ui.Parent, file string) {
 	print := button(m, o.t("gui.print"), 10, 160, 120)
 	confirm := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.confirmStored")).Position(ui.Dpi(10, 195)).Size(ui.Dpi(360, 20)))
 	cont := button(m, o.t("gui.continue"), 400, 192, 110)
-	cont.Hwnd().EnableWindow(false)
+	// Controls only exist from WM_CREATE on.
+	m.On().WmCreate(func(_ ui.WmCreate) int { cont.Hwnd().EnableWindow(false); return 0 })
 	confirmed := false
 	print.On().BnClicked(func() { _ = shellExecute("print", file) })
 	confirm.On().BnClicked(func() { cont.Hwnd().EnableWindow(confirm.IsChecked()) })
@@ -339,6 +406,11 @@ func (o *operator) breakglassScreen(parent ui.Parent, file string) {
 	})
 	m.On().WmClose(func() {
 		if confirmed {
+			// This handler replaces windigo's own, which enables the parent
+			// again; without it the window behind stays frozen.
+			if owner, err := m.Hwnd().GetWindow(co.GW_OWNER); err == nil {
+				owner.EnableWindow(true)
+			}
 			_ = m.Hwnd().DestroyWindow()
 		}
 	})
@@ -346,30 +418,12 @@ func (o *operator) breakglassScreen(parent ui.Parent, file string) {
 }
 
 func (o *operator) keys(parent ui.Parent) {
-	m := newModal(parent, o.t("gui.tab.keys"), 320, 220)
+	m := newModal(parent, o.t("gui.tab.keys"), 320, 180)
 	o.watchTimeout(m)
-	setup := button(m, o.t("gui.setupKeys"), 20, 15, 280)
-	passwd := button(m, o.t("gui.changePassword"), 20, 55, 280)
-	rotate := button(m, o.t("gui.rotateKey"), 20, 95, 280)
-	update := button(m, o.t("gui.updateDisk"), 20, 135, 280)
-	setup.On().BnClicked(func() {
-		pw := o.askNewPassword(m)
-		if pw == nil {
-			return
-		}
-		defer pw.Wipe()
-		file := fileDialog(uintptr(m.Hwnd()), true, o.t("gui.breakglassTitle"), "usb-backup-breakglass.txt")
-		if file == "" {
-			return
-		}
-		// A save dialog may pick an existing file; keys init only writes
-		// new files, so it must not exist.
-		_ = os.Remove(file)
-		ev := o.main.cli.Call(context.Background(), [][]byte{pw.Bytes(), pw.Bytes()}, "keys", "init", "--breakglass-out", file)
-		if o.report(m, ev, "") {
-			o.breakglassScreen(m, file)
-		}
-	})
+	// Making the keys happens before there is a password: see firstSetup.
+	passwd := button(m, o.t("gui.changePassword"), 20, 15, 280)
+	rotate := button(m, o.t("gui.rotateKey"), 20, 55, 280)
+	update := button(m, o.t("gui.updateDisk"), 20, 95, 280)
 	passwd.On().BnClicked(func() {
 		pw := o.askNewPassword(m)
 		if pw == nil {
@@ -415,8 +469,7 @@ func (o *operator) keys(parent ui.Parent) {
 func (o *operator) schedule(parent ui.Parent) {
 	m := newModal(parent, o.t("gui.tab.schedule"), 460, 220)
 	o.watchTimeout(m)
-	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 15)).Size(ui.Dpi(440, 20)))
-	usb.SetCheck(true)
+	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 15)).Size(ui.Dpi(440, 20)).State(co.BST_CHECKED))
 	label(m, o.t("gui.scheduled"), 10, 55, 140, 20)
 	kind := combo(m, 150, 52, 140, o.t("gui.none"), o.t("gui.daily"), o.t("gui.weekly"))
 	label(m, o.t("gui.time"), 10, 90, 140, 20)

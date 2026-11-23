@@ -71,14 +71,14 @@ run as yourself for `~/.config/usb-backup`.
 
 ### With the window (Windows)
 
-Click the gear (⚙) at the top right. The first time there is no vault yet,
-so set up the keys first:
+Right-click USB Backup in the Start menu, choose *Run as administrator* and
+click the gear (⚙) at the top right. On a fresh installation there is no
+password yet; you choose it now:
 
-1. **Keys → Set up keys…** Choose a vault password (at least 12
-   characters, twice). Choose where to save the **break-glass key**, then
-   print it and keep the printout in a safe. Tick *I have stored the
-   break-glass key safely* to continue.
-2. Click the gear again and log in with the vault password.
+1. Choose a vault password (at least 12 characters, twice). Choose a **new**
+   file for the **break-glass key**, then print it and keep the printout in a
+   safe. Tick *I have stored the break-glass key safely* to continue.
+2. The settings open. From now on the gear asks for this vault password.
 3. **General and sources → Add folder…** for every folder you want to back
    up, with a short tag (for example `Data`, `Accounts`). The tag becomes the
    file name on the disk.
