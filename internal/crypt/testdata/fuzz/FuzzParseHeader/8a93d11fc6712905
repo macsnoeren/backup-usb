@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("age-encryption.org/v1\n-> X25519 LnrysbdnCOS/OIrTXXhZ6OtNGEBa+TndIoCM1dOBbDo\nNpnNIoUO\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r\r2ZEDA3dgXtk\n--- CaIfVxWh7ZPtyTsulfHevffBt9/rWP2pqnSbnshLqjU\nx?xr\x81\x98\a\x9bZ\xcaQ-Ӟ\x80Q\x1e'\t\xf7\xcb\x7fu\x80|\xcdbZm\x80\x8c\x13")

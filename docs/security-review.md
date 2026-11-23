@@ -93,3 +93,17 @@ Clean according to the review: external programs (full paths, no shell,
 argument lists, `--` before devices), disk-controlled text in udev rules and
 Task XML, `nosuid,nodev,noexec` root mounts, header MAC and rewrap checks,
 pending-disk bookkeeping, password handling over stdin, error handling.
+
+## Fuzz finding – age header parser (found during the release work)
+
+`make security` (FuzzParseHeader) found that `crypt.ParseHeader` accepted CR
+and LF characters inside base64 stanza bodies and the MAC: `encoding/base64`
+skips them, even in strict mode. age itself refuses them, so two different
+byte strings parsed to the same header. Impact was small: rewrap hands the
+re-encoded (canonical) header to `age.DecryptHeader` and the MAC still needs
+the file key, so nothing could be forged, but a non-canonical header on a
+crafted disk was silently normalised instead of refused.
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | CR/LF accepted in base64 of the age header (malleability). | low | `decodeB64` refuses CR and LF before decoding, as age does. Tests for a body line and the MAC line; the fuzz input is kept in `internal/crypt/testdata/fuzz` as a regression case. |

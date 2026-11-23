@@ -51,6 +51,16 @@ const (
 
 var b64 = base64.RawStdEncoding.Strict()
 
+// decodeB64 decodes unpadded base64 like age does: encoding/base64 skips
+// CR and LF even in strict mode, so they are refused first; otherwise two
+// different byte strings would parse to the same header.
+func decodeB64(s string) ([]byte, error) {
+	if strings.ContainsAny(s, "\r\n") {
+		return nil, errors.New("unexpected newline character")
+	}
+	return b64.DecodeString(s)
+}
+
 // ErrHeader means the age header is not well formed.
 var ErrHeader = errors.New("invalid age header")
 
@@ -111,7 +121,7 @@ func ParseHeader(r *bufio.Reader) (*Header, error) {
 			if !ok {
 				return nil, headerErr("malformed MAC line")
 			}
-			m, err := b64.DecodeString(mac)
+			m, err := decodeB64(mac)
 			if err != nil || len(m) != 32 {
 				return nil, headerErr("malformed MAC")
 			}
@@ -147,7 +157,7 @@ func ParseHeader(r *bufio.Reader) (*Header, error) {
 			if len(bl) > columnsPerRow {
 				return nil, headerErr("body line too long")
 			}
-			chunk, err := b64.DecodeString(bl)
+			chunk, err := decodeB64(bl)
 			if err != nil {
 				return nil, headerErr("invalid body encoding")
 			}

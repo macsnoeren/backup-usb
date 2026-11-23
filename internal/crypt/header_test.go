@@ -113,6 +113,9 @@ func TestParseHeaderErrors(t *testing.T) {
 		strings.Replace(good, "--- ", "---", 1),
 		"age-encryption.org/v1\n-> X\n" + strings.Repeat("A", 65) + "\n--- x\n",
 		good[:len(good)-10],
+		// encoding/base64 skips CR and LF; age refuses them (fuzz finding).
+		"age-encryption.org/v1\n-> X25519 a\nAAAA\rAAAA\n" + good[strings.LastIndex(good, "--- "):],
+		good[:strings.LastIndex(good, "--- ")+8] + "\r" + good[strings.LastIndex(good, "--- ")+8:],
 	}
 	for _, b := range bad {
 		if _, err := ParseHeader(bufio.NewReader(strings.NewReader(b))); err == nil {
