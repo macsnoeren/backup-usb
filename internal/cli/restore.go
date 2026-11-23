@@ -52,7 +52,7 @@ func cmdRestore(c *ctx, args []string) error {
 	ctx, cancel := c.context()
 	defer cancel()
 	rep, err := app.Restore(ctx, c.deps(cfg), cfg, opts)
-	if err != nil && app.KindOf(err) == app.KindUsage && len(ks.ids) == 0 && !k.passwordStdin && isNeedKey(err) {
+	if err != nil && app.KindOf(err) == app.KindUsage && len(ks.ids) == 0 && !k.passwordStdin && c.stream == nil && isNeedKey(err) {
 		ks2, kerr := c.loadKeys(cfg, k, true)
 		if kerr != nil {
 			return kerr

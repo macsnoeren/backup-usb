@@ -71,13 +71,19 @@ func (c *ctx) deps(cfg *config.Config) *app.Deps {
 		Lang:      c.p.Lang,
 		Sleep:     c.env.Sleep,
 		LockPath:  c.env.LockPath,
+		Events:    c.emitter(),
 	}
 }
 
 // context returns a context that is cancelled on Ctrl+C.
 func (c *ctx) context() (context.Context, context.CancelFunc) {
+	var ctx context.Context
+	var cancel context.CancelFunc
 	if c.env.Context != nil {
-		return context.WithCancel(c.env.Context)
+		ctx, cancel = context.WithCancel(c.env.Context)
+	} else {
+		ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt)
 	}
-	return signal.NotifyContext(context.Background(), os.Interrupt)
+	c.watchCancel(cancel)
+	return ctx, cancel
 }

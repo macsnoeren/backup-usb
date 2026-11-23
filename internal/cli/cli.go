@@ -97,6 +97,8 @@ type ctx struct {
 	opts globalOptions
 	// helpOut receives flag help; stderr unless "help <command>" was used.
 	helpOut io.Writer
+	// stream is set with --json-stream.
+	stream *streamer
 }
 
 type globalOptions struct {
@@ -126,7 +128,19 @@ func (e *Env) Run(args []string) int {
 		fmt.Fprintln(e.Stderr, "usb-backup-cli:", c.p.T("err.unknownCommand", name))
 		return ExitUsage
 	}
-	err := cmd.run(c, args[2:])
+	rest := args[2:]
+	stream := false
+	for i, a := range rest {
+		if a == "--json-stream" || a == "-json-stream" {
+			stream = true
+			rest = append(append([]string(nil), rest[:i]...), rest[i+1:]...)
+			break
+		}
+	}
+	if stream {
+		return e.runStream(c, cmd, rest)
+	}
+	err := cmd.run(c, rest)
 	if errors.Is(err, flag.ErrHelp) {
 		return ExitOK
 	}

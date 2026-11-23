@@ -43,7 +43,7 @@ func cmdList(c *ctx, args []string) error {
 	ctx, cancel := c.context()
 	defer cancel()
 	res, err := app.List(ctx, c.deps(cfg), cfg, opts)
-	if err != nil && isNeedKey(err) && len(ks.ids) == 0 && !k.passwordStdin {
+	if err != nil && isNeedKey(err) && len(ks.ids) == 0 && !k.passwordStdin && c.stream == nil {
 		// Encrypted: ask for the vault password on the console.
 		ks2, kerr := c.loadKeys(cfg, k, true)
 		if kerr != nil {
