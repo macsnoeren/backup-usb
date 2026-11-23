@@ -28,6 +28,7 @@ type Event struct {
 	Total   uint64          `json:"total,omitempty"`
 	Code    int             `json:"code,omitempty"`
 	Key     string          `json:"key,omitempty"`
+	Args    []any           `json:"args,omitempty"`
 	Message string          `json:"message,omitempty"`
 	Report  json.RawMessage `json:"report,omitempty"`
 	Output  string          `json:"output,omitempty"`
@@ -102,8 +103,17 @@ type Job struct {
 // the caller wipes it afterwards. Events arrive on Events until the result
 // or error event; then the channel closes.
 func (c CLI) Start(ctx context.Context, password []byte, args ...string) (*Job, error) {
+	if password == nil {
+		return c.StartLines(ctx, nil, args...)
+	}
+	return c.StartLines(ctx, [][]byte{password}, args...)
+}
+
+// StartLines is Start with several secret lines (for example the old
+// password and the new one twice); each is written as one line.
+func (c CLI) StartLines(ctx context.Context, lines [][]byte, args ...string) (*Job, error) {
 	args = append(append([]string(nil), args...), "--json-stream")
-	if password != nil {
+	if lines != nil {
 		args = append(args, "--password-stdin")
 	}
 	cmd := exec.CommandContext(ctx, c.Path, args...) //nolint:gosec // path of the CLI next to the GUI, arguments as a list
@@ -122,7 +132,7 @@ func (c CLI) Start(ctx context.Context, password []byte, args ...string) (*Job, 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", filepath.Base(c.Path), err)
 	}
-	if password != nil {
+	for _, password := range lines {
 		line := make([]byte, len(password)+1)
 		copy(line, password)
 		line[len(password)] = '\n'
@@ -181,6 +191,17 @@ func (j *Job) Wait() Event {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.result
+}
+
+// Call runs a command and waits for its result or error event.
+func (c CLI) Call(ctx context.Context, lines [][]byte, args ...string) Event {
+	j, err := c.StartLines(ctx, lines, args...)
+	if err != nil {
+		return Event{Event: "error", Code: -1, Message: err.Error()}
+	}
+	for range j.Events { //nolint:revive // drain
+	}
+	return j.Wait()
 }
 
 // Lines splits an Output text into lines (for commands without JSON).

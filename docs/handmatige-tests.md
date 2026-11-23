@@ -22,3 +22,19 @@ zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
 
 - [ ] **T8.2** `usb-backup-cli install` (Windows): de taak "USB Backup" verschijnt in Taakplanner, start bij het insteken van een geregistreerde schijf (met de GUI als `usb-backup.exe` ernaast staat) en toont het venster in de sessie van de gebruiker. `install --trigger daily --at 02:00` maakt "USB Backup (daily)". `uninstall --trigger all` haalt alles weg.
 - [ ] **T8.3** Op Linux (als root): `install --trigger daily` maakt `usb-backup-daily.timer` (zichtbaar in `systemctl list-timers`); `install --trigger usb` maakt de udev-regel en `usb-backup@.service`; insteken van een geregistreerde stick start de service (`journalctl -u 'usb-backup@*'`).
+
+## GUI (fase 11, alleen Windows)
+
+De logica van het statusscherm (alle toestanden, teksten, resterende tijd), de time-out van het operatorscherm en de koppeling met de CLI (versiecontrole, JSON-regels, annuleren, wachtwoord via de pipe) zijn met automatische tests op Linux gedekt (`internal/gui/*_test.go`, nep-CLI). De vensters zelf (windigo) zijn alleen gecompileerd. Te testen op een Windows-pc:
+
+- [ ] **T11.1** `usb-backup.exe` opent het venster; een tweede start brengt het bestaande venster naar voren. Met een `usb-backup-cli.exe` van een andere versie verschijnt een duidelijke foutmelding.
+- [ ] **T11.2** Elke toestand verschijnt (geen schijf, verkeerde schijf, onbekende schijf, bezig met bronmap en percentage, controleren, gelukt, gelukt met waarschuwing, mislukt, bijwerken door beheerder). Maak per toestand een schermafbeelding in `docs/screenshots/` (nog niet gemaakt).
+- [ ] **T11.3** Schijf insteken verandert het scherm binnen enkele seconden en start de back-up; `usb-backup.exe --auto` (USB-trigger) start direct.
+- [ ] **T11.4** Annuleren tijdens de back-up laat geen `.part` achter; "Schijf veilig verwijderen" na een geslaagde back-up werkt. Het venster sluit niet tijdens een back-up.
+- [ ] **T11.5** Tandwiel: verkeerd wachtwoord geeft een melding; het wachtwoordveld toont bolletjes en kopiëren werkt niet; na `operatorTimeoutMinutes` zonder activiteit sluit het operatorscherm.
+- [ ] **T11.6** Bronmap toevoegen via de mapkiezer, tag, verwijderen; een instelling wijzigen; daarna is `usb-backup.json` ondertekend (`usb-backup-cli run --dry-run` geeft geen exitcode 7).
+- [ ] **T11.7** Schijven: registreren (naam, oneven/even) en vergeten met een echte schijf.
+- [ ] **T11.8** Sleutels instellen: wachtwoord tweemaal (min. 12 tekens), bestand kiezen voor de break-glass-sleutel, scherm gaat pas verder na het aanvinken van de bevestiging (sluiten kan dan ook niet), Printen werkt. Wachtwoord wijzigen, sleutel vervangen en schijf bijwerken.
+- [ ] **T11.9** Planning: USB-trigger aan/uit en een dagelijkse of wekelijkse taak verschijnen in Taakplanner.
+- [ ] **T11.10** Bladeren: weken en bronmappen links, mappen rechts (dubbelklik, Omhoog, Zoeken), een los bestand terugzetten naar het bureaublad (`Bureaublad\Restored` als standaard) en naar de oorspronkelijke plek; Break-glass testen met het bestand.
+- [ ] **T11.11** Logboek openen; taal omzetten naar Nederlands en terug (na herstart van het venster).
