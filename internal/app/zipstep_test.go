@@ -148,3 +148,22 @@ func TestCleanupPartsDoesNotFollowSymlinks(t *testing.T) {
 		t.Fatal("file outside the backup folder was removed")
 	}
 }
+
+// Cancelling while the backup is being checked is a cancel, not a failed
+// check: that would tell people their disk is bad.
+func TestCancelWhileVerifying(t *testing.T) {
+	for _, verifyZip := range []bool{true, false} {
+		job := zipJob(t)
+		job.Verify = verifyZip
+		ctx, cancel := context.WithCancel(context.Background())
+		job.OnVerify = cancel
+		_, err := WriteVerifiedZip(ctx, job)
+		var ae *Error
+		if !errors.As(err, &ae) || ae.Key != "err.cancelled" || KindOf(err) != KindIO {
+			t.Errorf("verify %v: %v", verifyZip, err)
+		}
+		if got := testutil.Tree(t, weekDir(job)); len(got) != 0 {
+			t.Errorf("left behind: %v", got)
+		}
+	}
+}

@@ -87,14 +87,14 @@ func WriteVerifiedZip(ctx context.Context, job ZipJob) (out *ZipOutcome, err err
 	}
 	if job.Verify {
 		if err := verifyInRoot(ctx, job.Root, part, verify.Options{ExpectedFiles: res.Files, Entries: res.AllEntries()}); err != nil {
-			return nil, Errorf(KindVerify, err, "err.verify", name)
+			return nil, checkErr(ctx, Errorf(KindVerify, err, "err.verify", name))
 		}
 	}
 	// Read the whole zip back from the disk: it must be exactly what was
 	// written.
 	sum, size, err := HashFile(ctx, job.Root, part)
 	if err != nil {
-		return nil, Errorf(KindIO, err, "err.read")
+		return nil, checkErr(ctx, Errorf(KindIO, err, "err.read"))
 	}
 	if sum != res.StreamSHA256 || size != res.ZipSize {
 		return nil, Errorf(KindVerify, errors.New("zip read back from disk differs from what was written"), "err.verify", name)
@@ -127,6 +127,15 @@ func verifyInRoot(ctx context.Context, root *os.Root, rel string, opts verify.Op
 		return fmt.Errorf("stat zip: %w", err)
 	}
 	_, err = verify.Zip(ctx, f, st.Size(), opts)
+	return err
+}
+
+// checkErr is the error of a check, or "cancelled" when the check stopped
+// because the user cancelled. The part file is removed either way.
+func checkErr(ctx context.Context, err error) error {
+	if cerr := ctx.Err(); cerr != nil {
+		return Errorf(KindIO, cerr, "err.cancelled")
+	}
 	return err
 }
 

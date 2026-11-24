@@ -53,7 +53,7 @@ func WriteVerifiedEncrypted(ctx context.Context, job EncJob) (out *ZipOutcome, e
 	res, err := crypt.WriteEncrypted(ctx, job.Src, job.Root, job.Rel, job.Recipients, job.Opts)
 	if err != nil {
 		if errors.Is(err, crypt.ErrStreamCheck) {
-			return nil, Errorf(KindVerify, err, "err.verify", path.Base(job.Rel))
+			return nil, checkErr(ctx, Errorf(KindVerify, err, "err.verify", path.Base(job.Rel)))
 		}
 		return nil, classifyWriteErr(err)
 	}
@@ -68,7 +68,7 @@ func WriteVerifiedEncrypted(ctx context.Context, job EncJob) (out *ZipOutcome, e
 	}
 	sum, size, err := HashFile(ctx, job.Root, part)
 	if err != nil {
-		return nil, Errorf(KindIO, err, "err.read")
+		return nil, checkErr(ctx, Errorf(KindIO, err, "err.read"))
 	}
 	if sum != res.SHA256 || size != res.Size {
 		return nil, Errorf(KindVerify, errors.New("encrypted file read back from disk differs from what was written"), "err.verify", name)
