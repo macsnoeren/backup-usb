@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Maurice Snoeren
+
+# LF in every working copy, also on Windows: gofmt, the golden files and the
+# shell scripts need it.
+* text=auto eol=lf
+
+*.ico  binary
+*.png  binary
+*.syso binary
+*.key  -text
+*.seed -text
+internal/crypt/testdata/** -text
