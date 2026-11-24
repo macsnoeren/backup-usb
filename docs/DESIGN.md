@@ -224,7 +224,7 @@ Alle instellingen staan in het operatorscherm en zijn ook met `usb-backup-cli co
 | Schijven | `disksFile` | `usb-backup.disks.json` | Geregistreerde schijven, met naam en rol (zie Schijfherkenning) |
 | Schijven | `requireHardwareSerial` | `false` | Schijven zonder hardware-serienummer weigeren |
 | Schijven | `waitSeconds` | `30` | Hoe lang er op een schijfletter of koppeling gewacht wordt |
-| Schijven | `ejectAfter` | `true` | Schijf na een geslaagde back-up automatisch veilig verwijderen; `false` als de schijf voor een dagelijkse planning aangesloten blijft |
+| Schijven | `ejectAfter` | `true` | Schijf na een geslaagde back-up automatisch veilig verwijderen |
 | Versleuteling | `encryption` | `age` als er ontvangers zijn | `age` of `none` |
 | Versleuteling | `recipientsFile` | `usb-backup.recipients` | Publieke sleutels, één per regel |
 | Versleuteling | `vaultPath` | `%APPDATA%\USB Backup\herstel.vault` | Plek van de vault, ook op een sleutel-USB |
@@ -272,7 +272,7 @@ Bereikbaar via een tandwiel rechtsboven, alleen voor de operator en beveiligd me
 - **Algemeen:** lijst met bronmappen, elk met een tag; toevoegen via een mapkiezer, tag aanpassen, verwijderen, en per map uitsluitingen (bijvoorbeeld \*.tmp). Verder het aantal te bewaren weken en de wachttijden
 - **Schijven:** aangesloten en geregistreerde schijven naast elkaar; knoppen Registreren (met naam en oneven of even weken) en Vergeten
 - **Versleuteling:** aan of uit, sleutelpaar maken met een scherm dat dwingt de privésleutel op te slaan of te printen, ontvangers beheren
-- **Planning:** USB-trigger aan of uit, dagelijkse of wekelijkse taak met tijd
+- **Starten bij insteken:** aan of uit, een vinkje onder Algemeen (dag- en weektaken zijn vervallen)
 - **Controle en herstel:** back-ups controleren of terugzetten met de privésleutel, logboek bekijken
 
 Alles wat hier kan, kan ook met de CLI; het scherm roept dezelfde interne functies aan.
@@ -437,8 +437,8 @@ Een USB-trigger met de GUI start `usb-backup.exe --auto`, dat het venster toont 
 | `keys passwd` | Wachtwoord van de vault wijzigen | `--vault <pad>` |
 | `keys rotate` | Nieuw operationeel sleutelpaar; oude back-ups blijven met break-glass te openen | `--vault <pad>` |
 | `config` | Bronmappen en instellingen beheren | `add-source --tag --path`, `remove-source`, `set <sleutel> <waarde>`, `import`, `export` |
-| `install` | Taak registreren | `--trigger usb` (standaard), `--trigger daily --at 02:00`, `--trigger weekly --day fri --at 18:00` |
-| `uninstall` | Taak verwijderen | `--trigger usb\|daily\|weekly\|all` |
+| `install` | Back-up starten bij insteken van een geregistreerde schijf | `--check` toont of het aan staat |
+| `uninstall` | Taak verwijderen | `--trigger usb\|all` (`all` ook dag- en weektaken van oudere versies) |
 | `version`, `help` | Versie en uitleg tonen |  |
 
 Voor alle commando's gelden ook: `--config <pad>`, `--log <pad>`, `--ui` of `--no-ui`, en `--quiet`.
@@ -472,16 +472,16 @@ Voor alle commando's gelden ook: `--config <pad>`, `--log <pad>`, `--ui` of `--n
 
 Bij een geplande taak zijn de codes 2 tot en met 4 normaal (de schijf zit er gewoon niet in). Scripts kunnen ze daarom apart behandelen van echte fouten.
 
-### Gepland draaien
+### Voorbeelden
 
-Een "cronjob" is op Windows een tijdtrigger in Taakplanner. `install --trigger daily --at 02:00` registreert een tweede taak, "USB Backup (dagelijks)". Die start `usb-backup.exe run --quiet-skip`, naast de bestaande USB-trigger. Het schijfwisselen per week blijft zo gewoon werken. Zit de juiste schijf er al eerder die week in, dan wordt de weekmap bijgewerkt.
+Dag- en weektaken op tijd zijn vervallen (besluit van de eigenaar, 2026-11-24): een back-up start bij het insteken van een geregistreerde schijf, of met de hand.
 
 ```
 usb-backup-cli status
 usb-backup-cli run --dry-run
 usb-backup-cli run --target E: --force --json > rapport.json
 usb-backup-cli verify --all
-usb-backup-cli install --trigger daily --at 02:00
+usb-backup-cli install
 ```
 
 ## Linux
@@ -516,7 +516,7 @@ In plaats van cron kan `usb-backup-cli install --trigger usb` op Linux een udev-
 | Koppelen | Door Windows | Is de stick niet gekoppeld, dan via `udisksctl mount` (zonder root) of `mount` als root naar `/run/usb-backup/<uuid>`; na afloop weer ontkoppelen |
 | Gezondheid | `MSFT_Disk` HealthStatus | `smartctl -H` als het geïnstalleerd is, anders onbekend |
 | Eén tegelijk | Mutex `Global\UsbBackup` | `flock` op `/run/lock/usb-backup.lock` |
-| Planning | Taakplanner | cron of systemd-timer; udev + systemd voor inpluggen |
+| Starten bij inpluggen | Taakplanner | udev + systemd |
 | Configuratie | C:\\ProgramData\\USB Backup | `/etc/usb-backup/` als root, anders `~/.config/usb-backup/` |
 | Sleutel in geheugen | `VirtualLock`, uitgesloten van Foutrapportage | `mlock`, `prctl(PR_SET_DUMPABLE, 0)` tegen coredumps |
 | Bestandsrechten | Wijzigingsdatum | Ook eigenaar, groep en rechten in de zip; symlinks als link opgeslagen, niet gevolgd |
@@ -541,10 +541,10 @@ Windows krijgt een `USB-Backup-Setup.exe` en Linux een `.deb`, een `.rpm` en een
 ### Linux
 
 - **Gereedschap:** nfpm (een Go-tool) maakt `.deb` en `.rpm` vanuit één beschrijving; daarnaast een `.tar.gz` met `install.sh` voor andere distributies.
-- **Installeert:** `/usr/bin/usb-backup-cli`, `/etc/usb-backup/` voor de configuratie, de systemd-units `usb-backup@.service` en `usb-backup.timer`, de udev-regel, en een man-page.
-- **Niets automatisch aan:** na installatie draait er nog niets. Inschakelen gebeurt bewust met `usb-backup-cli install --trigger usb` of `--trigger daily`, of met een eigen cronregel.
+- **Installeert:** `/usr/bin/usb-backup-cli`, `/etc/usb-backup/` voor de configuratie, de systemd-unit `usb-backup@.service`, een voorbeeld van de udev-regel, en een man-page.
+- **Niets automatisch aan:** na installatie draait er nog niets. Inschakelen gebeurt bewust met `usb-backup-cli install`, of met een eigen cronregel.
 - **Afhankelijkheden:** geen verplichte; `udisks2` en `smartmontools` zijn aanbevolen.
-- **Verwijderen:** `apt remove` of `dnf remove` haalt de timer en de udev-regel weg; met `purge` ook `/etc/usb-backup/`.
+- **Verwijderen:** `apt remove` of `dnf remove` haalt de udev-regel weg; met `purge` ook `/etc/usb-backup/`.
 
 ### Release
 

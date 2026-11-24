@@ -51,7 +51,7 @@ BrandingText "${APP} ${VERSION}"
 !define MUI_ICON "usb-backup.ico"
 !define MUI_UNICON "usb-backup.ico"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\usb-backup.exe"
-!define MUI_FINISHPAGE_RUN_TEXT "Open USB Backup to set it up (sources, disks, keys, schedule)"
+!define MUI_FINISHPAGE_RUN_TEXT "Open USB Backup to set it up (sources, disks, keys)"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${DIST}\LICENSE"
@@ -91,6 +91,9 @@ Section "USB Backup (required)" SecMain
   File "${DIST}\README.md"
   File "${DIST}\LICENSE"
   File "${DIST}\THIRD-PARTY-NOTICES.txt"
+  ; Older versions could make daily and weekly tasks.
+  nsExec::Exec '"$INSTDIR\usb-backup-cli.exe" uninstall --trigger daily'
+  nsExec::Exec '"$INSTDIR\usb-backup-cli.exe" uninstall --trigger weekly'
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   ; Configuration folder: only administrators and SYSTEM may write; users

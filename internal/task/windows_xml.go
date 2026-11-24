@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/xml"
-	"fmt"
 	"strings"
 	"unicode/utf16"
 )
@@ -51,26 +50,14 @@ func WindowsXML(s Spec) (string, error) {
 	if err := s.Validate(); err != nil {
 		return "", err
 	}
-	var trig string
-	switch s.Trigger {
-	case USB:
-		trig = "    <EventTrigger>\n      <Enabled>true</Enabled>\n      <Subscription>" + esc(usbSubscription) + "</Subscription>\n    </EventTrigger>\n"
-	case Daily:
-		trig = fmt.Sprintf("    <CalendarTrigger>\n      <StartBoundary>2026-01-01T%s:00</StartBoundary>\n      <Enabled>true</Enabled>\n      <ScheduleByDay>\n        <DaysInterval>1</DaysInterval>\n      </ScheduleByDay>\n    </CalendarTrigger>\n", s.At)
-	case Weekly:
-		trig = fmt.Sprintf("    <CalendarTrigger>\n      <StartBoundary>2026-01-01T%s:00</StartBoundary>\n      <Enabled>true</Enabled>\n      <ScheduleByWeek>\n        <WeeksInterval>1</WeeksInterval>\n        <DaysOfWeek>\n          <%s />\n        </DaysOfWeek>\n      </ScheduleByWeek>\n    </CalendarTrigger>\n", s.At, days[strings.ToLower(s.Day)])
-	}
-	startWhenAvailable := "true"
-	if s.Trigger == USB {
-		startWhenAvailable = "false"
-	}
+	trig := "    <EventTrigger>\n      <Enabled>true</Enabled>\n      <Subscription>" + esc(usbSubscription) + "</Subscription>\n    </EventTrigger>\n"
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-16"?>` + "\n")
 	b.WriteString(`<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">` + "\n")
 	b.WriteString("  <RegistrationInfo>\n    <Description>" + esc("USB Backup: "+string(s.Trigger)+" trigger") + "</Description>\n    <URI>" + esc(`\`+Name(s.Trigger)) + "</URI>\n  </RegistrationInfo>\n")
 	b.WriteString("  <Triggers>\n" + trig + "  </Triggers>\n")
 	b.WriteString("  <Principals>\n    <Principal id=\"Author\">\n      <LogonType>InteractiveToken</LogonType>\n      <RunLevel>LeastPrivilege</RunLevel>\n    </Principal>\n  </Principals>\n")
-	b.WriteString("  <Settings>\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n    <StartWhenAvailable>" + startWhenAvailable + "</StartWhenAvailable>\n    <ExecutionTimeLimit>PT12H</ExecutionTimeLimit>\n    <Enabled>true</Enabled>\n    <Hidden>false</Hidden>\n  </Settings>\n")
+	b.WriteString("  <Settings>\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n    <StartWhenAvailable>false</StartWhenAvailable>\n    <ExecutionTimeLimit>PT12H</ExecutionTimeLimit>\n    <Enabled>true</Enabled>\n    <Hidden>false</Hidden>\n  </Settings>\n")
 	b.WriteString("  <Actions Context=\"Author\">\n    <Exec>\n      <Command>" + esc(escapeArg(s.Command)) + "</Command>\n")
 	if len(s.Args) > 0 {
 		b.WriteString("      <Arguments>" + esc(windowsArgs(s.Args)) + "</Arguments>\n")

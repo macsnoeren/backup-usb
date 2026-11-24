@@ -27,9 +27,7 @@ import (
 
 func TestSystemdGolden(t *testing.T) {
 	specs := map[string]Spec{
-		"usb":    {Trigger: USB, Command: "/usr/bin/usb-backup-cli", Args: []string{"run", "--quiet-skip", "--wait", "30"}, VolumeUUIDs: []string{"A41C-77E2", "0f3c1e2a-9b8d-4c7e-a6f5-112233445566"}},
-		"daily":  {Trigger: Daily, At: "02:00", Command: "/usr/bin/usb-backup-cli", Args: []string{"run", "--quiet-skip", "--config", "/etc/usb backup"}},
-		"weekly": {Trigger: Weekly, At: "18:00", Day: "fri", Command: "/usr/bin/usb-backup-cli", Args: []string{"run", "--quiet-skip"}},
+		"usb": {Trigger: USB, Command: "/usr/bin/usb-backup-cli", Args: []string{"run", "--quiet-skip", "--wait", "30"}, VolumeUUIDs: []string{"A41C-77E2", "0f3c1e2a-9b8d-4c7e-a6f5-112233445566"}},
 	}
 	for name, s := range specs {
 		files, err := SystemdFiles(s)
@@ -53,7 +51,7 @@ func TestSystemdGolden(t *testing.T) {
 	if _, err := SystemdFiles(Spec{Trigger: USB, Command: "/x"}); err == nil {
 		t.Fatal("usb rule without disks")
 	}
-	if _, err := SystemdFiles(Spec{Trigger: Daily, At: "02:00", Command: "/usr/bin/x", Args: []string{"--config", "/x\nExecStartPre=/bin/sh -c id"}}); err == nil {
+	if _, err := SystemdFiles(Spec{Trigger: USB, VolumeUUIDs: []string{"A41C-77E2"}, Command: "/usr/bin/x", Args: []string{"--config", "/x\nExecStartPre=/bin/sh -c id"}}); err == nil {
 		t.Fatal("newline injection accepted")
 	}
 	if got := systemdQuote(`a "b" $c 50%`); got != `"a \"b\" $$c 50%%"` {

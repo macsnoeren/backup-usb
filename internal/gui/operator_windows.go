@@ -186,7 +186,7 @@ func showOperatorLogin(mw *mainWindow) {
 
 // settings is the operator screen: one button per section.
 func (o *operator) settings() {
-	m := newModal(o.main.wnd, o.t("gui.settings"), 320, 340)
+	m := newModal(o.main.wnd, o.t("gui.settings"), 320, 300)
 	o.watchTimeout(m)
 	sections := []struct {
 		key string
@@ -195,7 +195,6 @@ func (o *operator) settings() {
 		{"gui.tab.general", o.general},
 		{"gui.tab.disks", o.disks},
 		{"gui.tab.keys", o.keys},
-		{"gui.tab.schedule", o.schedule},
 		{"gui.tab.restore", o.restore},
 		{"gui.tab.log", o.logAndLanguage},
 		{"gui.tab.about", o.about},
@@ -231,14 +230,14 @@ func (o *operator) loadConfig() *config.Config {
 }
 
 func (o *operator) general(parent ui.Parent) {
-	m := newModal(parent, o.t("gui.tab.general"), 640, 470)
-	o.watchTimeout(m)
+	m := newModal(parent, o.t("gui.tab.general"), 640, 480)
 	srcList := listView(m, 10, 10, 620, 130, o.t("gui.tag"), o.t("gui.path"), o.t("gui.exclude"))
 	add := button(m, o.t("gui.addSource"), 10, 148, 140)
 	remove := button(m, o.t("gui.removeSource"), 160, 148, 100)
 	setList := listView(m, 10, 185, 620, 210, o.t("gui.setting"), o.t("gui.value"))
 	value := edit(m, "", 10, 405, 500, false)
 	save := button(m, o.t("gui.save"), 520, 403, 110)
+	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 445)).Size(ui.Dpi(620, 20)))
 	fill := func() {
 		cfg := o.loadConfig()
 		srcList.DeleteAllItems()
@@ -254,8 +253,22 @@ func (o *operator) general(parent ui.Parent) {
 			setList.AddItem(k, v)
 		}
 	}
-	m.On().WmInitDialog(func(_ ui.WmInitDialog) bool { fill(); return true })
-	m.On().WmCreate(func(_ ui.WmCreate) int { fill(); _ = m.Hwnd().SetTimer(timerOperator, 5000); return 0 })
+	o.watchTimeout(m)
+	m.On().WmCreate(func(_ ui.WmCreate) int {
+		fill()
+		usb.SetCheck(o.main.cli.StartsOnInsert(context.Background()))
+		_ = m.Hwnd().SetTimer(timerOperator, 5000)
+		return 0
+	})
+	usb.On().BnClicked(func() {
+		// Takes effect at once; the box shows what really is the case.
+		args := []string{"uninstall", "--trigger", "usb"}
+		if usb.IsChecked() {
+			args = []string{"install"}
+		}
+		o.report(m, o.plain(args...), "")
+		usb.SetCheck(o.main.cli.StartsOnInsert(context.Background()))
+	})
 	setList.On().LvnItemChanged(func(_ *winNMLISTVIEW) {
 		if items := setList.SelectedItems(); len(items) == 1 {
 			value.SetText(strings.Trim(items[0].Text(1), `"`))
@@ -460,46 +473,6 @@ func (o *operator) keys(parent ui.Parent) {
 			}
 		}
 		_, _ = m.Hwnd().MessageBox(o.t("keys.rewrapped", r.Disk, r.Rewrapped, r.Current), o.t("gui.title"), co.MB_ICONINFORMATION)
-	})
-	m.ShowModal()
-}
-
-// --- Schedule (T11.9) ---
-
-func (o *operator) schedule(parent ui.Parent) {
-	m := newModal(parent, o.t("gui.tab.schedule"), 460, 220)
-	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 15)).Size(ui.Dpi(440, 20)).State(co.BST_CHECKED))
-	label(m, o.t("gui.scheduled"), 10, 55, 140, 20)
-	kind := combo(m, 150, 52, 140, 0, o.t("gui.none"), o.t("gui.daily"), o.t("gui.weekly"))
-	label(m, o.t("gui.time"), 10, 90, 140, 20)
-	at := edit(m, "02:00", 150, 87, 80, false)
-	label(m, o.t("gui.day"), 10, 125, 140, 20)
-	day := combo(m, 150, 122, 140, 0, "mon", "tue", "wed", "thu", "fri", "sat", "sun")
-	save := button(m, o.t("gui.save"), 330, 165, 110)
-	o.watchTimeout(m, kind, day)
-	save.On().BnClicked(func() {
-		var evs []Event
-		if usb.IsChecked() {
-			evs = append(evs, o.plain("install", "--trigger", "usb"))
-		} else {
-			evs = append(evs, o.plain("uninstall", "--trigger", "usb"))
-		}
-		evs = append(evs, o.plain("uninstall", "--trigger", "daily"), o.plain("uninstall", "--trigger", "weekly"))
-		switch kind.SelectedIndex() {
-		case 1:
-			evs = append(evs, o.plain("install", "--trigger", "daily", "--at", at.Text()))
-		case 2:
-			evs = append(evs, o.plain("install", "--trigger", "weekly", "--day", day.CurrentText(), "--at", at.Text()))
-		}
-		for i, ev := range evs {
-			if i == 1 || i == 2 {
-				continue // removing a task that did not exist is fine
-			}
-			if !o.report(m, ev, "") {
-				return
-			}
-		}
-		_, _ = m.Hwnd().MessageBox(o.t("gui.saved"), o.t("gui.title"), co.MB_ICONINFORMATION)
 	})
 	m.ShowModal()
 }

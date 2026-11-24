@@ -17,32 +17,27 @@
 
 package task
 
-import (
-	"fmt"
-	"regexp"
-	"strings"
-)
+import "fmt"
 
 // Trigger is when the backup starts.
 type Trigger string
 
-// Triggers.
+// USB starts a backup when a registered disk is plugged in.
+const USB Trigger = "usb"
+
+// Older versions could also start a backup at a time of day. Those tasks
+// can only be removed now.
 const (
-	USB    Trigger = "usb"
-	Daily  Trigger = "daily"
-	Weekly Trigger = "weekly"
+	OldDaily  Trigger = "daily"
+	OldWeekly Trigger = "weekly"
 )
 
-// Triggers lists all triggers.
-var Triggers = []Trigger{USB, Daily, Weekly}
+// Triggers lists every trigger that can be removed.
+var Triggers = []Trigger{USB, OldDaily, OldWeekly}
 
 // Spec describes a task to register.
 type Spec struct {
 	Trigger Trigger
-	// At is the time of day, "02:00", for daily and weekly.
-	At string
-	// Day is the weekday for weekly: mon, tue, wed, thu, fri, sat, sun.
-	Day string
 	// Command is the full path of the program; Args its arguments.
 	Command string
 	Args    []string
@@ -54,29 +49,15 @@ type Spec struct {
 // Registrar registers and removes tasks.
 type Registrar interface {
 	Install(spec Spec) error
+	// Uninstall removes a task; a task that does not exist is fine.
 	Uninstall(t Trigger) error
+	// Installed reports whether a task exists.
+	Installed(t Trigger) bool
 }
-
-var timeRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
-
-var days = map[string]string{"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday", "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
 
 // Validate checks the spec.
 func (s Spec) Validate() error {
-	switch s.Trigger {
-	case USB:
-	case Daily:
-		if !timeRe.MatchString(s.At) {
-			return fmt.Errorf("--at %q is not a time like 02:00", s.At)
-		}
-	case Weekly:
-		if !timeRe.MatchString(s.At) {
-			return fmt.Errorf("--at %q is not a time like 18:00", s.At)
-		}
-		if _, ok := days[strings.ToLower(s.Day)]; !ok {
-			return fmt.Errorf("--day %q is not one of mon, tue, wed, thu, fri, sat, sun", s.Day)
-		}
-	default:
+	if s.Trigger != USB {
 		return fmt.Errorf("unknown trigger %q", s.Trigger)
 	}
 	if s.Command == "" {
@@ -88,9 +69,9 @@ func (s Spec) Validate() error {
 // Name returns the task name for a trigger.
 func Name(t Trigger) string {
 	switch t {
-	case Daily:
+	case OldDaily:
 		return "USB Backup (daily)"
-	case Weekly:
+	case OldWeekly:
 		return "USB Backup (weekly)"
 	}
 	return "USB Backup"

@@ -47,7 +47,7 @@ func TestSchtasksUninstall(t *testing.T) {
 			}
 			return tc.del
 		}}
-		if err := s.Uninstall(Daily); (err == nil) != tc.ok {
+		if err := s.Uninstall(OldDaily); (err == nil) != tc.ok {
 			t.Errorf("%s: %v", tc.name, err)
 		}
 	}

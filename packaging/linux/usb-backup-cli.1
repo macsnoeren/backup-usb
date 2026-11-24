@@ -44,8 +44,8 @@ Manage the keys.
 .B config show|set|add\-source|remove\-source|import|export
 Manage the settings (signed by the operator).
 .TP
-.B install|uninstall \-\-trigger usb|daily|weekly
-Schedule backups (systemd timer, udev rule).
+.B install|uninstall
+Start a backup when a registered disk is plugged in (udev rule), or stop doing that.
 .TP
 .BR eject ", " version ", " help
 .SH PASSWORDS
@@ -70,5 +70,4 @@ This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 .SH SEE ALSO
 .BR age (1),
-.BR systemd.timer (5),
 .BR udev (7)

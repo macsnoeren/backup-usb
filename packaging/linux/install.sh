@@ -38,11 +38,10 @@ if [ "${1:-}" = "--remove" ]; then
 fi
 install -m 0755 "$here/usb-backup-cli" /usr/local/bin/usb-backup-cli
 install -d -m 0755 -o root -g root /etc/usb-backup
-for u in usb-backup@.service usb-backup.service usb-backup.timer; do
-  sed 's#/usr/bin/usb-backup-cli#/usr/local/bin/usb-backup-cli#' "$here/$u" > "/etc/systemd/system/$u"
-  chmod 0644 "/etc/systemd/system/$u"
-done
+u=usb-backup@.service
+sed 's#/usr/bin/usb-backup-cli#/usr/local/bin/usb-backup-cli#' "$here/$u" > "/etc/systemd/system/$u"
+chmod 0644 "/etc/systemd/system/$u"
 install -d /usr/local/share/man/man1
 install -m 0644 "$here/usb-backup-cli.1" /usr/local/share/man/man1/usb-backup-cli.1
 systemctl daemon-reload >/dev/null 2>&1 || true
-echo "Installed /usr/local/bin/usb-backup-cli. Next: usb-backup-cli keys init, enroll, install --trigger usb|daily."
+echo "Installed /usr/local/bin/usb-backup-cli. Next: usb-backup-cli keys init, enroll, install."

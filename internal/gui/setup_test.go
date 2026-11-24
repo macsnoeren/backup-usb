@@ -132,6 +132,9 @@ func TestRealCLI(t *testing.T) {
 	if l := c.Language(ctx); l != "nl" {
 		t.Fatalf("language %q", l)
 	}
+	if ev := c.Call(ctx, nil, "install", "--check", "--json"); ev.Event != "result" || !strings.Contains(ev.Text(), `"usb"`) {
+		t.Fatalf("install --check: %+v", ev)
+	}
 	ev := c.Call(ctx, [][]byte{pw}, "keys", "rotate")
 	if ev.Event != "result" || ev.Text() == "" {
 		t.Fatalf("keys rotate: %+v", ev)
@@ -172,5 +175,17 @@ func TestRestoreToCancelled(t *testing.T) {
 	}
 	if dest, ok := RestoreTo(`C:\Temp`); !ok || len(dest) != 2 || dest[0] != "--to" || dest[1] != `C:\Temp` {
 		t.Fatalf("%v %v", dest, ok)
+	}
+}
+
+func TestStartsOnInsert(t *testing.T) {
+	for line, want := range map[string]bool{
+		`{"event":"result","code":0,"report":{"usb":true}}`:  true,
+		`{"event":"result","code":0,"report":{"usb":false}}`: false,
+		`{"event":"error","code":11,"message":"x"}`:          false,
+	} {
+		if got := fakeCLI(t, "stream", "FAKE_LINES="+line).StartsOnInsert(context.Background()); got != want {
+			t.Errorf("%s: %v", line, got)
+		}
 	}
 }

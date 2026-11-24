@@ -89,7 +89,7 @@ setup-windows: # after build-windows (and signing); does not rebuild, so signatu
 # Linux packages: .deb and .rpm (nfpm) and .tar.gz with install.sh, for
 # amd64 and arm64.
 LINUX_TAR_FILES := packaging/linux/install.sh packaging/linux/usb-backup@.service \
-	packaging/linux/usb-backup.service packaging/linux/usb-backup.timer packaging/linux/usb-backup-cli.1 README.md LICENSE THIRD-PARTY-NOTICES.txt
+	packaging/linux/usb-backup-cli.1 README.md LICENSE THIRD-PARTY-NOTICES.txt
 packages-linux: build-linux
 	for a in amd64 arm64; do \
 		mkdir -p dist/nfpm && cp dist/linux-$$a/usb-backup-cli dist/nfpm/usb-backup-cli || exit 1; \

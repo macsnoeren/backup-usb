@@ -22,8 +22,8 @@ zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
 
 ## Planning (fase 8)
 
-- [ ] **T8.2** `usb-backup-cli install` (Windows): de taak "USB Backup" verschijnt in Taakplanner, start bij het insteken van een geregistreerde schijf (met de GUI als `usb-backup.exe` ernaast staat) en toont het venster in de sessie van de gebruiker. `install --trigger daily --at 02:00` maakt "USB Backup (daily)". `uninstall --trigger all` haalt alles weg.
-- [ ] **T8.3** Op Linux (als root): `install --trigger daily` maakt `usb-backup-daily.timer` (zichtbaar in `systemctl list-timers`); `install --trigger usb` maakt de udev-regel en `usb-backup@.service`; insteken van een geregistreerde stick start de service (`journalctl -u 'usb-backup@*'`).
+- [ ] **T8.2** `usb-backup-cli install` (Windows): de taak "USB Backup" verschijnt in Taakplanner, start bij het insteken van een geregistreerde schijf (met de GUI als `usb-backup.exe` ernaast staat) en toont het venster in de sessie van de gebruiker. Een taak "USB Backup (daily)" of "(weekly)" van een oudere versie is na het bijwerken met de setup weg. `uninstall --trigger all` haalt alles weg.
+- [ ] **T8.3** Op Linux (als root): `install --trigger usb` maakt de udev-regel en `usb-backup@.service`; insteken van een geregistreerde stick start de service (`journalctl -u 'usb-backup@*'`).
 
 ## GUI (fase 11, alleen Windows)
 
@@ -40,9 +40,9 @@ De logica van het statusscherm (alle toestanden, teksten, resterende tijd), de t
 - [ ] **Licentie** De setup toont de licentiepagina; menu **Help → About** (zonder wachtwoord) en **About** in de instellingen tonen versie, platform, instellingenmap, sleutelstatus en licentie. **File → Settings** doet hetzelfde als het tandwiel; Settings en Exit zijn grijs tijdens een back-up.
 - [ ] **Terugzetten annuleren** "Save in…" en dan Cancel zet niets terug (ook niet op het bureaublad); "To Restored on the desktop" en een gekozen map werken.
 - [ ] **Icoon** in het venster, de taakbalk, Verkenner, het startmenu, Apps en de setup; scherp bij 100%, 150% en 200% schaling.
-- [ ] **Keuzelijsten** Schijven (oneven/even weken), Planning (geen/dagelijks/wekelijks en dag) en Logboek (taal) klappen open en alle keuzes zijn te kiezen en worden opgeslagen.
+- [ ] **Keuzelijsten** Schijven (oneven/even weken) en Logboek (taal) klappen open en alle keuzes zijn te kiezen en worden opgeslagen.
 - [ ] **T11.8** Sleutels: wachtwoord tweemaal (min. 12 tekens), bestand kiezen voor de break-glass-sleutel, scherm gaat pas verder na het aanvinken van de bevestiging (sluiten kan dan ook niet), Printen werkt. Wachtwoord wijzigen, sleutel vervangen en schijf bijwerken.
-- [ ] **T11.9** Planning: USB-trigger aan/uit en een dagelijkse of wekelijkse taak verschijnen in Taakplanner.
+- [ ] **T11.9** Het vinkje "Start a backup when a registered disk is inserted" onder Algemeen toont wat er in Taakplanner staat, en aan- en uitzetten werkt meteen (ook als de taak al weg was).
 - [ ] **T11.10** Bladeren: weken en bronmappen links, mappen rechts (dubbelklik, Omhoog, Zoeken), een los bestand terugzetten naar het bureaublad (`Bureaublad\Restored` als standaard) en naar de oorspronkelijke plek; Break-glass testen met het bestand.
 - [ ] **T11.11** Logboek openen; taal omzetten naar Nederlands en terug (na herstart van het venster).
 

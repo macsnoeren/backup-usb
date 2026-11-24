@@ -61,8 +61,6 @@ archives:
       - THIRD-PARTY-NOTICES.txt
       - packaging/linux/install.sh
       - packaging/linux/usb-backup@.service
-      - packaging/linux/usb-backup.service
-      - packaging/linux/usb-backup.timer
       - packaging/linux/usb-backup-cli.1
   - id: windows
     ids: [cli-windows, gui]
@@ -89,12 +87,6 @@ nfpms:
         file_info: { mode: 0755, owner: root, group: root }
       - src: packaging/linux/usb-backup@.service
         dst: /usr/lib/systemd/system/usb-backup@.service
-        file_info: { mode: 0644 }
-      - src: packaging/linux/usb-backup.service
-        dst: /usr/lib/systemd/system/usb-backup.service
-        file_info: { mode: 0644 }
-      - src: packaging/linux/usb-backup.timer
-        dst: /usr/lib/systemd/system/usb-backup.timer
         file_info: { mode: 0644 }
       - src: packaging/linux/99-usb-backup.rules.example
         dst: /usr/share/usb-backup/99-usb-backup.rules.example

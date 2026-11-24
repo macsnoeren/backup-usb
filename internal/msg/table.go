@@ -34,8 +34,8 @@ Commando's:
   forget       registratie van een schijf verwijderen
   keys         sleutels beheren (init, passwd, rotate, rewrap, status)
   config       instellingen beheren
-  install      geplande taak registreren
-  uninstall    geplande taak verwijderen
+  install      back-up starten als een schijf wordt ingestoken
+  uninstall    daarmee stoppen
   version      versie tonen
   help         deze uitleg, of "help <commando>"
 
@@ -55,8 +55,8 @@ Commands:
   forget       remove the registration of a disk
   keys         manage keys (init, passwd, rotate, rewrap, status)
   config       manage settings
-  install      register a scheduled task
-  uninstall    remove a scheduled task
+  install      start a backup when a disk is plugged in
+  uninstall    stop doing that
   version      show the version
   help         this text, or "help <command>"
 

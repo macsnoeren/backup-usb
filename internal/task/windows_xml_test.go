@@ -30,9 +30,7 @@ const exe = `C:\Program Files\Kantoor & Co\USB Backup\usb-backup.exe`
 
 func TestWindowsXMLGolden(t *testing.T) {
 	specs := map[string]Spec{
-		"task-usb.xml":    {Trigger: USB, Command: exe, Args: []string{"--auto"}},
-		"task-daily.xml":  {Trigger: Daily, At: "02:00", Command: strings.Replace(exe, "usb-backup.exe", "usb-backup-cli.exe", 1), Args: []string{"run", "--quiet-skip", "--config", `C:\ProgramData\USB Backup`}},
-		"task-weekly.xml": {Trigger: Weekly, At: "18:00", Day: "fri", Command: exe, Args: []string{"run", "--quiet-skip"}},
+		"task-usb.xml": {Trigger: USB, Command: exe, Args: []string{"--auto"}},
 	}
 	for name, s := range specs {
 		x, err := WindowsXML(s)
@@ -65,9 +63,8 @@ func TestWindowsXMLGolden(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	bad := []Spec{
-		{Trigger: Daily, At: "25:00", Command: exe},
-		{Trigger: Daily, At: "2am", Command: exe},
-		{Trigger: Weekly, At: "18:00", Day: "friday", Command: exe},
+		{Trigger: OldDaily, Command: exe},
+		{Trigger: OldWeekly, Command: exe},
 		{Trigger: "hourly", Command: exe},
 		{Trigger: USB},
 	}

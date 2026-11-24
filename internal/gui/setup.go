@@ -149,3 +149,10 @@ func RestoreTo(dir string) (dest []string, ok bool) {
 	}
 	return []string{"--to", dir}, true
 }
+
+// StartsOnInsert asks whether a backup starts when a disk is plugged in.
+func (c CLI) StartsOnInsert(ctx context.Context) bool {
+	var r struct{ USB bool }
+	_ = json.Unmarshal([]byte(c.Call(ctx, nil, "install", "--check", "--json").Text()), &r) // unreadable: off
+	return r.USB
+}

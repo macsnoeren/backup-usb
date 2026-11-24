@@ -19,6 +19,8 @@ package msg
 
 func init() {
 	add(map[string]entry{
+		"task.on":        {EN: "A backup starts when a registered disk is plugged in.", NL: "Een back-up start als een geregistreerde schijf wordt ingestoken."},
+		"task.off":       {EN: "Nothing starts when a disk is plugged in.", NL: "Er start niets als een schijf wordt ingestoken."},
 		"err.install":    {EN: "the task %q could not be registered", NL: "de taak %q kon niet worden geregistreerd"},
 		"err.uninstall":  {EN: "the task %q could not be removed", NL: "de taak %q kon niet worden verwijderd"},
 		"task.installed": {EN: "Task %q registered.", NL: "Taak %q geregistreerd."},

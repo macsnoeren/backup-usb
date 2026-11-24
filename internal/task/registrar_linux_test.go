@@ -30,19 +30,25 @@ func TestSystemdInstallUninstall(t *testing.T) {
 		calls = append(calls, name+" "+strings.Join(args, " "))
 		return nil
 	}}
-	spec := Spec{Trigger: Daily, At: "02:00", Command: "/usr/bin/usb-backup-cli", Args: []string{"run", "--quiet-skip"}}
-	if err := s.Install(spec); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(s.UnitDir, "usb-backup-daily.timer")); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Join(calls, ";") != "systemctl daemon-reload;systemctl enable --now usb-backup-daily.timer" {
-		t.Fatal(calls)
+	if s.Installed(USB) {
+		t.Fatal("installed before installing")
 	}
 	if err := s.Install(Spec{Trigger: USB, Command: "/usr/bin/usb-backup-cli", VolumeUUIDs: []string{"A41C-77E2"}}); err != nil {
 		t.Fatal(err)
 	}
+	if strings.Join(calls, ";") != "systemctl daemon-reload;udevadm control --reload" || !s.Installed(USB) {
+		t.Fatal(calls)
+	}
+	// Tasks of older versions are removed, never made.
+	if err := s.Install(Spec{Trigger: OldDaily, Command: "/usr/bin/usb-backup-cli"}); err == nil {
+		t.Fatal("daily task made")
+	}
+	for _, f := range []string{"usb-backup-daily.timer", "usb-backup-daily.service"} {
+		if err := os.WriteFile(filepath.Join(s.UnitDir, f), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	calls = nil
 	if _, err := os.Stat(filepath.Join(s.RulesDir, UdevRule)); err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +56,9 @@ func TestSystemdInstallUninstall(t *testing.T) {
 		if err := s.Uninstall(tr); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if !strings.Contains(strings.Join(calls, ";"), "systemctl disable --now usb-backup-daily.timer") || strings.Contains(strings.Join(calls, ";"), "weekly") {
+		t.Fatal(calls)
 	}
 	for _, d := range []string{s.UnitDir, s.RulesDir} {
 		if e, _ := os.ReadDir(d); len(e) != 0 {

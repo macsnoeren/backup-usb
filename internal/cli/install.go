@@ -28,8 +28,8 @@ import (
 )
 
 func init() {
-	register(&command{name: "install", summary: "Register a scheduled task: --trigger usb (default), daily --at 02:00, weekly --day fri --at 18:00.", run: cmdInstall})
-	register(&command{name: "uninstall", summary: "Remove a scheduled task: --trigger usb|daily|weekly|all.", run: cmdUninstall})
+	register(&command{name: "install", summary: "Start a backup when a registered disk is plugged in.", run: cmdInstall})
+	register(&command{name: "uninstall", summary: "Stop starting a backup when a disk is plugged in; --trigger all also removes tasks of older versions.", run: cmdUninstall})
 }
 
 func (c *ctx) registrar() task.Registrar {
@@ -55,15 +55,27 @@ func (c *ctx) executable() (string, error) {
 
 func cmdInstall(c *ctx, args []string) error {
 	fs := c.newFlags("install")
-	trig := fs.String("trigger", "usb", "`usb`, daily or weekly")
-	at := fs.String("at", "", "time of day `HH:MM` for daily and weekly")
-	day := fs.String("day", "", "`weekday` for weekly: mon, tue, wed, thu, fri, sat, sun")
+	trig := fs.String("trigger", "usb", "`usb`")
+	check := fs.Bool("check", false, "only show whether it is switched on")
+	asJSON := fs.Bool("json", false, "with --check: print as JSON")
 	pos, err := c.parse(fs, args)
 	if err != nil {
 		return err
 	}
 	if err := noPositional(pos); err != nil {
 		return err
+	}
+	if *check {
+		on := c.registrar().Installed(task.USB)
+		if *asJSON {
+			return writeJSON(c.env.Stdout, map[string]bool{"usb": on})
+		}
+		key := "task.off"
+		if on {
+			key = "task.on"
+		}
+		fmt.Fprintln(c.env.Stdout, c.p.T(key))
+		return nil
 	}
 	cfg, err := c.loadConfig()
 	if err != nil {
@@ -73,22 +85,20 @@ func cmdInstall(c *ctx, args []string) error {
 	if err != nil {
 		return app.Errorf(app.KindIO, err, "err.write")
 	}
-	spec := task.Spec{Trigger: task.Trigger(*trig), At: *at, Day: *day, Command: exe, Args: []string{"run", "--quiet-skip"}}
-	if spec.Trigger == task.USB {
-		spec.Args = append(spec.Args, "--wait", fmt.Sprint(cfg.WaitSeconds))
-		if runtime.GOOS == "windows" {
-			gui := filepath.Join(filepath.Dir(exe), "usb-backup.exe")
-			if st, err := os.Stat(gui); err == nil && !st.IsDir() {
-				spec.Command, spec.Args = gui, []string{"--auto"}
-			}
+	spec := task.Spec{Trigger: task.Trigger(*trig), Command: exe, Args: []string{"run", "--quiet-skip"}}
+	spec.Args = append(spec.Args, "--wait", fmt.Sprint(cfg.WaitSeconds))
+	if runtime.GOOS == "windows" {
+		gui := filepath.Join(filepath.Dir(exe), "usb-backup.exe")
+		if st, err := os.Stat(gui); err == nil && !st.IsDir() {
+			spec.Command, spec.Args = gui, []string{"--auto"}
 		}
-		reg, err := app.LoadRegistry(c.configDir(), cfg)
-		if err != nil {
-			return err
-		}
-		for _, d := range reg.Disks {
-			spec.VolumeUUIDs = append(spec.VolumeUUIDs, d.VolumeSerial)
-		}
+	}
+	reg, err := app.LoadRegistry(c.configDir(), cfg)
+	if err != nil {
+		return err
+	}
+	for _, d := range reg.Disks {
+		spec.VolumeUUIDs = append(spec.VolumeUUIDs, d.VolumeSerial)
 	}
 	if c.opts.configDir != "" {
 		spec.Args = append(spec.Args, "--config", c.opts.configDir)
@@ -100,7 +110,7 @@ func cmdInstall(c *ctx, args []string) error {
 		return app.Errorf(app.KindIO, err, "err.install", task.Name(spec.Trigger))
 	}
 	if l := c.logger(cfg); l != nil {
-		l.Info("task installed", "trigger", spec.Trigger, "at", spec.At, "day", spec.Day)
+		l.Info("task installed", "trigger", spec.Trigger)
 	}
 	fmt.Fprintln(c.env.Stdout, c.p.T("task.installed", task.Name(spec.Trigger)))
 	return nil
@@ -108,7 +118,7 @@ func cmdInstall(c *ctx, args []string) error {
 
 func cmdUninstall(c *ctx, args []string) error {
 	fs := c.newFlags("uninstall")
-	trig := fs.String("trigger", "usb", "`usb`, daily, weekly or all")
+	trig := fs.String("trigger", "usb", "`usb`, or all (also tasks of older versions)")
 	pos, err := c.parse(fs, args)
 	if err != nil {
 		return err

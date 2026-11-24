@@ -116,3 +116,8 @@ func (s *Schtasks) Uninstall(t Trigger) error {
 	}
 	return err
 }
+
+// Installed reports whether the task exists.
+func (s *Schtasks) Installed(t Trigger) bool {
+	return s.run("/Query", "/TN", Name(t)) == nil
+}

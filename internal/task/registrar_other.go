@@ -28,3 +28,4 @@ func NewPlatformRegistrar() Registrar { return none{} }
 
 func (none) Install(Spec) error      { return errors.New("not supported on this platform") }
 func (none) Uninstall(Trigger) error { return errors.New("not supported on this platform") }
+func (none) Installed(Trigger) bool  { return false }

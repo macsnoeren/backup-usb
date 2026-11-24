@@ -60,8 +60,8 @@ tar xzf usb-backup-<version>-linux-amd64.tar.gz && cd usb-backup-<version>-linux
 ```
 
 Recommended: `udisks2` (mount sticks without root) and `smartmontools`
-(disk health). Nothing runs automatically after installing; you switch on a
-schedule yourself (step 2.5).
+(disk health). Nothing runs automatically after installing; you switch on
+backups yourself (step 2.5).
 
 ## 2. First-time setup
 
@@ -87,8 +87,8 @@ password yet; you choose it now:
 4. **Disks**: plug in the first disk, select it, name it `BACKUP1`, choose
    *odd weeks*, **Register**. Do the same with the second disk as `BACKUP2`,
    *even weeks*.
-5. **Schedule**: leave *Start a backup when a registered disk is inserted*
-   ticked and **Save**.
+5. **General and sources**: tick *Start a backup when a registered disk is
+   inserted*. Without it a backup only starts while the window is open.
 
 ### With the command line (Windows or Linux)
 
@@ -109,16 +109,13 @@ usb-backup-cli disks                                            # check
 # 2.4 Try it without writing anything
 usb-backup-cli run --dry-run
 
-# 2.5 Switch on a schedule (pick one or both)
-usb-backup-cli install --trigger usb                   # back up when a registered disk is plugged in
-usb-backup-cli install --trigger daily --at 02:00      # or: weekly --day fri --at 18:00
+# 2.5 Back up when a registered disk is plugged in
+usb-backup-cli install                                 # "install --check" shows whether it is on
 ```
 
-On Linux, `install` needs root (it writes systemd units and a udev rule).
-Instead of a schedule you can also use cron, for example every hour:
-`0 * * * * /usr/bin/usb-backup-cli run --quiet-skip`. A run only does
-something when the right disk is there and the last backup of this week is
-older than `minIntervalHours` (20).
+On Linux, `install` needs root (it writes a systemd unit and a udev rule). A
+run only does something when the right disk is there and the last backup of
+this week is older than `minIntervalHours` (20).
 
 > **Important:** without the vault password **and** without the
 > break-glass key, the backups cannot be read by anyone, including you.
@@ -254,7 +251,7 @@ manual edit makes every run stop with exit code 7).
 | `encryption` | `auto` | `auto` (encrypt once keys exist), `age` (required), `none` |
 | `requireHardwareSerial` | `false` | Refuse disks without a hardware serial number |
 | `waitSeconds` | `30` | How long the trigger waits for the disk |
-| `ejectAfter` | `true` | Eject the disk after a good backup, so it can be unplugged. Set it to `false` when the disk stays connected for a daily schedule |
+| `ejectAfter` | `true` | Eject the disk after a good backup, so it can be unplugged. |
 | `language` | `en` | `en` or `nl` |
 | `logMaxSizeMB`, `logKeep`, `logLevel` | `1`, `5`, `info` | Log rotation and detail |
 
@@ -274,7 +271,7 @@ usb-backup-cli help run             # flags of one command
 | `enroll`, `forget` | Register or remove a disk |
 | `keys init/passwd/rotate/rewrap/status` | Keys |
 | `config show/set/add-source/remove-source/import/export` | Settings |
-| `install`, `uninstall` | Schedule (`--trigger usb|daily|weekly`) |
+| `install`, `uninstall` | Start a backup when a disk is plugged in (`install --check` shows it) |
 | `version` | Version |
 
 Passwords are never accepted as arguments or environment variables: give
@@ -296,7 +293,7 @@ Passwords are never accepted as arguments or environment variables: give
 | 13 | Decryption or re-wrap failed (wrong key or password, damaged file) |
 | 64 | Wrong usage |
 
-For scheduled runs, 2 to 4 are normal (the disk is simply not there);
+For automatic runs, 2 to 4 are normal (the disk is simply not there);
 `--quiet-skip` makes them silent.
 
 ## 8. Files and folders

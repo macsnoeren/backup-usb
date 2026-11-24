@@ -130,10 +130,18 @@ func (s *Systemd) Install(spec Spec) error {
 	if err := s.run("systemctl", "daemon-reload"); err != nil {
 		return err
 	}
-	if spec.Trigger == USB {
-		return s.run("udevadm", "control", "--reload")
+	return s.run("udevadm", "control", "--reload")
+}
+
+// Installed reports whether the udev rule or the timer exists.
+func (s *Systemd) Installed(t Trigger) bool {
+	unitDir, rulesDir := s.dirs()
+	p := filepath.Join(rulesDir, UdevRule)
+	if t != USB {
+		p = filepath.Join(unitDir, TimerName(t)+".timer")
 	}
-	return s.run("systemctl", "enable", "--now", TimerName(spec.Trigger)+".timer")
+	_, err := os.Lstat(p)
+	return err == nil
 }
 
 // rootOwned checks that p and every parent folder belong to root and are
@@ -168,7 +176,9 @@ func (s *Systemd) Uninstall(t Trigger) error {
 	if t == USB {
 		paths = []string{filepath.Join(rulesDir, UdevRule), filepath.Join(unitDir, ServiceTemplate)}
 	} else {
-		_ = s.run("systemctl", "disable", "--now", TimerName(t)+".timer")
+		if s.Installed(t) {
+			_ = s.run("systemctl", "disable", "--now", TimerName(t)+".timer")
+		}
 		paths = []string{filepath.Join(unitDir, TimerName(t)+".timer"), filepath.Join(unitDir, TimerName(t)+".service")}
 	}
 	for _, p := range paths {

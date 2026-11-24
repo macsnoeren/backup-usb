@@ -29,6 +29,13 @@ as the release notes.
 - Windows: password windows have the focus in the password field; Enter
   presses OK and Escape closes the window.
 
+### Removed
+
+- Daily and weekly tasks, with the Schedule screen. A backup starts when a
+  registered disk is plugged in (a tick box under *General and sources* that
+  shows the real state, or `install`). The Windows setup removes tasks that an
+  older version made.
+
 ### Fixed
 
 - Windows: cancelling *Save in…* when restoring still restored the files, to
@@ -44,7 +51,7 @@ as the release notes.
   choosing an existing file for the break-glass key deleted that file.
 - Windows: the settings screens ignored the real settings (folders, language
   and timeout were read from the wrong field of the CLI's answer).
-- Windows: drop-down lists (odd or even weeks, scheduled task, day, language)
+- Windows: drop-down lists (odd or even weeks, language)
   opened without any items, so only the first choice could be used; the
   language list always showed English.
 - Cancelling while the backup was being checked was reported as a failed
@@ -52,7 +59,7 @@ as the release notes.
 - A source folder that does not exist (such as the default `C:\Data`) blocked
   saving every setting and adding or removing other folders.
 - Windows: switching off "start a backup when a disk is inserted" failed when
-  that task did not exist, and the rest of the schedule was not saved.
+  that task did not exist.
 - `keys init` without administrator rights left a vault behind that blocked
   every later attempt; it now checks first and undoes a failed run.
 
