@@ -405,6 +405,14 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		return nil, err
 	}
 	rep.Disk, rep.Device, rep.Mount = c.Reg.Name, c.Vol.Device, c.Vol.Mount
+	// Deferred before the disk is opened, so it runs after everything on the
+	// disk is closed again, and while the lock is still held.
+	eject := false
+	defer func() {
+		if eject {
+			ejectAfter(ctx, deps, c, rep, p)
+		}
+	}()
 	deps.Log.Info("backup disk found", "disk", c.Reg.Name, "device", c.Vol.Device, "period", per.Label())
 
 	root, err := fsx.OpenDiskRoot(c.Vol.Mount, cfg.TargetFolder, !opts.DryRun)
@@ -609,8 +617,8 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	if err := WriteLastBackup(root, LastBackup{Time: now, Folder: folder}); err != nil {
 		deps.Log.Warn("cannot write last backup time", "err", err)
 	}
-	if free, _, err := deps.Finder.Space(ctx, c.Vol); err == nil {
-		rep.FreeBytes = free
+	if free, total, err := deps.Finder.Space(ctx, c.Vol); err == nil {
+		rep.FreeBytes, rep.TotalBytes = free, total
 	}
 	switch health {
 	case volume.Warning:
@@ -628,15 +636,32 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	rep.Finished = deps.Now()
 	writeReportFile(deps, root, folder, rep, cfg)
 	deps.emit(Event{Event: "state", State: "done", Disk: c.Reg.Name})
-	if cfg.EjectAfter {
-		if err := deps.Finder.Eject(ctx, c.Vol); err != nil {
-			deps.Log.Warn("eject failed", "err", err)
-		}
-	}
+	eject = cfg.EjectAfter && c.Vol.Removable
 	if warnings {
 		return rep, Errorf(KindWarning, nil, "msg.warnings")
 	}
 	return rep, nil
+}
+
+// ejectAfter ejects the disk after a good backup. A disk that cannot be
+// ejected does not make the backup less good, but the report no longer says
+// that it can be removed.
+func ejectAfter(ctx context.Context, deps *Deps, c *Candidate, rep *RunReport, p msg.Printer) {
+	deps.emit(Event{Event: "state", State: "ejecting", Disk: c.Reg.Name})
+	key := "msg.ejected"
+	if err := deps.Finder.Eject(ctx, c.Vol); err != nil {
+		deps.Log.Warn("eject failed", "disk", c.Reg.Name, "err", err)
+		key = "msg.ejectFailed"
+	} else {
+		deps.Log.Info("disk ejected", "disk", c.Reg.Name)
+	}
+	for i, k := range rep.MessageKeys {
+		if k == "msg.canRemove" {
+			rep.MessageKeys[i], rep.Messages[i] = key, p.T(key, c.Reg.Name)
+			return
+		}
+	}
+	rep.addMessage(p, key, c.Reg.Name)
 }
 
 func (r *RunReport) addMessage(p msg.Printer, key string, args ...any) {

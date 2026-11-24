@@ -19,7 +19,6 @@ package gui
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +59,9 @@ func TestEveryState(t *testing.T) {
 		{"busy", []string{`{"event":"state","state":"searching"}`, `{"event":"state","state":"backup","tag":"Boekhouding","index":2,"count":3}`, `{"event":"progress","tag":"Boekhouding","pct":40}`}, StateBusy, "Backup in progress, do not remove the disk", ButtonCancel, Neutral},
 		{"verifying", []string{`{"event":"state","state":"backup","tag":"Data","index":1,"count":1}`, `{"event":"state","state":"verifying","tag":"Data","index":1,"count":1}`}, StateVerifying, "Checking the backup", ButtonNone, Neutral},
 		{"done", []string{`{"event":"result","code":0,"report":` + report(app.RunReport{Status: "ok"}) + `}`}, StateDone, "Everything is fine. You can remove the disk", ButtonEject, Green},
+		{"ejecting", []string{`{"event":"state","state":"ejecting","disk":"BACKUP1"}`}, StateVerifying, "The backup is fine. Ejecting BACKUP1, do not unplug it yet", ButtonNone, Neutral},
+		{"done and ejected", []string{`{"event":"result","code":0,"report":` + report(app.RunReport{Status: "ok", Disk: "BACKUP1", Messages: []string{"x"}, MessageKeys: []string{"msg.ejected"}}) + `}`}, StateDone, "Everything is fine. BACKUP1 was ejected, you can unplug it", ButtonNone, Green},
+		{"done, not ejected", []string{`{"event":"result","code":0,"report":` + report(app.RunReport{Status: "ok", Disk: "BACKUP1", Messages: []string{"x"}, MessageKeys: []string{"msg.ejectFailed"}}) + `}`}, StateDone, "The backup is fine, but BACKUP1 is still in use. Click \"Safely remove disk\" before you unplug it", ButtonEject, Orange},
 		{"done with warning", []string{`{"event":"result","code":1,"report":` + report(app.RunReport{Status: "warning", Sources: []app.SourceReport{{Tag: "Data", SkippedCount: 3}}}) + `}`}, StateDoneWarning, "Backup made, but 3 files were in use", ButtonDetails, Orange},
 		{"failed", []string{`{"event":"error","code":11,"key":"err.write","message":"writing to the backup disk failed"}`}, StateFailed, "Backup failed", ButtonRetry, Red},
 		{"needs update", []string{`{"event":"result","code":0,"report":` + report(app.RunReport{Status: "ok", MessageKeys: []string{"msg.needsUpdate"}}) + `}`}, StateNeedsUpdate, "Everything is fine. You can remove the disk", ButtonEject, Green},
@@ -88,9 +90,21 @@ func TestEveryState(t *testing.T) {
 func TestFooter(t *testing.T) {
 	m := NewModel(msg.EN, time.Now)
 	last := time.Date(2026, 11, 11, 9, 30, 0, 0, time.Local)
-	m.SetStatus(&app.StatusReport{Due: []string{"BACKUP1"}, Disks: []app.DiskStatus{{Name: "BACKUP1", Health: "Healthy", FreeBytes: 40 << 30, LastBackup: &last}}})
-	if v := m.View(); !strings.Contains(v.Footer, "BACKUP1: last backup 2026-11-11 09:30, health Healthy, 40.0 GiB free") {
+	m.SetStatus(&app.StatusReport{Due: []string{"BACKUP1"}, Disks: []app.DiskStatus{{Name: "BACKUP1", Health: "Healthy", Folders: 12, FreeBytes: 40 << 30, TotalBytes: 160 << 30, LastBackup: &last}}})
+	if v := m.View(); v.Footer != "BACKUP1: 12 backups on this disk, 40.0 GiB free of 160.0 GiB (25%)\nLast backup: 2026-11-11 09:30, health: Healthy" {
 		t.Fatal(v.Footer)
+	}
+	// After a backup the numbers come from the report: the disk is ejected.
+	rep, _ := json.Marshal(app.RunReport{Status: "ok", Disk: "BACKUP1", Started: time.Date(2026, 11, 18, 10, 0, 0, 0, time.Local), FolderCount: 13, FreeBytes: 32 << 30, TotalBytes: 160 << 30, Health: "Warning"})
+	after := play(m, `{"event":"result","code":0,"report":`+string(rep)+`}`)
+	if after.Footer != "BACKUP1: 13 backups on this disk, 32.0 GiB free of 160.0 GiB (20%)\nLast backup: 2026-11-18 10:00, health: Warning" {
+		t.Fatal(after.Footer)
+	}
+	// First backup ever, size unknown, window opened without status.
+	rep, _ = json.Marshal(app.RunReport{Status: "ok", Disk: "BACKUP2", Started: last, FolderCount: 1, FreeBytes: 1 << 30, Health: "Unknown"})
+	nl := NewModel(msg.NL, time.Now)
+	if f := play(nl, `{"event":"result","code":0,"report":`+string(rep)+`}`).Footer; f != "BACKUP2: 1 back-up op deze schijf, 1.0 GiB vrij\nLaatste back-up: 2026-11-11 09:30, gezondheid: Unknown" {
+		t.Fatal(f)
 	}
 	v := play(m, `{"event":"error","code":2,"key":"err.noDiskAny"}`)
 	if v.Headline != "Insert USB disk BACKUP1" {

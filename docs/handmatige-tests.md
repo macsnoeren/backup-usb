@@ -9,7 +9,9 @@ zonder USB-schijven) zijn deze niet gedaan; ze staan hier als checklist.
 - [ ] **T7.1** Een echte USB-schijf wordt gevonden: `usb-backup-cli disks` toont schijfletter, label, bestandssysteem, volume-serienummer en vrije ruimte. De systeemschijf ontbreekt.
 - [ ] **T7.2** `disks` toont op een echte schijf alle drie de kenmerken: volume-serienummer, partitie-ID (GPT-GUID, of `MBR:<signature>:<nummer>`) en hardware-serienummer. Controleer ook een goedkope stick zonder serienummer (hardware-serienummer leeg).
 - [ ] **T7.3** `usb-backup-cli status` toont Healthy, Warning, Unhealthy of Unknown; er verschijnt geen PowerShell-venster.
-- [ ] Veilig verwijderen (`ejectAfter: true` of de GUI-knop) werkt; een schijf die nog in gebruik is, geeft een duidelijke fout.
+- [ ] Veilig verwijderen na een back-up (`ejectAfter`, standaard aan) en met de GUI-knop werkt, als **gewone gebruiker**, met een USB-stick én een externe harde schijf of SSD (ook UAS): de schijf verdwijnt uit Verkenner en het venster zegt dat hij los mag. Met een open bestand op de schijf zegt het venster dat hij nog in gebruik is. Andere USB-apparaten blijven werken.
+- [ ] Onderaan het venster staat het aantal back-ups en de vrije ruimte (ook na het uitwerpen), leesbaar met één en met twee schijven.
+- [ ] Na het uitwerpen en opnieuw insteken wordt de schijf weer gevonden.
 
 ## Linux (fase 7)
 

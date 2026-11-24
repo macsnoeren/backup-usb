@@ -126,3 +126,13 @@ The window also read JSON answers from `output` while the CLI puts them in
 
 Skipping the password gives no extra rights: a user who may not write the
 settings folder is refused by the CLI, and existing keys are never replaced.
+
+## Ejecting after a backup (self-review)
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | The disk was ejected while `Backup` was still open, so it always failed, and the report still said that the disk could be removed. | medium (risk of data loss) | Ejected after the disk folder is closed; on failure the message changes. Test that looks at the open files. |
+| 2 | Removing the wrong device (a controller or hub) would be possible when asking the parent of a disk. | checked | Only the parent of the disk with the volume's own device number, and only if its ID is a USB device. Test. |
+
+New libraries `setupapi.dll` and `cfgmgr32.dll` are loaded by full path. No
+external programs, no disk-controlled text.

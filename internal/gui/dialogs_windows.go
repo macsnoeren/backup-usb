@@ -39,6 +39,23 @@ func label(p ui.Parent, text string, x, y, w, h int) *ui.Static {
 	return ui.NewStatic(p, ui.OptsStatic().Text(text).Position(ui.Dpi(x, y)).Size(ui.Dpi(w, h)))
 }
 
+// okButton is the default button: Enter in a field presses it.
+func okButton(p ui.Parent, text string, x, y, w int) *ui.Button {
+	return ui.NewButton(p, ui.OptsButton().Text(text).Position(ui.Dpi(x, y)).Width(ui.DpiX(w)).
+		CtrlId(uint16(co.ID_OK)).CtrlStyle(co.BS_DEFPUSHBUTTON))
+}
+
+// cancelButton is pressed by Escape.
+func cancelButton(p ui.Parent, text string, x, y, w int) *ui.Button {
+	return ui.NewButton(p, ui.OptsButton().Text(text).Position(ui.Dpi(x, y)).Width(ui.DpiX(w)).CtrlId(uint16(co.ID_CANCEL)))
+}
+
+// isEmpty reports whether a field has no text, without reading it.
+func isEmpty(e *ui.Edit) bool {
+	n, _, _ := procGetWindowTextLength.Call(uintptr(e.Hwnd()))
+	return n == 0
+}
+
 func button(p ui.Parent, text string, x, y, w int) *ui.Button {
 	return ui.NewButton(p, ui.OptsButton().Text(text).Position(ui.Dpi(x, y)).Width(ui.DpiX(w)))
 }
@@ -113,10 +130,11 @@ func takeSecret(e *ui.Edit) []byte {
 // askText asks for one line of text.
 func askText(parent ui.Parent, title, prompt, initial string, p func(string, ...any) string) (string, bool) {
 	m := newModal(parent, title, 380, 130)
-	label(m, prompt, 10, 10, 360, 20)
+	// windigo gives the focus to the control that was made first.
 	e := edit(m, initial, 10, 35, 360, false)
-	ok := button(m, p("gui.btn.ok"), 200, 75, 80)
-	cancel := button(m, p("gui.btn.close"), 290, 75, 80)
+	label(m, prompt, 10, 10, 360, 20)
+	ok := okButton(m, p("gui.btn.ok"), 200, 75, 80)
+	cancel := cancelButton(m, p("gui.btn.close"), 290, 75, 80)
 	var result string
 	var done bool
 	ok.On().BnClicked(func() { result, done = e.Text(), true; closeModal(m) })

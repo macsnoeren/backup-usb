@@ -10,6 +10,7 @@
   "encrypted": false,
   "health": "Healthy",
   "freeBytes": 0,
+  "totalBytes": 137438953472,
   "folderCount": 1,
   "messages": [
     "Verification OK. You can remove the disk."

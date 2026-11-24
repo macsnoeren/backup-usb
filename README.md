@@ -251,7 +251,7 @@ manual edit makes every run stop with exit code 7).
 | `encryption` | `auto` | `auto` (encrypt once keys exist), `age` (required), `none` |
 | `requireHardwareSerial` | `false` | Refuse disks without a hardware serial number |
 | `waitSeconds` | `30` | How long the trigger waits for the disk |
-| `ejectAfter` | `false` | Eject the disk after a good backup |
+| `ejectAfter` | `true` | Eject the disk after a good backup, so it can be unplugged. Set it to `false` when the disk stays connected for a daily schedule |
 | `language` | `en` | `en` or `nl` |
 | `logMaxSizeMB`, `logKeep`, `logLevel` | `1`, `5`, `info` | Log rotation and detail |
 

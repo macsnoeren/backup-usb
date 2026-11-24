@@ -224,7 +224,7 @@ Alle instellingen staan in het operatorscherm en zijn ook met `usb-backup-cli co
 | Schijven | `disksFile` | `usb-backup.disks.json` | Geregistreerde schijven, met naam en rol (zie Schijfherkenning) |
 | Schijven | `requireHardwareSerial` | `false` | Schijven zonder hardware-serienummer weigeren |
 | Schijven | `waitSeconds` | `30` | Hoe lang er op een schijfletter of koppeling gewacht wordt |
-| Schijven | `ejectAfter` | `false` | Schijf na een geslaagde back-up automatisch veilig verwijderen |
+| Schijven | `ejectAfter` | `true` | Schijf na een geslaagde back-up automatisch veilig verwijderen; `false` als de schijf voor een dagelijkse planning aangesloten blijft |
 | Versleuteling | `encryption` | `age` als er ontvangers zijn | `age` of `none` |
 | Versleuteling | `recipientsFile` | `usb-backup.recipients` | Publieke sleutels, één per regel |
 | Versleuteling | `vaultPath` | `%APPDATA%\USB Backup\herstel.vault` | Plek van de vault, ook op een sleutel-USB |

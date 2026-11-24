@@ -140,7 +140,7 @@ func Defaults() *Config {
 		DisksFile:              DefaultDisksFile,
 		RequireHardwareSerial:  false,
 		WaitSeconds:            30,
-		EjectAfter:             false,
+		EjectAfter:             true,
 		Encryption:             EncryptionAuto,
 		RecipientsFile:         DefaultRecipients,
 		VaultPath:              "",

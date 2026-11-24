@@ -151,10 +151,12 @@ func firstSetup(mw *mainWindow) {
 func showOperatorLogin(mw *mainWindow) {
 	p := mw.p.T
 	m := newModal(mw.wnd, p("gui.title"), 380, 130)
-	label(m, p("gui.login"), 10, 10, 360, 20)
+	// windigo gives the focus to the control that was made first, also when
+	// the window comes back after a message: type the password at once.
 	pwEdit := edit(m, "", 10, 35, 360, true)
-	ok := button(m, p("gui.btn.ok"), 200, 75, 80)
-	cancel := button(m, p("gui.btn.close"), 290, 75, 80)
+	label(m, p("gui.login"), 10, 10, 360, 20)
+	ok := okButton(m, p("gui.btn.ok"), 200, 75, 80)
+	cancel := cancelButton(m, p("gui.btn.close"), 290, 75, 80)
 	var sess *Session
 	ok.On().BnClicked(func() {
 		raw := takeSecret(pwEdit)
@@ -358,14 +360,18 @@ func (o *operator) disks(parent ui.Parent) {
 // askNewPassword asks a new vault password twice (at least 12 characters).
 func (o *operator) askNewPassword(parent ui.Parent) *secmem.Buffer {
 	m := newModal(parent, o.t("gui.tab.keys"), 400, 190)
+	p1 := edit(m, "", 10, 32, 380, true) // first: gets the focus
 	label(m, o.t("gui.newPassword"), 10, 10, 380, 20)
-	p1 := edit(m, "", 10, 32, 380, true)
 	label(m, o.t("gui.repeatPassword"), 10, 65, 380, 20)
 	p2 := edit(m, "", 10, 87, 380, true)
-	ok := button(m, o.t("gui.btn.ok"), 220, 130, 80)
-	cancel := button(m, o.t("gui.btn.close"), 310, 130, 80)
+	ok := okButton(m, o.t("gui.btn.ok"), 220, 130, 80)
+	cancel := cancelButton(m, o.t("gui.btn.close"), 310, 130, 80)
 	var out *secmem.Buffer
 	ok.On().BnClicked(func() {
+		if !isEmpty(p1) && isEmpty(p2) {
+			_, _ = p2.Hwnd().SetFocus() // Enter in the first field
+			return
+		}
 		a, b := secmem.From(takeSecret(p1)), secmem.From(takeSecret(p2))
 		defer b.Wipe()
 		if !a.Equal(b) || utf8.RuneCount(a.Bytes()) < password.MinNewLen {

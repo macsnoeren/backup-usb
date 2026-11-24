@@ -21,7 +21,7 @@ func init() {
 	add(map[string]entry{
 		"status.period":       {EN: "Period %s: %s is due.", NL: "Periode %s: %s is aan de beurt."},
 		"status.noDisks":      {EN: "No backup disk connected.", NL: "Geen back-upschijf aangesloten."},
-		"status.disk":         {EN: "%s (%s): health %s, %s free of %s, %d folders, last backup %s%s", NL: "%s (%s): gezondheid %s, %s vrij van %s, %d mappen, laatste back-up %s%s"},
+		"status.disk":         {EN: "%s (%s): health %s, %s free of %s, backups: %d, last backup %s%s", NL: "%s (%s): gezondheid %s, %s vrij van %s, back-ups: %d, laatste back-up %s%s"},
 		"status.never":        {EN: "never", NL: "nooit"},
 		"status.dueMark":      {EN: " (due now)", NL: " (nu aan de beurt)"},
 		"status.needsUpdate":  {EN: "  This disk must be updated by the operator (keys rewrap).", NL: "  Deze schijf moet door de beheerder worden bijgewerkt (keys rewrap)."},

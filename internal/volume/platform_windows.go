@@ -20,7 +20,6 @@ package volume
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -248,34 +247,4 @@ func (windowsFinder) Mount(_ context.Context, v Volume) (Volume, func() error, e
 		return v, func() error { return nil }, ErrNotMounted
 	}
 	return v, func() error { return nil }, nil
-}
-
-// Eject locks and dismounts the volume and ejects the media, the same steps
-// as "safely remove".
-func (windowsFinder) Eject(_ context.Context, v Volume) error {
-	h, err := openVolume(strings.TrimSuffix(v.Device, `\`), genericReadWrite)
-	if err != nil {
-		return fmt.Errorf("open volume: %w", err)
-	}
-	defer func() { _ = syscall.CloseHandle(h) }()
-	var lockErr error
-	for i := 0; i < 10; i++ {
-		if _, lockErr = ioctl(h, fsctlLockVolume, nil, nil); lockErr == nil {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if lockErr != nil {
-		return fmt.Errorf("volume in use: %w", lockErr)
-	}
-	if _, err := ioctl(h, fsctlDismountVolume, nil, nil); err != nil {
-		return fmt.Errorf("dismount: %w", err)
-	}
-	if _, err := ioctl(h, ioctlStorageMediaRemoval, []byte{0}, nil); err != nil {
-		return fmt.Errorf("allow removal: %w", err)
-	}
-	if _, err := ioctl(h, ioctlStorageEjectMedia, nil, nil); err != nil && !errors.Is(err, syscall.Errno(errorNotReady)) {
-		return fmt.Errorf("eject: %w", err)
-	}
-	return nil
 }

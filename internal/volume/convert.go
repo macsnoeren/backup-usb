@@ -117,3 +117,9 @@ func ParseHealthOutput(out string) Health {
 	}
 	return Unknown
 }
+
+// IsUSBDevice reports whether a Windows device instance ID names a USB
+// device ("USB\\VID_0781&PID_5581\\..."), not a hub, controller or bus.
+func IsUSBDevice(id string) bool {
+	return strings.HasPrefix(strings.ToUpper(id), `USB\VID_`)
+}

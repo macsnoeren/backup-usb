@@ -75,6 +75,7 @@ type RunReport struct {
 	Keys        []string       `json:"keys,omitempty"`
 	Health      string         `json:"health,omitempty"`
 	FreeBytes   uint64         `json:"freeBytes,omitempty"`
+	TotalBytes  uint64         `json:"totalBytes,omitempty"`
 	FolderCount int            `json:"folderCount,omitempty"`
 	Rotated     []string       `json:"rotated,omitempty"`
 	Messages    []string       `json:"messages,omitempty"`

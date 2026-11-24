@@ -78,6 +78,7 @@ func newWorld(t *testing.T) *world {
 	testutil.WriteFile(t, w.srcDir, "Data/notes/todo.txt", "buy milk")
 	testutil.WriteFile(t, w.srcDir, "Books/2026/q1.xlsx", "numbers")
 	w.cfgData = map[string]any{
+		"ejectAfter": false, // most tests keep using the disk
 		"sources": []map[string]any{
 			{"tag": "Data", "path": filepath.Join(w.srcDir, "Data")},
 			{"tag": "Books", "path": filepath.Join(w.srcDir, "Books")},

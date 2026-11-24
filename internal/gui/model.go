@@ -124,9 +124,45 @@ func (m *Model) footer() string {
 		if d.LastBackup != nil {
 			last = d.LastBackup.Local().Format("2006-01-02 15:04")
 		}
-		parts = append(parts, m.P.T("gui.footerDisk", d.Name, last, d.Health, app.HumanBytes(d.FreeBytes)))
+		free := m.P.T("gui.free", app.HumanBytes(d.FreeBytes))
+		if d.TotalBytes > 0 {
+			free = m.P.T("gui.freeOf", app.HumanBytes(d.FreeBytes), app.HumanBytes(d.TotalBytes), int(float64(d.FreeBytes)/float64(d.TotalBytes)*100))
+		}
+		if d.Folders == 1 {
+			parts = append(parts, m.P.T("gui.footerOne", d.Name, free, last, d.Health))
+		} else {
+			parts = append(parts, m.P.T("gui.footerDisk", d.Name, d.Folders, free, last, d.Health))
+		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+// noteBackup puts a finished backup in the footer: the disk may be ejected
+// by now, so it cannot be asked any more.
+func (m *Model) noteBackup(rep *app.RunReport) {
+	if rep.Disk == "" || rep.Started.IsZero() {
+		return
+	}
+	st := app.StatusReport{}
+	if m.status != nil {
+		st = *m.status
+	}
+	d := app.DiskStatus{Name: rep.Disk}
+	var disks []app.DiskStatus
+	for _, x := range st.Disks {
+		if strings.EqualFold(x.Name, rep.Disk) {
+			d = x
+		} else {
+			disks = append(disks, x)
+		}
+	}
+	started := rep.Started
+	d.Folders, d.FreeBytes, d.TotalBytes, d.LastBackup = rep.FolderCount, rep.FreeBytes, rep.TotalBytes, &started
+	if rep.Health != "" {
+		d.Health = rep.Health
+	}
+	st.Disks = append([]app.DiskStatus{d}, disks...)
+	m.status = &st
 }
 
 // Apply processes one event from "run --json-stream" and returns the new
@@ -148,8 +184,8 @@ func (m *Model) Apply(e Event) View {
 			v.State, v.Color, v.Headline = StateVerifying, Neutral, m.P.T("gui.verifying")
 			v.Detail = m.P.T("gui.busySource", e.Tag, e.Index, e.Count)
 			v.Progress = 100
-		case "done":
-			return m.view
+		case "ejecting":
+			v.State, v.Color, v.Headline = StateVerifying, Neutral, m.P.T("gui.ejecting", e.Disk)
 		default:
 			return m.view
 		}
@@ -197,9 +233,10 @@ func humanDuration(p msg.Printer, d time.Duration) string {
 }
 
 func (m *Model) result(e Event) View {
-	v := View{Progress: -1, Footer: m.footer()}
 	var rep app.RunReport
 	_ = json.Unmarshal(e.Report, &rep)
+	m.noteBackup(&rep)
+	v := View{Progress: -1, Footer: m.footer()}
 	needsUpdate := false
 	for _, k := range rep.MessageKeys {
 		if k == "msg.needsUpdate" {
@@ -227,6 +264,16 @@ func (m *Model) result(e Event) View {
 	default:
 		v.State, v.Color, v.Button = StateDone, Green, ButtonEject
 		v.Headline = m.P.T("gui.done")
+	}
+	for i, k := range rep.MessageKeys {
+		switch {
+		case k == "msg.ejected" && v.State == StateDone:
+			v.Headline, v.Button = m.P.T("gui.doneEjected", rep.Disk), ButtonNone
+		case k == "msg.ejectFailed" && v.State == StateDone:
+			v.Headline, v.Color = m.P.T("gui.doneNotEjected", rep.Disk), Orange
+		case (k == "msg.ejected" || k == "msg.ejectFailed") && i < len(rep.Messages):
+			v.Detail = rep.Messages[i]
+		}
 	}
 	if needsUpdate {
 		v.Detail = m.P.T("gui.needsUpdate")

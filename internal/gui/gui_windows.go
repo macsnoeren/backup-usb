@@ -237,11 +237,17 @@ func (m *mainWindow) startRun(extra ...string) {
 		m.mu.Lock()
 		m.job = nil
 		m.mu.Unlock()
-		// Footer with the new last-backup time.
+		// Footer with the new numbers; an ejected disk is not listed any
+		// more, then the numbers of the backup report stay.
 		ev := m.cli.Call(context.Background(), nil, "status")
 		var st app.StatusReport
-		if json.Unmarshal(ev.Report, &st) == nil {
-			m.wnd.UiThread(func() { m.model.SetStatus(&st); m.render(m.lastView) })
+		if json.Unmarshal(ev.Report, &st) == nil && len(st.Disks) > 0 {
+			m.wnd.UiThread(func() {
+				m.model.SetStatus(&st)
+				v := m.lastView
+				v.Footer = m.model.View().Footer
+				m.render(v)
+			})
 		}
 	}()
 }

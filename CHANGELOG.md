@@ -14,13 +14,25 @@ as the release notes.
 
 ### Added
 
+- The window shows how many backups are on the disk and how much space is
+  free, also after the disk was ejected; `status` shows the same.
 - Windows: a menu bar with *File → Settings…*, *File → Exit* and
   *Help → About USB Backup…*. The About box needs no password and shows the
   version, platform, settings folder, whether keys are set up, and the
   license.
 
+### Changed
+
+- `ejectAfter` is now on by default: after a good backup the disk is ejected
+  and the window says that it can be unplugged, or that it is still in use.
+- Windows: password windows have the focus in the password field; Enter
+  presses OK and Escape closes the window.
+
 ### Fixed
 
+- `ejectAfter` did not work: the disk was ejected while the backup folder was
+  still open. On Windows, hard disks are now ejected the way "Safely remove
+  hardware" does, which needs no administrator rights.
 - Windows: on a fresh installation the gear asked for a vault password that
   did not exist yet, so the first-time setup could not be reached. It now
   starts the setup; the new command `keys check` tells the two apart.
@@ -31,6 +43,8 @@ as the release notes.
 - Windows: drop-down lists (odd or even weeks, scheduled task, day, language)
   opened without any items, so only the first choice could be used; the
   language list always showed English.
+- Cancelling while the backup was being checked was reported as a failed
+  check (exit 12) instead of cancelled.
 - A source folder that does not exist (such as the default `C:\Data`) blocked
   saving every setting and adding or removing other folders.
 - Windows: switching off "start a backup when a disk is inserted" failed when

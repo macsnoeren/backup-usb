@@ -83,3 +83,21 @@ func FuzzDescriptorSerial(f *testing.F) {
 	f.Add(descriptor("abc", true, 7))
 	f.Fuzz(func(t *testing.T, b []byte) { _ = DescriptorSerial(b); _, _ = DescriptorRemovable(b) })
 }
+
+// Only a USB device may be removed: never a controller, hub or bus.
+func TestIsUSBDevice(t *testing.T) {
+	for id, want := range map[string]bool{
+		`USB\VID_0781&PID_5581\4C530001`:         true,
+		`usb\vid_174c&pid_55aa\1234`:             true,
+		`USB\VID_0BDA&PID_0328&MI_00\6&1&0&0000`: true,
+		`USB\ROOT_HUB30\4&2f&0&0`:                false,
+		`PCI\VEN_8086&DEV_A352\3&11583659&0&B8`:  false,
+		`ROOT\SPACEPORT\0000`:                    false,
+		`SCSI\DISK&VEN_USB\VID_1`:                false,
+		``:                                       false,
+	} {
+		if IsUSBDevice(id) != want {
+			t.Errorf("%q: %v", id, !want)
+		}
+	}
+}

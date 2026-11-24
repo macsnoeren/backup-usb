@@ -40,7 +40,8 @@ func newMachine(t *testing.T) *machine {
 	m := &machine{cfgDir: t.TempDir(), disks: testutil.FakeDisks(t, "BACKUP1", "BACKUP2")}
 	src := t.TempDir()
 	testutil.WriteFile(t, src, "a.txt", "hello")
-	cfg := map[string]any{"sources": []map[string]string{{"tag": "Data", "path": src}}}
+	// The disk stays connected for a second run.
+	cfg := map[string]any{"ejectAfter": false, "sources": []map[string]string{{"tag": "Data", "path": src}}}
 	data, _ := json.Marshal(cfg)
 	testutil.WriteFile(t, m.cfgDir, config.FileName, string(data))
 	m.env = []string{

@@ -33,6 +33,8 @@ func init() {
 		"msg.notRotated":      {EN: "Old backups were not deleted.", NL: "Oude back-ups zijn niet verwijderd."},
 		"msg.healthWarning":   {EN: "Disk health: Warning.", NL: "Gezondheid van de schijf: waarschuwing."},
 		"msg.healthUnhealthy": {EN: "Disk health: Unhealthy. Replace this disk.", NL: "Gezondheid van de schijf: slecht. Vervang deze schijf."},
+		"msg.ejected":         {EN: "Verification OK. %s was ejected; you can unplug it.", NL: "Controle OK. %s is veilig verwijderd; je kunt hem loskoppelen."},
+		"msg.ejectFailed":     {EN: "Verification OK, but %s is still in use and could not be ejected. Do not unplug it yet; use \"Safely remove\".", NL: "Controle OK, maar %s is nog in gebruik en kon niet veilig worden verwijderd. Koppel hem nog niet los; gebruik \"Veilig verwijderen\"."},
 		"msg.canRemove":       {EN: "Verification OK. You can remove the disk.", NL: "Controle OK. Je kunt de schijf verwijderen."},
 		"msg.warnings":        {EN: "backup made, with warnings", NL: "back-up gemaakt, met waarschuwingen"},
 		"report.title":        {EN: "USB Backup report", NL: "USB Backup rapport"},
