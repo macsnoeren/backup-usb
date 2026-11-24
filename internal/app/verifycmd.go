@@ -101,15 +101,11 @@ func connectedDisks(ctx context.Context, deps *Deps, cfg *config.Config, target 
 
 // periodFolders lists the period folders on a disk, oldest first.
 func periodFolders(root *os.Root, cfg *config.Config) ([]rotate.Folder, error) {
-	pattern, err := week.ParsePattern(cfg.FolderPattern, cfg.Schedule)
+	st, err := ReadDiskState(root)
 	if err != nil {
-		return nil, err
+		st = &DiskState{}
 	}
-	var patterns []*week.Pattern
-	if st, err := ReadDiskState(root); err == nil {
-		patterns = st.RotationPatterns(cfg.Schedule)
-	}
-	return rotate.Find(root, append(patterns, pattern), cfg.Schedule)
+	return diskFolders(root, st, cfg)
 }
 
 // selectFolders picks the folders for --week, --all or the newest. The
@@ -122,21 +118,45 @@ func selectFolders(folders []rotate.Folder, cfg *config.Config, label string, al
 	case all:
 		return folders, nil
 	case label != "":
-		per, err := week.ParseLabel(label, cfg.Schedule)
-		if err != nil {
-			return nil, Errorf(KindUsage, err, "err.usage", err.Error())
-		}
-		for _, f := range folders {
-			if f.Period.Label() == per.Label() {
-				return []rotate.Folder{f}, nil
-			}
-		}
-		return nil, Errorf(KindVerify, nil, "err.noSuchPeriod", per.Label())
+		return selectLabel(folders, cfg.Schedule, label)
 	}
-	if past := rotate.NotFuture(folders, now); len(past) > 0 {
+	past := rotate.NotFuture(folders, now)
+	if certain := rotate.Certain(past); len(certain) > 0 {
+		past = certain
+	}
+	if len(past) > 0 {
 		return past[len(past)-1:], nil
 	}
 	return nil, Errorf(KindVerify, nil, "err.noBackups")
+}
+
+// selectLabel finds the folder of a period. A disk can hold backups of
+// several schedules; "2026-11" is then first a month when that is the label
+// exactly, then read in the current schedule, then in the others.
+func selectLabel(folders []rotate.Folder, current week.Schedule, label string) ([]rotate.Folder, error) {
+	for _, f := range folders {
+		if f.Period.Label() == label {
+			return []rotate.Folder{f}, nil
+		}
+	}
+	valid := false
+	for _, s := range append([]week.Schedule{current}, week.Schedules()...) {
+		per, err := week.ParseLabel(label, s)
+		if err != nil {
+			continue
+		}
+		valid = true
+		for _, f := range folders {
+			if f.Period.Schedule == s && f.Period.Label() == per.Label() {
+				return []rotate.Folder{f}, nil
+			}
+		}
+	}
+	if !valid {
+		_, err := week.ParseLabel(label, current)
+		return nil, Errorf(KindUsage, err, "err.usage", err.Error())
+	}
+	return nil, Errorf(KindVerify, nil, "err.noSuchPeriod", label)
 }
 
 // archivesIn lists the archives in a period folder.

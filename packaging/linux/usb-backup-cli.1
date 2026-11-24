@@ -9,8 +9,8 @@ usb-backup-cli \- verified, encrypted backups to registered USB disks
 .RI [ flags ]
 .SH DESCRIPTION
 .B usb-backup-cli
-makes a verified zip of every source folder on the USB disk that is due in
-this period (odd/even ISO week by default), encrypted with age
+makes a verified zip of every source folder on the USB disk whose turn it is
+(the registered disk that was used longest ago), encrypted with age
 (post-quantum) when keys exist. Old period folders are only deleted after
 every new archive was verified.
 .SH COMMANDS
@@ -32,7 +32,7 @@ Restore files (\fB\-\-tag\fR, \fB\-\-week\fR, \fB\-\-file\fR, \fB\-\-to\fR or \f
 .B status
 Connected backup disks: health, free space, folders, last backup.
 .TP
-.B enroll \fIdisk\fR \-\-name \fINAME\fR \-\-weeks odd|even
+.B enroll \fIdisk\fR \-\-name \fINAME\fR
 Register a disk (vault password).
 .TP
 .BR disks ", " forget " \fIname\fR"

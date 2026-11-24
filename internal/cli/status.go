@@ -52,7 +52,11 @@ func cmdStatus(c *ctx, args []string) error {
 		return writeJSON(c.env.Stdout, rep)
 	}
 	w := c.env.Stdout
-	fmt.Fprintln(w, c.p.T("status.period", rep.Period, strings.Join(rep.Due, " / ")))
+	if rep.Done {
+		fmt.Fprintln(w, c.p.T("status.periodDone", rep.Period, strings.Join(rep.Due, " / "), strings.Join(rep.Next, " / ")))
+	} else {
+		fmt.Fprintln(w, c.p.T("status.period", rep.Period, strings.Join(rep.Due, " / ")))
+	}
 	if len(rep.Disks) == 0 {
 		fmt.Fprintln(w, c.p.T("status.noDisks"))
 	}

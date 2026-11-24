@@ -28,3 +28,4 @@ Folders:       1
   Verified:    OK
 
 Verification OK. You can remove the disk.
+Next time: BACKUP2.

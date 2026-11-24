@@ -14,6 +14,10 @@ as the release notes.
 
 ### Added
 
+- Any number of disks: they take turns, and the one that was used longest ago
+  is next. The window and `disks` show whose turn it is.
+- How often a backup is made can be chosen under *General and sources*: every
+  week, day or month, or every time a disk is plugged in.
 - A program icon, for the window, the programs and the setup.
 - The window shows how many backups are on the disk and how much space is
   free, also after the disk was ejected; `status` shows the same.
@@ -24,6 +28,13 @@ as the release notes.
 
 ### Changed
 
+- Odd and even weeks are gone: settings with `oddEven` or `roundRobin` now use
+  `inTurn`, and `enroll --weeks` does not exist any more. A week without a
+  backup, and week 53, no longer use a disk twice in a row.
+- After a change of `schedule` the older backups on a disk can still be listed
+  and restored, and count for `keepPerDisk`.
+- A `folderPattern` whose folders could be mixed up with older backups on the
+  disk is refused.
 - `ejectAfter` is now on by default: after a good backup the disk is ejected
   and the window says that it can be unplugged, or that it is still in use.
 - Windows: password windows have the focus in the password field; Enter
@@ -38,6 +49,7 @@ as the release notes.
 
 ### Fixed
 
+- Windows: *Open log* looked in the wrong folder.
 - Windows: cancelling *Save in…* when restoring still restored the files, to
   `Restored` on the desktop. That folder now has its own button.
 - `disks` printed `%!(EXTRA …)` after disks that are not registered.
@@ -51,8 +63,7 @@ as the release notes.
   choosing an existing file for the break-glass key deleted that file.
 - Windows: the settings screens ignored the real settings (folders, language
   and timeout were read from the wrong field of the CLI's answer).
-- Windows: drop-down lists (odd or even weeks, language)
-  opened without any items, so only the first choice could be used; the
+- Windows: drop-down lists opened without any items, so only the first choice could be used; the
   language list always showed English.
 - Cancelling while the backup was being checked was reported as a failed
   check (exit 12) instead of cancelled.

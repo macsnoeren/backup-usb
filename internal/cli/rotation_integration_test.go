@@ -59,8 +59,8 @@ func (w *world) identities(id string) age.Identity {
 func TestKeyRotationOverTwoDisks(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
-	w.enroll("BACKUP2", "even")
+	w.enroll("BACKUP1")
+	w.enroll("BACKUP2")
 	w.mustRun(0, "run")                 // BACKUP1, week 47, key k1
 	w.clock.Advance(7 * 24 * time.Hour) // week 48
 	w.mustRun(0, "run")                 // BACKUP2, key k1
@@ -135,7 +135,7 @@ func TestKeyRotationOverTwoDisks(t *testing.T) {
 func TestRewrapWrongPassword(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 	w.mustRun(0, "run")
 	w.stdin = "wrong password!!\n"
 	w.mustRun(13, "keys", "rewrap", "--password-stdin", "--vault", w.vaultPath())
@@ -144,7 +144,7 @@ func TestRewrapWrongPassword(t *testing.T) {
 func TestRotateFull(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 	w.mustRun(0, "run")
 	k1 := w.identities("k1")
 	root, _ := os.OpenRoot(w.diskFile("BACKUP1", "Backup"))

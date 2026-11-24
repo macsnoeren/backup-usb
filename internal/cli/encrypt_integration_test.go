@@ -35,7 +35,7 @@ import (
 
 func TestRunEncrypted(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	bg := w.keysInit()
 	out, _ := w.mustRun(0, "run", "--json")
 	var rep app.RunReport
@@ -82,7 +82,7 @@ func TestRunEncrypted(t *testing.T) {
 
 func TestRunEncryptionRequiredButNoKeys(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.set("encryption", "age")
 	_, errOut := w.mustRun(10, "run")
 	if !strings.Contains(errOut, "encryption is required") {
@@ -102,7 +102,7 @@ func TestRunEncryptionRequiredButNoKeys(t *testing.T) {
 
 func TestRecipientsAreSigned(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.keysInit()
 	p := w.cfgDir + "/usb-backup.recipients"
 	data, _ := os.ReadFile(p)

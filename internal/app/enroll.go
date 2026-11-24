@@ -39,7 +39,6 @@ import (
 type EnrollOptions struct {
 	Target string
 	Name   string
-	Weeks  string
 	Force  bool
 	Key    *secmem.Buffer // operator signing key
 }
@@ -88,12 +87,6 @@ func Enroll(ctx context.Context, deps *Deps, cfg *config.Config, o EnrollOptions
 	if !disk.ValidName(o.Name) {
 		return nil, Errorf(KindUsage, nil, "err.diskName", o.Name)
 	}
-	switch {
-	case o.Weeks == "" && cfg.Rotation == "oddEven":
-		return nil, Errorf(KindUsage, nil, "err.weeksNeeded")
-	case o.Weeks != "" && o.Weeks != "odd" && o.Weeks != "even":
-		return nil, Errorf(KindUsage, nil, "err.weeksNeeded")
-	}
 	reg, err := LoadRegistry(deps.ConfigDir, cfg)
 	if err != nil {
 		return nil, err
@@ -125,7 +118,7 @@ func Enroll(ctx context.Context, deps *Deps, cfg *config.Config, o EnrollOptions
 		return nil, Errorf(KindIO, err, "err.keygen")
 	}
 	r := disk.Registration{
-		Name: o.Name, Weeks: o.Weeks, ID: id, VolumeSerial: v.VolumeSerial, PartitionID: v.PartitionID,
+		Name: o.Name, ID: id, VolumeSerial: v.VolumeSerial, PartitionID: v.PartitionID,
 		HardwareSerial: v.HardwareSerial, Enrolled: deps.Now().Format(time.DateOnly),
 	}
 	// Registry first: if writing the disk fails, the new entry only makes
@@ -138,7 +131,7 @@ func Enroll(ctx context.Context, deps *Deps, cfg *config.Config, o EnrollOptions
 	if err := writeIDFile(v.Mount, r, o.Key); err != nil {
 		return nil, err
 	}
-	deps.Log.Info("disk enrolled", "name", r.Name, "weeks", r.Weeks, "id", r.ID, "volumeSerial", r.VolumeSerial)
+	deps.Log.Info("disk enrolled", "name", r.Name, "id", r.ID, "volumeSerial", r.VolumeSerial)
 	return &r, nil
 }
 

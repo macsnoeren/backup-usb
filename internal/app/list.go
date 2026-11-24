@@ -127,7 +127,7 @@ func findPeriod(disks []openedDisk, cfg *config.Config, label string, now time.T
 			continue
 		}
 		f := sel[0]
-		if best == nil || f.Period.Start.After(bestF.Period.Start) {
+		if best == nil || f.When.After(bestF.When) {
 			best, bestF = &disks[i], f
 		}
 	}
@@ -150,15 +150,19 @@ func List(ctx context.Context, deps *Deps, cfg *config.Config, opts ListOptions)
 	if opts.Tag == "" {
 		res := &ListResult{}
 		for _, d := range disks {
-			for _, f := range d.folders {
-				if opts.Week != "" {
-					if sel, err := selectFolders([]rotate.Folder{f}, cfg, opts.Week, false, deps.Now()); err != nil || len(sel) == 0 {
-						continue
-					}
+			folders := d.folders
+			if opts.Week != "" {
+				if folders, err = selectFolders(d.folders, cfg, opts.Week, false, deps.Now()); err != nil {
+					continue
 				}
+			}
+			for _, f := range folders {
 				names, err := archivesIn(d.root, f.Rel, "")
 				if err != nil {
 					return nil, Errorf(KindIO, err, "err.read")
+				}
+				if f.Shared && len(names) == 0 {
+					continue // only holds other backups
 				}
 				p := ListPeriod{Disk: d.Reg.Name, Period: f.Period.Label(), Folder: f.Rel, Tags: []string{}}
 				for _, n := range names {

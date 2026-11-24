@@ -32,7 +32,7 @@ import (
 
 func TestRestoreSingleFiles(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	big := strings.Repeat("0123456789", 200000)
 	testutil.WriteFile(t, w.srcDir, "Data/zzz/last-in-the-zip.bin", big)
 	bg := w.keysInit()
@@ -67,7 +67,7 @@ func TestRestoreSingleFiles(t *testing.T) {
 
 func TestRestoreChecksHash(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.mustRun(0, "run")
 	// Damage the unencrypted index: a wrong SHA-256 for todo.txt.
 	root, _ := os.OpenRoot(w.diskFile("BACKUP1", "Backup"))
@@ -99,7 +99,7 @@ func TestRestoreSymlinks(t *testing.T) {
 		t.Skip("symlinks")
 	}
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	os.Symlink("notes/todo.txt", filepath.Join(w.srcDir, "Data", "inside"))
 	os.Symlink("/etc/passwd", filepath.Join(w.srcDir, "Data", "outside"))
 	os.Symlink("../../escape", filepath.Join(w.srcDir, "Data", "notes", "up"))

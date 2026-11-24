@@ -36,7 +36,7 @@ import (
 func TestIndexMatchesZip(t *testing.T) {
 	for _, encrypted := range []bool{false, true} {
 		w := newWorld(t)
-		w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+		w.enrollUnsigned("BACKUP1")
 		var ids []age.Identity
 		if encrypted {
 			bg := w.keysInit()

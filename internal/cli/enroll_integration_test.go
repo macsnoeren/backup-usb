@@ -28,19 +28,19 @@ import (
 )
 
 // enroll registers a fake disk with the real enroll command.
-func (w *world) enroll(name, weeks string) {
+func (w *world) enroll(name string) {
 	w.t.Helper()
 	w.stdin = testPassword + "\n"
 	defer func() { w.stdin = "" }()
-	w.mustRun(0, "enroll", w.disks.Disk(name).Mount, "--name", name, "--weeks", weeks, "--password-stdin", "--vault", w.vaultPath())
+	w.mustRun(0, "enroll", w.disks.Disk(name).Mount, "--name", name, "--password-stdin", "--vault", w.vaultPath())
 }
 
 func TestEnroll(t *testing.T) {
 	w := newWorld(t)
 	w.stdin = testPassword + "\n"
-	w.mustRun(64, "enroll", w.disks.Disk("BACKUP1").Mount, "--name", "BACKUP1", "--weeks", "odd", "--password-stdin")
+	w.mustRun(64, "enroll", w.disks.Disk("BACKUP1").Mount, "--name", "BACKUP1", "--password-stdin")
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 	data, err := os.ReadFile(w.diskFile("BACKUP1", "Backup/disk-id.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -62,12 +62,12 @@ func TestEnroll(t *testing.T) {
 	}
 	// Registering the same name again needs --force; a wrong password 13.
 	w.stdin = testPassword + "\n"
-	w.mustRun(64, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP1", "--weeks", "even", "--password-stdin", "--vault", w.vaultPath())
+	w.mustRun(64, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP1", "--password-stdin", "--vault", w.vaultPath())
 	w.stdin = "nope nope nope\n"
-	w.mustRun(13, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP2", "--weeks", "even", "--password-stdin", "--vault", w.vaultPath())
-	w.enroll("BACKUP2", "even")
+	w.mustRun(13, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP2", "--password-stdin", "--vault", w.vaultPath())
+	w.enroll("BACKUP2")
 	// Re-enrolling a disk replaces its read-only ID file.
 	w.stdin = testPassword + "\n"
-	w.mustRun(0, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP2", "--weeks", "even", "--force", "--password-stdin", "--vault", w.vaultPath())
-	w.mustRun(64, "enroll", "nonexistent-disk", "--name", "X", "--weeks", "odd")
+	w.mustRun(0, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP2", "--force", "--password-stdin", "--vault", w.vaultPath())
+	w.mustRun(64, "enroll", "nonexistent-disk", "--name", "X")
 }

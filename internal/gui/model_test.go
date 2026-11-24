@@ -54,7 +54,9 @@ func TestEveryState(t *testing.T) {
 		color Color
 	}{
 		{"no disk", []string{`{"event":"error","code":2,"key":"err.noDisk","args":["BACKUP1"]}`}, StateNoDisk, "Insert USB disk BACKUP1", ButtonNone, Neutral},
-		{"wrong disk", []string{`{"event":"error","code":3,"key":"err.wrongDisk","args":["2026-W47","BACKUP1","BACKUP2"]}`}, StateWrongDisk, "This week BACKUP1 is due. Remove BACKUP2 and insert BACKUP1", ButtonNone, Orange},
+		{"period done, other disk", []string{`{"event":"error","code":3,"key":"err.periodDone","args":["2026-W47","BACKUP1","BACKUP2"]}`}, StateWrongDisk, "The backup of 2026-W47 was made on BACKUP1. Next: BACKUP2", ButtonNone, Orange},
+		{"period done, no disk", []string{`{"event":"error","code":2,"key":"err.noDiskDone","args":["2026-W47","BACKUP1","BACKUP2"]}`}, StateNoDisk, "The backup of 2026-W47 was made on BACKUP1. Next: BACKUP2", ButtonNone, Neutral},
+		{"wrong disk", []string{`{"event":"error","code":3,"key":"err.wrongDisk","args":["2026-W47","BACKUP1","BACKUP2"]}`}, StateWrongDisk, "It is the turn of BACKUP1. Remove BACKUP2 and insert BACKUP1", ButtonNone, Orange},
 		{"unknown disk", []string{`{"event":"error","code":6,"key":"err.unknownDisk","args":["STICK"]}`}, StateUnknownDisk, "This disk is not registered", ButtonNone, Orange},
 		{"busy", []string{`{"event":"state","state":"searching"}`, `{"event":"state","state":"backup","tag":"Boekhouding","index":2,"count":3}`, `{"event":"progress","tag":"Boekhouding","pct":40}`}, StateBusy, "Backup in progress, do not remove the disk", ButtonCancel, Neutral},
 		{"verifying", []string{`{"event":"state","state":"backup","tag":"Data","index":1,"count":1}`, `{"event":"state","state":"verifying","tag":"Data","index":1,"count":1}`}, StateVerifying, "Checking the backup", ButtonNone, Neutral},
@@ -82,7 +84,7 @@ func TestEveryState(t *testing.T) {
 	}
 	m = NewModel(msg.NL, clock)
 	v = play(m, `{"event":"error","code":3,"key":"err.wrongDisk","args":["2026-W47","BACKUP1","BACKUP2"]}`)
-	if v.Headline != "Deze week is BACKUP1 aan de beurt. Haal BACKUP2 eruit en plaats BACKUP1" {
+	if v.Headline != "BACKUP1 is aan de beurt. Haal BACKUP2 eruit en plaats BACKUP1" {
 		t.Fatal(v.Headline)
 	}
 }

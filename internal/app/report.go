@@ -63,25 +63,27 @@ type DryRunInfo struct {
 // RunReport is the summary of a run: rapport/report.txt and the --json
 // output.
 type RunReport struct {
-	Status      string         `json:"status"`
-	Disk        string         `json:"disk,omitempty"`
-	Device      string         `json:"device,omitempty"`
-	Mount       string         `json:"mount,omitempty"`
-	Period      string         `json:"period,omitempty"`
-	Folder      string         `json:"folder,omitempty"`
-	Started     time.Time      `json:"started"`
-	Finished    time.Time      `json:"finished"`
-	Encrypted   bool           `json:"encrypted"`
-	Keys        []string       `json:"keys,omitempty"`
-	Health      string         `json:"health,omitempty"`
-	FreeBytes   uint64         `json:"freeBytes,omitempty"`
-	TotalBytes  uint64         `json:"totalBytes,omitempty"`
-	FolderCount int            `json:"folderCount,omitempty"`
-	Rotated     []string       `json:"rotated,omitempty"`
-	Messages    []string       `json:"messages,omitempty"`
-	Sources     []SourceReport `json:"sources"`
-	DryRun      *DryRunInfo    `json:"dryRun,omitempty"`
-	Error       string         `json:"error,omitempty"`
+	Status      string    `json:"status"`
+	Disk        string    `json:"disk,omitempty"`
+	Device      string    `json:"device,omitempty"`
+	Mount       string    `json:"mount,omitempty"`
+	Period      string    `json:"period,omitempty"`
+	Folder      string    `json:"folder,omitempty"`
+	Started     time.Time `json:"started"`
+	Finished    time.Time `json:"finished"`
+	Encrypted   bool      `json:"encrypted"`
+	Keys        []string  `json:"keys,omitempty"`
+	Health      string    `json:"health,omitempty"`
+	FreeBytes   uint64    `json:"freeBytes,omitempty"`
+	TotalBytes  uint64    `json:"totalBytes,omitempty"`
+	FolderCount int       `json:"folderCount,omitempty"`
+	Rotated     []string  `json:"rotated,omitempty"`
+	// Next are the disks whose turn it is next, when disks take turns.
+	Next     []string       `json:"next,omitempty"`
+	Messages []string       `json:"messages,omitempty"`
+	Sources  []SourceReport `json:"sources"`
+	DryRun   *DryRunInfo    `json:"dryRun,omitempty"`
+	Error    string         `json:"error,omitempty"`
 	// MessageKeys are the translation keys of Messages, for the GUI.
 	MessageKeys []string `json:"messageKeys,omitempty"`
 }

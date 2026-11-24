@@ -32,7 +32,7 @@ func TestOneSourceFails(t *testing.T) {
 		t.Skip("needs an unreadable file")
 	}
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	old := w.oldWeeks("BACKUP1", 30) // more than keepPerDisk
 	w.set("lockedFiles", "fail")
 	locked := filepath.Join(w.srcDir, "Books", "2026", "q1.xlsx")
@@ -78,7 +78,7 @@ func TestLockedFileSkipped(t *testing.T) {
 		t.Skip("needs an unreadable file")
 	}
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	locked := filepath.Join(w.srcDir, "Data", "notes", "todo.txt")
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatal(err)

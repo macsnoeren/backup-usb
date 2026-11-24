@@ -18,6 +18,7 @@
 package disk
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
@@ -34,7 +35,7 @@ import (
 
 func reg() (*Registry, volume.Volume, *IDFile) {
 	v := volume.Volume{VolumeSerial: "A41C-77E2", PartitionID: "{6b1f}", HardwareSerial: "5758"}
-	r := Registration{Name: "BACKUP1", Weeks: "odd", ID: "3f9c2b1e-7a4d-4e8b-9c21-5d6e7f8a9b0c", VolumeSerial: v.VolumeSerial, PartitionID: v.PartitionID, HardwareSerial: v.HardwareSerial}
+	r := Registration{Name: "BACKUP1", ID: "3f9c2b1e-7a4d-4e8b-9c21-5d6e7f8a9b0c", VolumeSerial: v.VolumeSerial, PartitionID: v.PartitionID, HardwareSerial: v.HardwareSerial}
 	id := &IDFile{Version: 1, ID: r.ID, Name: r.Name, VolumeSerial: r.VolumeSerial, PartitionID: r.PartitionID, HardwareSerial: r.HardwareSerial}
 	return &Registry{Version: 1, Disks: []Registration{r}}, v, id
 }
@@ -80,6 +81,14 @@ func TestRegistryParse(t *testing.T) {
 	back, err := ParseRegistry(data)
 	if err != nil || len(back.Disks) != 1 {
 		t.Fatal(back, err)
+	}
+	// Lists of the odd and even weeks are read; the weeks are dropped.
+	old := bytes.Replace(data, []byte(`"name": "BACKUP1",`), []byte(`"name": "BACKUP1", "weeks": "odd",`), 1)
+	if back, err = ParseRegistry(old); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := back.Marshal(); err != nil || !bytes.Equal(again, data) {
+		t.Fatalf("%s %v", again, err)
 	}
 	rg.Disks = append(rg.Disks, rg.Disks[0])
 	dup, _ := json.Marshal(rg)

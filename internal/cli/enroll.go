@@ -31,7 +31,6 @@ func cmdEnroll(c *ctx, args []string) error {
 	fs := c.newFlags("enroll")
 	var o app.EnrollOptions
 	fs.StringVar(&o.Name, "name", "", "disk `name`, e.g. BACKUP1")
-	fs.StringVar(&o.Weeks, "weeks", "", "`odd` or `even` (for oddEven rotation)")
 	fs.BoolVar(&o.Force, "force", false, "replace an existing registration")
 	stdin := fs.Bool("password-stdin", false, "read the vault password from stdin")
 	vaultPath := fs.String("vault", "", "vault `file`")
@@ -41,7 +40,7 @@ func cmdEnroll(c *ctx, args []string) error {
 		return err
 	}
 	if len(pos) != 1 || o.Name == "" {
-		return usageErr("usage: enroll <disk> --name BACKUP1 --weeks odd|even")
+		return usageErr("usage: enroll <disk> --name BACKUP1")
 	}
 	o.Target = pos[0]
 	cfg, err := c.loadConfig()
@@ -63,10 +62,6 @@ func cmdEnroll(c *ctx, args []string) error {
 	if *asJSON {
 		return writeJSON(c.env.Stdout, r)
 	}
-	weeks := r.Weeks
-	if weeks == "" {
-		weeks = string(cfg.Rotation)
-	}
-	fmt.Fprintln(c.env.Stdout, c.p.T("disk.enrolled", r.Name, weeks, r.ID))
+	fmt.Fprintln(c.env.Stdout, c.p.T("disk.enrolled", r.Name, r.ID))
 	return nil
 }

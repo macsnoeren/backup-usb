@@ -88,7 +88,7 @@ func (c *Config) Validate(opts ValidateOptions) error {
 		bad("targetFolder", "%v", err)
 	}
 	if !c.Schedule.Valid() {
-		bad("schedule", "%q is not one of isoWeek, day, month", c.Schedule)
+		bad("schedule", "%q is not one of insert, day, isoWeek, month", c.Schedule)
 	} else if _, err := week.ParsePattern(c.FolderPattern, c.Schedule); err != nil {
 		bad("folderPattern", "%v", err)
 	}
@@ -96,7 +96,7 @@ func (c *Config) Validate(opts ValidateOptions) error {
 		bad("archiveName", "%q must contain {tag} and end in .zip", c.ArchiveName)
 	}
 	if !c.Rotation.Valid() {
-		bad("rotation", "%q is not one of oddEven, roundRobin, any", c.Rotation)
+		bad("rotation", "%q is not one of inTurn, any", c.Rotation)
 	}
 	nonNeg := []struct {
 		key string

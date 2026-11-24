@@ -55,7 +55,7 @@ func newMachine(t *testing.T) *machine {
 // enroll registers BACKUP1 (odd) without signatures.
 func (m *machine) enroll(t *testing.T) {
 	d := m.disks.Disk("BACKUP1")
-	r := disk.Registration{Name: "BACKUP1", Weeks: "odd", ID: "3f9c2b1e-7a4d-4e8b-9c21-5d6e7f8a9b0c", VolumeSerial: d.VolumeSerial, PartitionID: d.PartitionID, HardwareSerial: d.HardwareSerial}
+	r := disk.Registration{Name: "BACKUP1", ID: "3f9c2b1e-7a4d-4e8b-9c21-5d6e7f8a9b0c", VolumeSerial: d.VolumeSerial, PartitionID: d.PartitionID, HardwareSerial: d.HardwareSerial}
 	reg := &disk.Registry{Disks: []disk.Registration{r}}
 	data, _ := reg.Marshal()
 	testutil.WriteFile(t, m.cfgDir, config.DefaultDisksFile, string(data))

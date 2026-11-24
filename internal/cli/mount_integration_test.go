@@ -41,7 +41,7 @@ func (f *countingFinder) Mount(ctx context.Context, v volume.Volume) (volume.Vol
 
 func TestMountsAreUndone(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.disks.Update("BACKUP1", func(d *testutil.FakeDisk) { d.Unmounted = true })
 	cf := &countingFinder{Finder: w.disks.Finder()}
 	env := w.env()

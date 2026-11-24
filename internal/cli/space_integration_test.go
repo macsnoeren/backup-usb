@@ -39,7 +39,7 @@ func fillDisk(t *testing.T, w *world) []string {
 
 func TestFreeSpaceStop(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	old := fillDisk(t, w)
 	_, errOut := w.mustRun(10, "run")
 	if !strings.Contains(errOut, "not enough free space") || !strings.Contains(errOut, "nothing was deleted") {
@@ -54,7 +54,7 @@ func TestFreeSpaceStop(t *testing.T) {
 
 func TestFreeSpaceDeleteOldest(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	old := fillDisk(t, w) // old[0] is the newest, old[4] the oldest
 	w.set("freeSpaceAction", "deleteOldest")
 	w.mustRun(0, "run")
@@ -71,7 +71,7 @@ func TestFreeSpaceDeleteOldest(t *testing.T) {
 
 func TestFreeSpaceDeleteOldestRespectsMinDays(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	old := fillDisk(t, w)
 	w.set("freeSpaceAction", "deleteOldest")
 	w.set("keepMinDays", 365)
@@ -87,7 +87,7 @@ func TestFreeSpaceDeleteOldestRespectsMinDays(t *testing.T) {
 // nothing is deleted.
 func TestFreeSpaceDeleteOldestRefusesHopelessCase(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	old := w.oldWeeks("BACKUP1", 3)
 	for _, rel := range old {
 		testutil.WriteFile(t, w.disks.Disk("BACKUP1").Mount, "Backup/"+rel+"/big.bin", strings.Repeat("x", 10<<20))

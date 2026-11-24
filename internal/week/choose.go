@@ -18,75 +18,96 @@
 package week
 
 import (
+	"encoding/json"
 	"fmt"
-	"sort"
 )
 
-// Rotation decides which disk is used in which period.
+// Rotation decides which disk is used next.
 type Rotation string
 
 // Rotations.
 const (
-	OddEven    Rotation = "oddEven"
-	RoundRobin Rotation = "roundRobin"
-	Any        Rotation = "any"
+	// InTurn uses every disk in turn: the one that was used longest ago.
+	InTurn Rotation = "inTurn"
+	// Any accepts every registered disk.
+	Any Rotation = "any"
 )
 
 // Valid reports whether r is a known rotation.
-func (r Rotation) Valid() bool { return r == OddEven || r == RoundRobin || r == Any }
+func (r Rotation) Valid() bool { return r == InTurn || r == Any }
 
-// Parity values of a disk slot for odd/even rotation.
-const (
-	Odd  = "odd"
-	Even = "even"
-)
+// UnmarshalJSON reads a rotation. The calendar rotations of older settings
+// files (odd and even weeks, round robin) become InTurn.
+func (r *Rotation) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("rotation: %w", err)
+	}
+	if s == "oddEven" || s == "roundRobin" {
+		s = string(InTurn)
+	}
+	*r = Rotation(s)
+	return nil
+}
 
 // Slot is a registered disk as seen by the rotation.
 type Slot struct {
 	Name string
-	// Weeks is "odd" or "even" for oddEven rotation.
-	Weeks string
-	// Order is the position in the registration list, for roundRobin.
-	Order int
+	// Seq orders the last backups of the disks, higher is later; 0 means
+	// that no backup on this disk is known.
+	Seq uint64
+	// Period is the label of the period of the last backup.
+	Period string
 }
 
-// Choose returns the names of the disks that are due in period p. For oddEven
-// that is every disk registered for the parity of p.Number(); for
-// roundRobin one disk chosen by p.Ordinal(); for any every disk.
-func Choose(p Period, rot Rotation, disks []Slot) ([]string, error) {
+// Turn is the outcome of Choose.
+type Turn struct {
+	// Due are the disks that may be used now.
+	Due []string
+	// Done is set when Due already has the backup of this period: using it
+	// again only refreshes that backup.
+	Done bool
+	// Next are the disks whose turn it is after this period (when Done), or
+	// now.
+	Next []string
+}
+
+// Choose returns the disks that are due in period p. For Any that is every
+// disk. For InTurn a disk that already has the backup of this period stays
+// due until the period is over; otherwise it is the disk that was used
+// longest ago, where disks that were never used come first. The calendar
+// plays no part in the order, so a period without a backup skips no disk.
+func Choose(p Period, rot Rotation, disks []Slot) (Turn, error) {
 	switch rot {
 	case Any:
-		names := make([]string, 0, len(disks))
-		for _, d := range disks {
+		names := pick(disks, func(Slot) bool { return true })
+		return Turn{Due: names, Next: names}, nil
+	case InTurn:
+	default:
+		return Turn{}, fmt.Errorf("unknown rotation %q", rot)
+	}
+	var lowest uint64
+	for i, d := range disks {
+		if i == 0 || d.Seq < lowest {
+			lowest = d.Seq
+		}
+	}
+	next := pick(disks, func(d Slot) bool { return d.Seq == lowest })
+	if p.Schedule != Insert {
+		if done := pick(disks, func(d Slot) bool { return d.Seq > 0 && d.Period == p.Label() }); len(done) > 0 {
+			return Turn{Due: done, Done: true, Next: next}, nil
+		}
+	}
+	return Turn{Due: next, Next: next}, nil
+}
+
+// pick returns the names of the disks for which ok is true, in their order.
+func pick(disks []Slot, ok func(Slot) bool) []string {
+	var names []string
+	for _, d := range disks {
+		if ok(d) {
 			names = append(names, d.Name)
 		}
-		return names, nil
-	case OddEven:
-		want := Even
-		if p.Number()%2 == 1 {
-			want = Odd
-		}
-		var names []string
-		for _, d := range disks {
-			if d.Weeks == want {
-				names = append(names, d.Name)
-			}
-		}
-		return names, nil
-	case RoundRobin:
-		if len(disks) == 0 {
-			return nil, nil
-		}
-		sorted := append([]Slot(nil), disks...)
-		sort.SliceStable(sorted, func(i, j int) bool {
-			if sorted[i].Order != sorted[j].Order {
-				return sorted[i].Order < sorted[j].Order
-			}
-			return sorted[i].Name < sorted[j].Name
-		})
-		n := int64(len(sorted))
-		i := ((p.Ordinal() % n) + n) % n
-		return []string{sorted[i].Name}, nil
 	}
-	return nil, fmt.Errorf("unknown rotation %q", rot)
+	return names
 }

@@ -48,7 +48,7 @@ func (f *fakeTasks) Installed(task.Trigger) bool { return len(f.installed) > 0 }
 
 func TestInstall(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	ft := &fakeTasks{}
 	env := w.env()
 	env.Tasks, env.Executable = ft, "/usr/bin/usb-backup-cli"

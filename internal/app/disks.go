@@ -20,11 +20,13 @@ package app
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/disk"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/volume"
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 // Connected volume states for the disks command.
@@ -39,6 +41,10 @@ type RegisteredDisk struct {
 	disk.Registration
 	Connected bool   `json:"connected"`
 	Mount     string `json:"mount,omitempty"`
+	// LastBackup is the last backup of this computer on this disk, if known.
+	LastBackup *time.Time `json:"lastBackup,omitempty"`
+	// Due is set when the disk can be used now.
+	Due bool `json:"due"`
 }
 
 // ConnectedVolume is a connected volume and what it is.
@@ -96,9 +102,17 @@ func Disks(ctx context.Context, deps *Deps, cfg *config.Config) (*DisksReport, e
 		}
 		rep.Connected = append(rep.Connected, cv)
 	}
+	turn, turns, err := chooseDisks(deps, cfg, reg, week.For(deps.Now(), cfg.Schedule))
+	if err != nil {
+		return nil, err
+	}
 	for _, r := range reg.Disks {
 		m, ok := byName[r.Name]
-		rep.Registered = append(rep.Registered, RegisteredDisk{Registration: r, Connected: ok, Mount: m})
+		rd := RegisteredDisk{Registration: r, Connected: ok, Mount: m, Due: containsFold(turn.Due, r.Name)}
+		if dt, ok := turns.Disks[r.ID]; ok {
+			rd.LastBackup = &dt.Time
+		}
+		rep.Registered = append(rep.Registered, rd)
 	}
 	return rep, nil
 }

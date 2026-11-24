@@ -28,7 +28,7 @@ import (
 
 func TestSignedConfig(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.keysInit() // signs the existing settings and registrations
 	if !exists(filepath.Join(w.cfgDir, "usb-backup.json.sig")) || !exists(filepath.Join(w.cfgDir, "usb-backup.disks.json.sig")) {
 		t.Fatal("keys init did not sign the existing files")
@@ -51,7 +51,7 @@ func TestSignedConfig(t *testing.T) {
 	// Same for the registration list, and for a removed signature.
 	rp := filepath.Join(w.cfgDir, "usb-backup.disks.json")
 	reg, _ := os.ReadFile(rp)
-	os.WriteFile(rp, []byte(strings.Replace(string(reg), `"odd"`, `"even"`, 1)), 0o644)
+	os.WriteFile(rp, []byte(strings.Replace(string(reg), `"BACKUP1"`, `"BACKUP9"`, 1)), 0o644)
 	w.mustRun(7, "run")
 	os.WriteFile(rp, reg, 0o644)
 	sig, _ := os.ReadFile(p + ".sig")

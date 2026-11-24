@@ -32,9 +32,9 @@ import (
 
 func TestRunWeek(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 
-	// Week 47 is odd: BACKUP1, also when both disks are connected.
+	// The first disk starts, also when both disks are connected.
 	out, _ := w.mustRun(0, "run")
 	if !strings.Contains(out, "BACKUP1") || !strings.Contains(out, "2026-W47") {
 		t.Fatalf("summary:\n%s", out)
@@ -50,7 +50,7 @@ func TestRunWeek(t *testing.T) {
 		}
 	}
 	if exists(w.diskFile("BACKUP2", "Backup/2026")) {
-		t.Error("BACKUP2 was written in an odd week")
+		t.Error("BACKUP2 was written too")
 	}
 	if _, err := verify.File(t.Context(), w.diskFile("BACKUP1", "Backup/2026/47/Data.zip"), verify.Options{ExpectedFiles: 2}); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestRunWeek(t *testing.T) {
 	w.clock.Advance(3 * time.Hour)
 	w.mustRun(4, "run")
 
-	// Next week is even: BACKUP2.
+	// Next week it is the turn of BACKUP2.
 	w.clock.Advance(7 * 24 * time.Hour)
 	out, _ = w.mustRun(0, "run", "--json")
 	var rep app.RunReport
@@ -78,17 +78,20 @@ func TestRunWeek(t *testing.T) {
 
 func TestRunWrongAndNoDisk(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
-	w.disks.Remove("BACKUP1")
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
+	w.unplug("BACKUP1")
+	w.mustRun(0, "run") // week 47 on BACKUP2
+	w.clock.Advance(7 * 24 * time.Hour)
 	_, errOut := w.mustRun(3, "run")
-	if !strings.Contains(errOut, "2026-W47 is for BACKUP1, but BACKUP2 is connected") {
+	if !strings.Contains(errOut, "2026-W48 is for BACKUP1, but BACKUP2 is connected") {
 		t.Fatalf("stderr %q", errOut)
 	}
-	if exists(w.diskFile("BACKUP2", "Backup/2026")) {
+	if exists(w.diskFile("BACKUP2", "Backup/2026/48")) {
 		t.Fatal("wrong disk was written")
 	}
-	// --any-disk and --target override the week rule.
+	// --any-disk and --target override the turn.
 	w.mustRun(0, "run", "--any-disk")
+	w.clock.Advance(7 * 24 * time.Hour)
 	w.disks.Remove("BACKUP2")
 	_, errOut = w.mustRun(2, "run")
 	if !strings.Contains(errOut, "insert BACKUP1") {
@@ -103,7 +106,7 @@ func TestRunWrongAndNoDisk(t *testing.T) {
 
 func TestRunTargetAndWait(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	w.mustRun(0, "run", "--target", w.disks.Disk("BACKUP2").Mount)
 	if !exists(w.diskFile("BACKUP2", "Backup/2026/47/Data.zip")) {
 		t.Fatal("--target ignored")
@@ -120,7 +123,7 @@ func TestRunTargetAndWait(t *testing.T) {
 
 func TestRunUnknownDisk(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	// Copy the ID file of BACKUP1 to BACKUP2, then unplug BACKUP1.
 	data, err := os.ReadFile(w.diskFile("BACKUP1", "Backup/disk-id.json"))
 	if err != nil {
@@ -144,7 +147,7 @@ func TestRunUnknownDisk(t *testing.T) {
 
 func TestRunMissingSource(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	if err := os.RemoveAll(w.srcDir + "/Books"); err != nil {
 		t.Fatal(err)
 	}

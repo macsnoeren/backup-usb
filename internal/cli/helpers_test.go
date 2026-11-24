@@ -53,6 +53,7 @@ type world struct {
 	cfgData map[string]any
 	bgKey   string
 	removed map[string]testutil.FakeDisk
+	names   []string // of the fake disks
 }
 
 // addBack plugs a removed fake disk in again.
@@ -66,12 +67,16 @@ func (w *world) addBack(name string) {
 
 // newWorld sets up two fake disks and a source folder "Data" with files.
 // The clock is in ISO week 47 of 2026 (odd).
-func newWorld(t *testing.T) *world {
+func newWorld(t *testing.T) *world { return newWorldWith(t, "BACKUP1", "BACKUP2") }
+
+// newWorldWith sets up fake disks with these names.
+func newWorldWith(t *testing.T, names ...string) *world {
 	w := &world{
 		t:      t,
+		names:  names,
 		cfgDir: t.TempDir(),
 		srcDir: t.TempDir(),
-		disks:  testutil.FakeDisks(t, "BACKUP1", "BACKUP2"),
+		disks:  testutil.FakeDisks(t, names...),
 		clock:  testutil.NewClock(time.Date(2026, 11, 18, 10, 0, 0, 0, time.Local)),
 	}
 	testutil.WriteFile(t, w.srcDir, "Data/report.docx", strings.Repeat("d", 2000))
@@ -155,16 +160,12 @@ func uuid(t *testing.T) string {
 }
 
 // enrollUnsigned registers fake disks without signatures, as before
-// phase 6. weeks maps disk name to "odd" or "even".
-func (w *world) enrollUnsigned(weeks map[string]string) {
+// phase 6, in the given order.
+func (w *world) enrollUnsigned(names ...string) {
 	reg := &disk.Registry{Version: 1}
-	for _, name := range []string{"BACKUP1", "BACKUP2"} {
-		parity, ok := weeks[name]
-		if !ok {
-			continue
-		}
+	for _, name := range names {
 		d := w.disks.Disk(name)
-		r := disk.Registration{Name: name, Weeks: parity, ID: uuid(w.t), VolumeSerial: d.VolumeSerial, PartitionID: d.PartitionID, HardwareSerial: d.HardwareSerial, Enrolled: "2026-11-01"}
+		r := disk.Registration{Name: name, ID: uuid(w.t), VolumeSerial: d.VolumeSerial, PartitionID: d.PartitionID, HardwareSerial: d.HardwareSerial, Enrolled: "2026-11-01"}
 		reg.Disks = append(reg.Disks, r)
 		id := disk.IDFile{Version: 1, ID: r.ID, Name: name, VolumeSerial: r.VolumeSerial, PartitionID: r.PartitionID, HardwareSerial: r.HardwareSerial, Enrolled: r.Enrolled}
 		data, _ := json.Marshal(id)

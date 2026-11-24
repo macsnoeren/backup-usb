@@ -83,7 +83,7 @@ func TestEjectAfterBackup(t *testing.T) {
 	}
 	newRun := func(eject bool) *world {
 		w := newWorld(t)
-		w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+		w.enrollUnsigned("BACKUP1", "BACKUP2")
 		w.cfgData["ejectAfter"] = eject
 		w.writeConfig()
 		return w

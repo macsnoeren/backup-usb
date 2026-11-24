@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
@@ -49,7 +50,7 @@ func streamLines(t *testing.T, out string) []map[string]any {
 
 func TestJSONStreamRun(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	code, out, _ := w.run("run", "--json-stream")
 	if code != 0 {
 		t.Fatal(code, out)
@@ -76,7 +77,7 @@ func TestJSONStreamRun(t *testing.T) {
 	code, out, _ = w.run("run", "--json-stream")
 	lines = streamLines(t, out)
 	last = lines[len(lines)-1]
-	if code != 2 || last["event"] != "error" || last["code"].(float64) != 2 || last["key"] != "err.noDisk" {
+	if code != 2 || last["event"] != "error" || last["code"].(float64) != 2 || last["key"] != "err.noDiskDone" {
 		t.Fatalf("error line %v", last)
 	}
 }
@@ -102,7 +103,7 @@ func (c *cancelWriter) Write(p []byte) (int, error) {
 
 func TestJSONStreamCancel(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	for i := 0; i < 400; i++ {
 		testutil.WriteFile(t, w.srcDir, fmt.Sprintf("Data/many/f%04d.txt", i), strings.Repeat("x", 20000))
 	}
@@ -129,7 +130,7 @@ func TestJSONStreamCancel(t *testing.T) {
 
 func TestJSONStreamPassword(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.keysInit()
 	w.mustRun(0, "run")
 	// The password is the first line on stdin, then cancel lines may follow.
@@ -155,8 +156,10 @@ func TestJSONStreamPassword(t *testing.T) {
 
 func TestJSONStreamArgsAndEject(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
-	w.disks.Remove("BACKUP1")
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
+	w.unplug("BACKUP1")
+	w.mustRun(0, "run") // BACKUP2
+	w.clock.Advance(7 * 24 * time.Hour)
 	_, out, _ := w.run("run", "--json-stream")
 	lines := streamLines(t, out)
 	last := lines[len(lines)-1]

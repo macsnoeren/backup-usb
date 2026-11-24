@@ -32,7 +32,7 @@ import (
 // the \\?\ prefix, which Go adds itself).
 func TestLongPaths(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	var parts []string
 	for i := 0; i < 8; i++ {
 		parts = append(parts, strings.Repeat(string(rune('a'+i)), 40))
@@ -56,7 +56,7 @@ func TestPermissionsRestored(t *testing.T) {
 		t.Skip("permissions are a Unix thing")
 	}
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	p := filepath.Join(w.srcDir, "Data", "notes", "todo.txt")
 	os.Chmod(p, 0o600)
 	w.mustRun(0, "run")

@@ -29,6 +29,7 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/msg"
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 func TestGearAction(t *testing.T) {
@@ -186,6 +187,50 @@ func TestStartsOnInsert(t *testing.T) {
 	} {
 		if got := fakeCLI(t, "stream", "FAKE_LINES="+line).StartsOnInsert(context.Background()); got != want {
 			t.Errorf("%s: %v", line, got)
+		}
+	}
+}
+
+func TestNextDiskName(t *testing.T) {
+	disk := func(names ...string) (out []app.RegisteredDisk) {
+		for _, n := range names {
+			var d app.RegisteredDisk
+			d.Name = n
+			out = append(out, d)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		have []string
+		want string
+	}{
+		{nil, "BACKUP1"},
+		{[]string{"BACKUP1", "backup2", "BACKUP4"}, "BACKUP3"},
+		{[]string{"BACKUP1", "BACKUP2", "BACKUP3"}, "BACKUP4"},
+		{[]string{"Office"}, "BACKUP1"},
+	} {
+		if got := NextDiskName(disk(tc.have...)); got != tc.want {
+			t.Errorf("%v: %s, want %s", tc.have, got, tc.want)
+		}
+	}
+}
+
+func TestDiskLastBackup(t *testing.T) {
+	p := msg.Printer{Lang: msg.EN}
+	last := time.Date(2026, 11, 18, 9, 5, 0, 0, time.Local)
+	if got := DiskLastBackup(p, app.RegisteredDisk{Due: true}); got != "never, its turn now" {
+		t.Error(got)
+	}
+	if got := DiskLastBackup(p, app.RegisteredDisk{LastBackup: &last}); got != "2026-11-18 09:05" {
+		t.Error(got)
+	}
+}
+
+// Every frequency has a text in the settings window.
+func TestScheduleTexts(t *testing.T) {
+	for _, s := range week.Schedules() {
+		if !msg.Has("gui.schedule." + string(s)) {
+			t.Errorf("no text for %s", s)
 		}
 	}
 }

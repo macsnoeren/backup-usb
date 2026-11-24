@@ -129,6 +129,7 @@ func cmdConfigSet(c *ctx, args []string) error {
 	if err != nil {
 		return err
 	}
+	pattern := cfg.FolderPattern
 	oldV, newV, err := cfg.Set(pos[0], pos[1])
 	if err != nil {
 		return usageErr("%v", err)
@@ -137,9 +138,13 @@ func cmdConfigSet(c *ctx, args []string) error {
 	if err := cfg.Validate(config.ValidateOptions{SkipPathCheck: pos[0] != "sources"}); err != nil {
 		return app.Errorf(app.KindUsage, err, "err.config", err.Error())
 	}
+	done := c.p.T("cfg.changed", pos[0], oldV, newV)
+	if pos[0] == "schedule" && cfg.FolderPattern != pattern {
+		done += "\n" + c.p.T("cfg.changed", "folderPattern", pattern, cfg.FolderPattern)
+	}
 	return c.saveConfig(cfg, *stdin, *vaultPath, func(l func(string, ...any)) {
 		l("setting changed", "key", pos[0], "old", oldV, "new", newV)
-	}, c.p.T("cfg.changed", pos[0], oldV, newV))
+	}, done)
 }
 
 // saveConfig signs and saves the settings, logs and prints done.

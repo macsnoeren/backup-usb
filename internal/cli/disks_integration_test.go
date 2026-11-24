@@ -30,8 +30,8 @@ import (
 func TestDisksAndForget(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
-	w.enroll("BACKUP2", "even")
+	w.enroll("BACKUP1")
+	w.enroll("BACKUP2")
 	w.disks.Remove("BACKUP2")
 	out, _ := w.mustRun(0, "disks")
 	for _, want := range []string{"Registered disks:", "BACKUP1", "BACKUP2", "not connected", "registered as BACKUP1"} {

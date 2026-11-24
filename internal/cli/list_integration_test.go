@@ -30,7 +30,7 @@ import (
 
 func TestList(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	testutil.WriteFile(t, w.srcDir, "Data/projects/2026/alpha/plan.txt", "plan")
 	testutil.WriteFile(t, w.srcDir, "Data/projects/2026/beta/Plan B.txt", "plan b")
 	bg := w.keysInit()

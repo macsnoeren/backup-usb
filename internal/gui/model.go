@@ -275,6 +275,9 @@ func (m *Model) result(e Event) View {
 			v.Detail = rep.Messages[i]
 		}
 	}
+	if v.Detail == "" && len(rep.Next) > 0 {
+		v.Detail = m.P.T("gui.nextDisk", strings.Join(rep.Next, " / "))
+	}
 	if needsUpdate {
 		v.Detail = m.P.T("gui.needsUpdate")
 		if v.State == StateDone {
@@ -301,6 +304,12 @@ func (m *Model) failure(e Event) View {
 			due = argString(e.Args, 0)
 		}
 		v.Headline = m.P.T("gui.insert", due)
+	case "err.noDiskDone":
+		v.State, v.Color = StateNoDisk, Neutral
+		v.Headline = m.P.T("gui.periodDone", argString(e.Args, 0), argString(e.Args, 1), argString(e.Args, 2))
+	case "err.periodDone":
+		v.State, v.Color = StateWrongDisk, Orange
+		v.Headline = m.P.T("gui.periodDone", argString(e.Args, 0), argString(e.Args, 1), argString(e.Args, 2))
 	case "err.noDisksRegistered":
 		v.State, v.Color, v.Headline = StateNoDisk, Neutral, m.P.T("gui.noDisksRegistered")
 	case "err.wrongDisk":

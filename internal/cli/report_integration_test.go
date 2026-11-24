@@ -55,7 +55,7 @@ func stableSources(t *testing.T, dir string) {
 func TestReportGoldenFiles(t *testing.T) {
 	w := newWorld(t)
 	w.clock.Set(time.Date(2026, 11, 18, 10, 0, 0, 0, time.UTC))
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	stableSources(t, w.srcDir)
 	out, _ := w.mustRun(0, "run", "--json")
 	mount := w.disks.Disk("BACKUP1").Mount

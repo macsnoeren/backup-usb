@@ -17,7 +17,12 @@
 
 package config
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/macsnoeren/backup-usb/internal/week"
+)
 
 func TestSet(t *testing.T) {
 	c := Defaults()
@@ -43,5 +48,30 @@ func TestSet(t *testing.T) {
 	}
 	if len(Keys()) < 30 {
 		t.Fatal("keys")
+	}
+}
+
+// A new schedule takes its default folder pattern, unless the pattern in
+// use fits it.
+func TestSetSchedule(t *testing.T) {
+	c := Defaults()
+	for _, s := range week.Schedules() {
+		if _, _, err := c.Set("schedule", string(s)); err != nil {
+			t.Fatal(err)
+		}
+		if c.FolderPattern != week.DefaultPattern(s) {
+			t.Errorf("%s: pattern %s", s, c.FolderPattern)
+		}
+		if err := c.Validate(ValidateOptions{SkipPathCheck: true}); err != nil && strings.Contains(err.Error(), "folderPattern") {
+			t.Error(err)
+		}
+	}
+	c.Schedule, c.FolderPattern = week.ISOWeek, `{year}\W{week}`
+	if _, _, err := c.Set("schedule", "isoWeek"); err != nil || c.FolderPattern != `{year}\W{week}` {
+		t.Error(c.FolderPattern, err)
+	}
+	// An unknown schedule leaves the pattern for the validation to refuse.
+	if _, _, _ = c.Set("schedule", "yearly"); c.FolderPattern != `{year}\W{week}` {
+		t.Error(c.FolderPattern)
 	}
 }

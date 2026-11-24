@@ -33,19 +33,40 @@ const (
 	ISOWeek Schedule = "isoWeek"
 	Day     Schedule = "day"
 	Month   Schedule = "month"
+	// Insert makes a new backup every time a disk is plugged in: a period
+	// is one minute.
+	Insert Schedule = "insert"
 )
 
-// Valid reports whether s is a known schedule.
-func (s Schedule) Valid() bool { return s == ISOWeek || s == Day || s == Month }
+// Schedules lists the known schedules, from often to seldom.
+func Schedules() []Schedule { return []Schedule{Insert, Day, ISOWeek, Month} }
 
-// Period is one backup period: an ISO week, a day or a month.
+// Valid reports whether s is a known schedule.
+func (s Schedule) Valid() bool { _, ok := defaultPatterns[s]; return ok }
+
+// defaultPatterns are chosen so that a folder of one schedule never looks
+// like a folder of another: the disk can hold both after a change.
+var defaultPatterns = map[Schedule]string{
+	Insert:  `{year}\{month}-{day}_{hour}{minute}`,
+	Day:     `{year}\{month}-{day}`,
+	ISOWeek: `{year}\{week}`,
+	Month:   `{year}-{month}`,
+}
+
+// DefaultPattern is the folder pattern used for s unless another is set.
+func DefaultPattern(s Schedule) string { return defaultPatterns[s] }
+
+// Period is one backup period: an ISO week, a day, a month or, for Insert,
+// a minute.
 type Period struct {
 	Schedule Schedule
 	// Year is the ISO year for ISOWeek, the calendar year otherwise.
-	Year  int
-	Week  int // ISOWeek only
-	Month int // Day and Month
-	Day   int // Day only
+	Year   int
+	Week   int // ISOWeek only
+	Month  int // Day, Month and Insert
+	Day    int // Day and Insert
+	Hour   int // Insert only
+	Minute int // Insert only
 	// Start is the first moment of the period in the local time zone.
 	Start time.Time
 }
@@ -57,6 +78,9 @@ func For(t time.Time, s Schedule) Period {
 	case Day:
 		y, m, d := t.Date()
 		return Period{Schedule: Day, Year: y, Month: int(m), Day: d, Start: time.Date(y, m, d, 0, 0, 0, 0, loc)}
+	case Insert:
+		y, m, d := t.Date()
+		return Period{Schedule: Insert, Year: y, Month: int(m), Day: d, Hour: t.Hour(), Minute: t.Minute(), Start: t.Truncate(time.Minute)}
 	case Month:
 		y, m, _ := t.Date()
 		return Period{Schedule: Month, Year: y, Month: int(m), Start: time.Date(y, m, 1, 0, 0, 0, 0, loc)}
@@ -77,6 +101,8 @@ func isoWeekStart(y, w int, loc *time.Location) time.Time {
 // End returns the first moment after the period.
 func (p Period) End() time.Time {
 	switch p.Schedule {
+	case Insert:
+		return p.Start.Add(time.Minute)
 	case Day:
 		return p.Start.AddDate(0, 0, 1)
 	case Month:
@@ -86,10 +112,12 @@ func (p Period) End() time.Time {
 	}
 }
 
-// Label is a short human-readable name: "2026-W05", "2026-11-22" or
-// "2026-11". It is also the format of the --week flag.
+// Label is a short human-readable name: "2026-W05", "2026-11-22", "2026-11"
+// or "2026-11-22T09:05". It is also the format of the --week flag.
 func (p Period) Label() string {
 	switch p.Schedule {
+	case Insert:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", p.Year, p.Month, p.Day, p.Hour, p.Minute)
 	case Day:
 		return fmt.Sprintf("%04d-%02d-%02d", p.Year, p.Month, p.Day)
 	case Month:
@@ -99,36 +127,15 @@ func (p Period) Label() string {
 	}
 }
 
-// Number is the calendar number used for odd/even rotation: the ISO week,
-// the day of the month or the month. Like weeks 53 and 1, day 31 and day 1
-// are both odd.
-func (p Period) Number() int {
-	switch p.Schedule {
-	case Day:
-		return p.Day
-	case Month:
-		return p.Month
-	default:
-		return p.Week
+// Clamp moves t into the period.
+func (p Period) Clamp(t time.Time) time.Time {
+	if t.Before(p.Start) {
+		return p.Start
 	}
-}
-
-// Ordinal is a continuous counter of periods, used for round-robin rotation.
-func (p Period) Ordinal() int64 {
-	switch p.Schedule {
-	case Day:
-		return daysSinceEpoch(p.Year, time.Month(p.Month), p.Day)
-	case Month:
-		return int64(p.Year)*12 + int64(p.Month) - 1
-	default:
-		s := isoWeekStart(p.Year, p.Week, time.UTC)
-		// 1970-01-05 was a Monday.
-		return (daysSinceEpoch(s.Year(), s.Month(), s.Day()) - 4) / 7
+	if last := p.End().Add(-time.Nanosecond); t.After(last) {
+		return last
 	}
-}
-
-func daysSinceEpoch(y int, m time.Month, d int) int64 {
-	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400
+	return t
 }
 
 // placeholder is one {name} in a folder pattern.
@@ -142,11 +149,14 @@ var placeholders = []placeholder{
 	{[]string{"week"}, 2},
 	{[]string{"month", "maand"}, 2},
 	{[]string{"day", "dag"}, 2},
+	{[]string{"hour", "uur"}, 2},
+	{[]string{"minute", "minuut"}, 2},
 }
 
 // Pattern is a parsed folder pattern such as "{year}\{week}".
 type Pattern struct {
 	raw   string
+	sched Schedule
 	parts []patternPart // one per path component
 }
 
@@ -166,8 +176,8 @@ var literalRe = regexp.MustCompile(`^[A-Za-z0-9_-]*$`)
 
 // ParsePattern parses and validates a folder pattern for the schedule. Path
 // components are separated by "\" or "/". Placeholders are {year} (or
-// {jaar}), {week}, {month} ({maand}) and {day} ({dag}); other characters may
-// be letters, digits, "-" and "_".
+// {jaar}), {week}, {month} ({maand}), {day} ({dag}), {hour} ({uur}) and
+// {minute} ({minuut}); other characters may be letters, digits, "-" and "_".
 func ParsePattern(pattern string, s Schedule) (*Pattern, error) {
 	if !s.Valid() {
 		return nil, fmt.Errorf("unknown schedule %q", s)
@@ -176,7 +186,7 @@ func ParsePattern(pattern string, s Schedule) (*Pattern, error) {
 	if norm == "" || strings.HasPrefix(norm, "/") || strings.HasSuffix(norm, "/") || strings.Contains(norm, "//") {
 		return nil, fmt.Errorf("folder pattern %q: empty path component", pattern)
 	}
-	p := &Pattern{raw: pattern}
+	p := &Pattern{raw: pattern, sched: s}
 	seen := map[string]bool{}
 	for _, comp := range strings.Split(norm, "/") {
 		part, err := parsePart(comp, seen)
@@ -185,7 +195,12 @@ func ParsePattern(pattern string, s Schedule) (*Pattern, error) {
 		}
 		p.parts = append(p.parts, part)
 	}
-	need := map[Schedule][]string{ISOWeek: {"year", "week"}, Day: {"year", "month", "day"}, Month: {"year", "month"}}[s]
+	need := map[Schedule][]string{
+		ISOWeek: {"year", "week"},
+		Day:     {"year", "month", "day"},
+		Month:   {"year", "month"},
+		Insert:  {"year", "month", "day", "hour", "minute"},
+	}[s]
 	allowed := map[string]bool{}
 	for _, n := range need {
 		allowed[n] = true
@@ -236,7 +251,11 @@ func parsePart(comp string, seen map[string]bool) (patternPart, error) {
 			return part, fmt.Errorf("placeholder {%s} used twice", canon)
 		}
 		seen[canon] = true
-		if n := len(part.tokens); n > 0 && part.tokens[n-1].field != "" {
+		prev := ""
+		if n := len(part.tokens); n > 0 {
+			prev = part.tokens[n-1].field
+		}
+		if prev != "" && (prev != "hour" || canon != "minute") { // {hour}{minute} is fine
 			return part, fmt.Errorf("placeholders need a separator in %q", comp)
 		}
 		part.tokens = append(part.tokens, token{field: canon, digits: ph.digits})
@@ -266,12 +285,30 @@ func lookup(name string) (placeholder, bool) {
 // String returns the pattern as given.
 func (p *Pattern) String() string { return p.raw }
 
+// Schedule returns the schedule the pattern was parsed for.
+func (p *Pattern) Schedule() Schedule { return p.sched }
+
+// Clashes reports whether a folder of p could be a folder of q, or lie
+// inside one, or the other way round. Two patterns of the same schedule are
+// the same kind of backup and never clash.
+func (p *Pattern) Clashes(q *Pattern) bool {
+	if p.sched == q.sched {
+		return false
+	}
+	for i := 0; i < len(p.parts) && i < len(q.parts); i++ {
+		if p.parts[i].re.String() != q.parts[i].re.String() {
+			return false
+		}
+	}
+	return true
+}
+
 // Depth is the number of path components.
 func (p *Pattern) Depth() int { return len(p.parts) }
 
 // Folder returns the folder of period per as a slash-separated relative path.
 func (p *Pattern) Folder(per Period) string {
-	vals := map[string]int{"year": per.Year, "week": per.Week, "month": per.Month, "day": per.Day}
+	vals := map[string]int{"year": per.Year, "week": per.Week, "month": per.Month, "day": per.Day, "hour": per.Hour, "minute": per.Minute}
 	comps := make([]string, len(p.parts))
 	for i, part := range p.parts {
 		var b strings.Builder
@@ -290,7 +327,7 @@ func (p *Pattern) Folder(per Period) string {
 // Match reports whether rel (a relative path with "/" or "\" separators)
 // is exactly a folder of this pattern, and returns its period. Values that
 // are not a real date or ISO week do not match.
-func (p *Pattern) Match(rel string, s Schedule) (Period, bool) {
+func (p *Pattern) Match(rel string) (Period, bool) {
 	comps := strings.Split(strings.ReplaceAll(rel, `\`, "/"), "/")
 	if len(comps) != len(p.parts) {
 		return Period{}, false
@@ -309,35 +346,41 @@ func (p *Pattern) Match(rel string, s Schedule) (Period, bool) {
 			vals[f] = n
 		}
 	}
-	return FromValues(s, vals["year"], vals["week"], vals["month"], vals["day"])
+	return fromValues(p.sched, Period{Year: vals["year"], Week: vals["week"], Month: vals["month"], Day: vals["day"], Hour: vals["hour"], Minute: vals["minute"]})
 }
 
-// FromValues builds a period from its numbers and checks that it exists.
-func FromValues(s Schedule, year, wk, month, day int) (Period, bool) {
-	if year < 1970 || year > 9999 {
+// fromValues builds a period from the numbers in v and checks that it
+// exists.
+func fromValues(s Schedule, v Period) (Period, bool) {
+	if v.Year < 1970 || v.Year > 9999 {
 		return Period{}, false
 	}
 	switch s {
 	case ISOWeek:
-		if wk < 1 || wk > 53 {
+		if v.Week < 1 || v.Week > 53 {
 			return Period{}, false
 		}
-		start := isoWeekStart(year, wk, time.Local)
-		if y, w := start.ISOWeek(); y != year || w != wk {
+		start := isoWeekStart(v.Year, v.Week, time.Local)
+		if y, w := start.ISOWeek(); y != v.Year || w != v.Week {
 			return Period{}, false
 		}
-		return Period{Schedule: ISOWeek, Year: year, Week: wk, Start: start}, true
-	case Day:
-		t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-		if month < 1 || month > 12 || t.Day() != day || int(t.Month()) != month {
+		return Period{Schedule: ISOWeek, Year: v.Year, Week: v.Week, Start: start}, true
+	case Day, Insert:
+		t := time.Date(v.Year, time.Month(v.Month), v.Day, v.Hour, v.Minute, 0, 0, time.Local)
+		if v.Month < 1 || v.Month > 12 || v.Hour > 23 || v.Minute > 59 || t.Day() != v.Day || int(t.Month()) != v.Month {
 			return Period{}, false
+		}
+		if s == Insert {
+			// The numbers as written: a time skipped by daylight saving
+			// time still names its own folder.
+			return Period{Schedule: Insert, Year: v.Year, Month: v.Month, Day: v.Day, Hour: v.Hour, Minute: v.Minute, Start: t}, true
 		}
 		return For(t, Day), true
 	case Month:
-		if month < 1 || month > 12 {
+		if v.Month < 1 || v.Month > 12 {
 			return Period{}, false
 		}
-		return For(time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.Local), Month), true
+		return For(time.Date(v.Year, time.Month(v.Month), 1, 0, 0, 0, 0, time.Local), Month), true
 	}
 	return Period{}, false
 }
@@ -346,10 +389,12 @@ var labelRes = map[Schedule]*regexp.Regexp{
 	ISOWeek: regexp.MustCompile(`^(\d{4})-?W?(\d{1,2})$`),
 	Day:     regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})$`),
 	Month:   regexp.MustCompile(`^(\d{4})-(\d{2})$`),
+	Insert:  regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$`),
 }
 
 // ParseLabel parses a --week style label: "2026-47" or "2026-W47" for
-// weeks, "2026-11-22" for days and "2026-11" for months.
+// weeks, "2026-11-22" for days, "2026-11" for months and "2026-11-22T09:05"
+// for insert.
 func ParseLabel(label string, s Schedule) (Period, error) {
 	re, ok := labelRes[s]
 	if !ok {
@@ -363,15 +408,18 @@ func ParseLabel(label string, s Schedule) (Period, error) {
 	for i := 1; i < len(m); i++ {
 		n[i], _ = strconv.Atoi(m[i])
 	}
-	var per Period
+	v := Period{Year: n[1]}
 	switch s {
 	case ISOWeek:
-		per, ok = FromValues(s, n[1], n[2], 0, 0)
-	case Day:
-		per, ok = FromValues(s, n[1], 0, n[2], n[3])
+		v.Week = n[2]
 	case Month:
-		per, ok = FromValues(s, n[1], 0, n[2], 0)
+		v.Month = n[2]
+	case Day:
+		v.Month, v.Day = n[2], n[3]
+	case Insert:
+		v.Month, v.Day, v.Hour, v.Minute = n[2], n[3], n[4], n[5]
 	}
+	per, ok := fromValues(s, v)
 	if !ok {
 		return Period{}, fmt.Errorf("period %q does not exist", label)
 	}

@@ -35,7 +35,7 @@ func TestMissingFileGivesDefaults(t *testing.T) {
 	}
 	d := Defaults()
 	if c.KeepPerDisk != 25 || c.FolderPattern != `{year}\{week}` || c.Schedule != week.ISOWeek ||
-		c.Rotation != week.OddEven || !c.VerifyAfterBackup || c.CompressionLevel != 6 || len(c.StoreExtensions) != len(d.StoreExtensions) {
+		c.Rotation != week.InTurn || !c.VerifyAfterBackup || c.CompressionLevel != 6 || len(c.StoreExtensions) != len(d.StoreExtensions) {
 		t.Fatalf("defaults: %+v", c)
 	}
 	if runtime.GOOS == "windows" && (len(c.Sources) != 1 || c.Sources[0].Path != `C:\Data`) {

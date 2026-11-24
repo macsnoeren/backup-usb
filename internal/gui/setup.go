@@ -156,3 +156,29 @@ func (c CLI) StartsOnInsert(ctx context.Context) bool {
 	_ = json.Unmarshal([]byte(c.Call(ctx, nil, "install", "--check", "--json").Text()), &r) // unreadable: off
 	return r.USB
 }
+
+// DiskLastBackup describes the last backup on a registered disk and whether
+// it is its turn.
+func DiskLastBackup(p msg.Printer, r app.RegisteredDisk) string {
+	last := p.T("status.never")
+	if r.LastBackup != nil {
+		last = r.LastBackup.Local().Format("2006-01-02 15:04")
+	}
+	if r.Due {
+		last += ", " + p.T("gui.dueNow")
+	}
+	return last
+}
+
+// NextDiskName is the first free name BACKUP1, BACKUP2 and so on.
+func NextDiskName(disks []app.RegisteredDisk) string {
+	used := map[string]bool{}
+	for _, d := range disks {
+		used[strings.ToUpper(d.Name)] = true
+	}
+	for n := 1; ; n++ {
+		if name := "BACKUP" + strconv.Itoa(n); !used[name] {
+			return name
+		}
+	}
+}

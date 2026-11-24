@@ -28,7 +28,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/fsx"
+	"github.com/macsnoeren/backup-usb/internal/rotate"
 	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
@@ -149,17 +151,40 @@ func (s *DiskState) AddPattern(p string, sch week.Schedule) {
 	s.Patterns = append(s.Patterns, PatternRecord{Pattern: p, Schedule: sch})
 }
 
-// RotationPatterns returns the recorded patterns that are valid for the
-// schedule. Invalid entries (the file is untrusted) are ignored.
-func (s *DiskState) RotationPatterns(sch week.Schedule) []*week.Pattern {
+// maxPatterns bounds the patterns taken from a disk: each one means walking
+// through the folders.
+const maxPatterns = 64
+
+// RotationPatterns returns the recorded patterns. Invalid entries (the file
+// is untrusted) are ignored.
+func (s *DiskState) RotationPatterns() []*week.Pattern {
 	var out []*week.Pattern
 	for _, r := range s.Patterns {
-		if r.Schedule != sch {
-			continue
-		}
-		if p, err := week.ParsePattern(r.Pattern, sch); err == nil {
+		if p, err := week.ParsePattern(r.Pattern, r.Schedule); err == nil {
 			out = append(out, p)
+		}
+		if len(out) == maxPatterns {
+			break
 		}
 	}
 	return out
+}
+
+// diskFolders lists the backups on a disk, of every schedule that was used
+// on it, oldest first.
+func diskFolders(root *os.Root, st *DiskState, cfg *config.Config) ([]rotate.Folder, error) {
+	pattern, err := week.ParsePattern(cfg.FolderPattern, cfg.Schedule)
+	if err != nil {
+		return nil, err
+	}
+	return rotate.Find(root, append([]*week.Pattern{pattern}, st.RotationPatterns()...), func(rel string) (time.Time, bool) {
+		r, ok := st.Folders[rel]
+		return r.Time, ok
+	})
+}
+
+// countBackups counts the folders that hold a backup, without those dated
+// in the future.
+func countBackups(folders []rotate.Folder, now time.Time) int {
+	return len(rotate.Certain(rotate.NotFuture(folders, now)))
 }

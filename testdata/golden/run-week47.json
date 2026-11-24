@@ -12,8 +12,12 @@
   "freeBytes": 0,
   "totalBytes": 137438953472,
   "folderCount": 1,
+  "next": [
+    "BACKUP2"
+  ],
   "messages": [
-    "Verification OK. You can remove the disk."
+    "Verification OK. You can remove the disk.",
+    "Next time: BACKUP2."
   ],
   "sources": [
     {
@@ -44,6 +48,7 @@
     }
   ],
   "messageKeys": [
-    "msg.canRemove"
+    "msg.canRemove",
+    "msg.nextDisk"
   ]
 }

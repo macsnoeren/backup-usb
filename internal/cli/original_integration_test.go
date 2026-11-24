@@ -30,7 +30,7 @@ import (
 
 func TestRestoreOriginalNeverOverwrites(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.mustRun(0, "run")
 	todo := filepath.Join(w.srcDir, "Data", "notes", "todo.txt")
 	os.WriteFile(todo, []byte("changed since the backup"), 0o644)

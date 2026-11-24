@@ -25,7 +25,6 @@ import (
 
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/fsx"
-	"github.com/macsnoeren/backup-usb/internal/rotate"
 	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
@@ -47,8 +46,13 @@ type DiskStatus struct {
 
 // StatusReport is what status shows.
 type StatusReport struct {
-	Period    string       `json:"period"`
-	Due       []string     `json:"due"`
+	Period string `json:"period"`
+	// Due are the disks that can be used now.
+	Due []string `json:"due"`
+	// Done is set when this period has its backup already (on Due).
+	Done bool `json:"done"`
+	// Next are the disks whose turn it is after this period.
+	Next      []string     `json:"next"`
 	Encrypted bool         `json:"encrypted"`
 	Disks     []DiskStatus `json:"disks"`
 	// BreakglassTested is when the break-glass key last worked; nil if it
@@ -64,10 +68,17 @@ func Status(ctx context.Context, deps *Deps, cfg *config.Config) (*StatusReport,
 	}
 	now := deps.Now()
 	per := week.For(now, cfg.Schedule)
-	due, _ := week.Choose(per, cfg.Rotation, slots(reg))
-	rep := &StatusReport{Period: per.Label(), Due: due, Disks: []DiskStatus{}}
+	turn, _, err := chooseDisks(deps, cfg, reg, per)
+	if err != nil {
+		return nil, err
+	}
+	due := turn.Due
+	rep := &StatusReport{Period: per.Label(), Due: due, Done: turn.Done, Next: turn.Next, Disks: []DiskStatus{}}
 	if due == nil {
 		rep.Due = []string{}
+	}
+	if rep.Next == nil {
+		rep.Next = []string{}
 	}
 	if t, ok := BreakglassTested(deps.ConfigDir, cfg); ok {
 		rep.BreakglassTested = &t
@@ -86,7 +97,7 @@ func Status(ctx context.Context, deps *Deps, cfg *config.Config) (*StatusReport,
 		root, err := fsx.OpenDiskRoot(c.Vol.Mount, cfg.TargetFolder, false)
 		if err == nil {
 			if folders, err := periodFolders(root, cfg); err == nil {
-				ds.Folders = len(rotate.NotFuture(folders, now))
+				ds.Folders = countBackups(folders, now)
 			}
 			if lb := ReadLastBackup(root); lb != nil {
 				t := lb.Time

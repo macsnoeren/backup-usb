@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 // Keys returns all setting keys, sorted.
@@ -69,7 +71,8 @@ func (c *Config) Get(key string) (string, error) {
 // Set changes one setting from its text form: a string, a number, true or
 // false, a list as a JSON array or comma separated, or JSON for sources.
 // It returns the old and new value as JSON. The caller validates the
-// result.
+// result. A folder pattern that does not fit a new schedule becomes the
+// default pattern of that schedule.
 func (c *Config) Set(key, value string) (oldV, newV string, err error) {
 	f, ok := field(c, key)
 	if !ok {
@@ -79,6 +82,11 @@ func (c *Config) Set(key, value string) (oldV, newV string, err error) {
 	switch f.Kind() {
 	case reflect.String:
 		f.SetString(value)
+		if key == "schedule" && c.Schedule.Valid() {
+			if _, err := week.ParsePattern(c.FolderPattern, c.Schedule); err != nil {
+				c.FolderPattern = week.DefaultPattern(c.Schedule)
+			}
+		}
 	case reflect.Int:
 		n, err := strconv.Atoi(strings.TrimSpace(value))
 		if err != nil {

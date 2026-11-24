@@ -264,21 +264,13 @@ func matchesTarget(v volume.Volume, target string) bool {
 	return t != "" && (t == norm(v.Mount) || t == norm(v.Device) || strings.EqualFold(target, v.Label))
 }
 
-// slots turns the registry into rotation slots.
-func slots(reg *disk.Registry) []week.Slot {
-	out := make([]week.Slot, len(reg.Disks))
-	for i, d := range reg.Disks {
-		out[i] = week.Slot{Name: d.Name, Weeks: d.Weeks, Order: i}
-	}
-	return out
-}
-
 // pickDisk waits for a due disk and returns it.
 func pickDisk(ctx context.Context, deps *Deps, cfg *config.Config, reg *disk.Registry, per week.Period, opts RunOptions) (*Candidate, error) {
-	due, err := week.Choose(per, cfg.Rotation, slots(reg))
+	turn, _, err := chooseDisks(deps, cfg, reg, per)
 	if err != nil {
-		return nil, Errorf(KindUsage, err, "err.config", err.Error())
+		return nil, err
 	}
+	due := turn.Due
 	deadline := deps.Now().Add(opts.Wait)
 	for {
 		f, err := scanDisks(ctx, deps, reg, cfg.RequireHardwareSerial, opts.Target)
@@ -299,12 +291,16 @@ func pickDisk(ctx context.Context, deps *Deps, cfg *config.Config, reg *disk.Reg
 			continue
 		}
 		switch {
+		case len(f.known) > 0 && turn.Done:
+			return nil, Errorf(KindWrongDisk, nil, "err.periodDone", per.Label(), strings.Join(due, " / "), strings.Join(dueOrAny(turn.Next), " / "))
 		case len(f.known) > 0:
 			return nil, Errorf(KindWrongDisk, nil, "err.wrongDisk", per.Label(), strings.Join(dueOrAny(due), " / "), f.known[0].Reg.Name)
 		case len(f.unknown) > 0:
 			return nil, Errorf(KindUnknownDisk, nil, "err.unknownDisk", f.unknown[0])
 		case len(reg.Disks) == 0:
 			return nil, Errorf(KindNoDisk, nil, "err.noDisksRegistered")
+		case turn.Done:
+			return nil, Errorf(KindNoDisk, nil, "err.noDiskDone", per.Label(), strings.Join(due, " / "), strings.Join(dueOrAny(turn.Next), " / "))
 		default:
 			return nil, Errorf(KindNoDisk, nil, "err.noDisk", strings.Join(dueOrAny(due), " / "))
 		}
@@ -471,11 +467,15 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		// vault password, which a run never asks for).
 		rep.addMessage(p, "msg.needsUpdate", c.Reg.Name)
 	}
-	patterns := append(state.RotationPatterns(cfg.Schedule), pattern)
+	for _, q := range state.RotationPatterns() {
+		if pattern.Clashes(q) {
+			return rep, Errorf(KindUsage, nil, "err.patternClash", cfg.FolderPattern, q.String(), week.DefaultPattern(cfg.Schedule))
+		}
+	}
 	pol := rotate.Policy{KeepPerDisk: cfg.KeepPerDisk, KeepMinDays: cfg.KeepMinDays}
 
 	if opts.DryRun {
-		return dryRun(ctx, deps, rep, c, root, patterns, cfg, pol, need, folder, now)
+		return dryRun(ctx, deps, rep, c, root, state, cfg, pol, need, folder, per)
 	}
 
 	if err := CheckFileSystem(c.Vol, need); err != nil {
@@ -489,7 +489,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		if cfg.FreeSpaceAction != config.FreeSpaceDeleteOldest {
 			return rep, err
 		}
-		freed, ferr := freeSpace(ctx, deps, c, root, patterns, cfg, pol, need, folder, now)
+		freed, ferr := freeSpace(ctx, deps, c, root, state, cfg, pol, need, folder, now)
 		rep.Rotated = append(rep.Rotated, freed...)
 		if ferr != nil {
 			return rep, ferr
@@ -593,7 +593,7 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 	// Everything verified: record state, then rotate.
 	state.AddPattern(cfg.FolderPattern, cfg.Schedule)
 	state.Folders[folder] = FolderRecord{Time: now, Keys: rep.Keys}
-	folders, err := rotate.Find(root, patterns, cfg.Schedule)
+	folders, err := diskFolders(root, state, cfg)
 	if err != nil {
 		deps.Log.Warn("cannot list folders for rotation", "err", err)
 	} else {
@@ -609,13 +609,22 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		if len(removed) > 0 {
 			deps.Log.Info("rotated old folders", "folders", strings.Join(removed, ","))
 		}
-		rep.FolderCount = len(folders) - len(removed)
+		rep.FolderCount = countBackups(folders, now) - len(removed)
 	}
 	if err := state.Write(root); err != nil {
 		deps.Log.Warn("cannot write disk state", "err", err)
 	}
 	if err := WriteLastBackup(root, LastBackup{Time: now, Folder: folder}); err != nil {
 		deps.Log.Warn("cannot write last backup time", "err", err)
+	}
+	var next []string
+	if opts.Tag == "" { // part of a backup does not use up the turn
+		next, err = recordTurn(deps, cfg, reg, c, per, now)
+		if err != nil {
+			deps.Log.Warn("cannot save whose turn it is", "err", err)
+			warnings = true
+			rep.addMessage(p, "msg.turnNotSaved")
+		}
 	}
 	if free, total, err := deps.Finder.Space(ctx, c.Vol); err == nil {
 		rep.FreeBytes, rep.TotalBytes = free, total
@@ -633,6 +642,10 @@ func Run(ctx context.Context, deps *Deps, cfg *config.Config, opts RunOptions) (
 		rep.Status = StatusWarning
 	}
 	rep.addMessage(p, "msg.canRemove")
+	if cfg.Rotation == week.InTurn && len(reg.Disks) > 1 && len(next) > 0 {
+		rep.Next = next
+		rep.addMessage(p, "msg.nextDisk", strings.Join(next, " / "))
+	}
 	rep.Finished = deps.Now()
 	writeReportFile(deps, root, folder, rep, cfg)
 	deps.emit(Event{Event: "state", State: "done", Disk: c.Reg.Name})
@@ -709,13 +722,13 @@ func errorText(p msg.Printer, err error) string {
 // current folder and never the newest older backup: until the new backup is
 // verified, that one must survive. It first checks that deleting all
 // candidates would free enough; otherwise it deletes nothing.
-func freeSpace(ctx context.Context, deps *Deps, c *Candidate, root *os.Root, patterns []*week.Pattern, cfg *config.Config, pol rotate.Policy, need SpaceNeed, current string, now time.Time) ([]string, error) {
-	folders, err := rotate.Find(root, patterns, cfg.Schedule)
+func freeSpace(ctx context.Context, deps *Deps, c *Candidate, root *os.Root, state *DiskState, cfg *config.Config, pol rotate.Policy, need SpaceNeed, current string, now time.Time) ([]string, error) {
+	folders, err := diskFolders(root, state, cfg)
 	if err != nil {
 		return nil, Errorf(KindIO, err, "err.read")
 	}
 	var older []rotate.Folder
-	for _, f := range rotate.NotFuture(folders, now) {
+	for _, f := range rotate.Certain(rotate.NotFuture(folders, now)) {
 		if f.Rel != current {
 			older = append(older, f)
 		}
@@ -775,22 +788,21 @@ func folderSize(root *os.Root, rel string) uint64 {
 }
 
 // dryRun reports what a run would do without writing anything.
-func dryRun(ctx context.Context, deps *Deps, rep *RunReport, c *Candidate, root *os.Root, patterns []*week.Pattern, cfg *config.Config, pol rotate.Policy, need SpaceNeed, folder string, now time.Time) (*RunReport, error) {
+func dryRun(ctx context.Context, deps *Deps, rep *RunReport, c *Candidate, root *os.Root, state *DiskState, cfg *config.Config, pol rotate.Policy, need SpaceNeed, folder string, per week.Period) (*RunReport, error) {
+	now := rep.Started
 	var total uint64
 	for _, b := range need.SourceBytes {
 		total += b
 	}
 	info := &DryRunInfo{ExpectedBytes: total, RequiredBytes: need.Required(), WouldRotate: []string{}}
-	if folders, err := rotate.Find(root, patterns, cfg.Schedule); err == nil {
+	if folders, err := diskFolders(root, state, cfg); err == nil {
 		// The new folder counts if it does not exist yet.
 		exists := false
 		for _, f := range folders {
 			exists = exists || f.Rel == folder
 		}
 		if !exists {
-			if per, ok := patterns[len(patterns)-1].Match(folder, cfg.Schedule); ok {
-				folders = append(folders, rotate.Folder{Rel: folder, Period: per})
-			}
+			folders = append(folders, rotate.Folder{Rel: folder, Period: per, When: now})
 		}
 		for _, f := range rotate.Plan(folders, pol, now, folder) {
 			info.WouldRotate = append(info.WouldRotate, f.Rel)

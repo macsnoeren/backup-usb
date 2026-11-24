@@ -1,13 +1,17 @@
+[![ci](https://github.com/macsnoeren/backup-usb/actions/workflows/ci.yml/badge.svg)](https://github.com/macsnoeren/backup-usb/actions/workflows/ci.yml)
+[![release](https://github.com/macsnoeren/backup-usb/actions/workflows/release.yml/badge.svg)](https://github.com/macsnoeren/backup-usb/actions/workflows/release.yml)
 <img src="docs/icon.png" alt="" width="96" align="right">
 
 # USB Backup
 
 Verified, encrypted backups of your folders to USB disks that you register.
-Plug in the disk that is due this week and the backup runs; when the screen
+Plug in the disk whose turn it is and the backup runs; when the screen
 says *Everything is fine*, take the disk out again.
 
-- Two disks take turns: **BACKUP1** in odd ISO weeks, **BACKUP2** in even
-  weeks (configurable). Each disk keeps 25 weekly folders by default.
+- Use one disk or as many as you like (two, three, four…): they take turns, and
+  the one that was used longest ago is next.
+- A backup every week, day or month, or every time a disk is plugged in. Each
+  disk keeps the last 25 backups by default.
 - Every backup is checked after writing (each file's SHA-256, the zip
   structure, and the file read back from the disk). Old folders are only
   deleted after the new backup passed that check.
@@ -84,10 +88,11 @@ password yet; you choose it now:
 3. **General and sources → Add folder…** for every folder you want to back
    up, with a short tag (for example `Data`, `Accounts`). The tag becomes the
    file name on the disk.
-4. **Disks**: plug in the first disk, select it, name it `BACKUP1`, choose
-   *odd weeks*, **Register**. Do the same with the second disk as `BACKUP2`,
-   *even weeks*.
-5. **General and sources**: tick *Start a backup when a registered disk is
+4. **Disks**: plug in a disk, select it, **Register** (the name `BACKUP1`,
+   `BACKUP2`, … is filled in). Do the same with every other disk; you can add
+   a disk at any time, and it is then the next one to be used.
+5. **General and sources**: choose how often a backup is made (*every week*
+   unless you change it), and tick *Start a backup when a registered disk is
    inserted*. Without it a backup only starts while the window is open.
 
 ### With the command line (Windows or Linux)
@@ -101,10 +106,11 @@ usb-backup-cli keys init --breakglass-out /media/safe-stick/breakglass.txt
 usb-backup-cli config add-source --tag Data --path /home/maurice/Documents
 usb-backup-cli config add-source --tag Photos --path /home/maurice/Pictures
 
-# 2.3 Register both disks (each asks the vault password)
-usb-backup-cli enroll /dev/sdb1 --name BACKUP1 --weeks odd      # Windows: enroll E: ...
-usb-backup-cli enroll /dev/sdc1 --name BACKUP2 --weeks even
-usb-backup-cli disks                                            # check
+# 2.3 Register every disk (each asks the vault password)
+usb-backup-cli enroll /dev/sdb1 --name BACKUP1      # Windows: enroll E: ...
+usb-backup-cli enroll /dev/sdc1 --name BACKUP2
+usb-backup-cli disks                                # check, and see whose turn it is
+usb-backup-cli config set schedule day              # optional: insert, day, isoWeek (default) or month
 
 # 2.4 Try it without writing anything
 usb-backup-cli run --dry-run
@@ -117,6 +123,27 @@ On Linux, `install` needs root (it writes a systemd unit and a udev rule). A
 run only does something when the right disk is there and the last backup of
 this week is older than `minIntervalHours` (20).
 
+### Taking turns
+
+- With more than one disk the one that was used longest ago is next. A disk
+  that was never used goes first. When nothing is known yet (a new
+  installation), any disk may start.
+- Another disk is refused, with a message that says which one to plug in.
+  `run --any-disk` makes an exception; **Forget** takes a lost or broken disk
+  out of the turn.
+- With *every day*, *week* or *month* the turn passes once per day, week or
+  month. Until then, plugging in the same disk again refreshes that backup
+  (after `minIntervalHours`). A period without a backup skips no disk.
+- With *every time a disk is plugged in* every backup gets its own folder and
+  the turn passes each time. Plugging in the same disk within
+  `duplicateGuardMinutes` (10) does nothing.
+- "Every day" does not start anything by itself: a backup starts when a disk
+  is plugged in or when the window is opened.
+- After a change of frequency the older backups stay on the disk, can be
+  restored, and count for `keepPerDisk`.
+- Whose turn it is, is kept in `usb-backup.turns.json` in the log folder of
+  this computer. When that file is lost, every disk is accepted once again.
+
 > **Important:** without the vault password **and** without the
 > break-glass key, the backups cannot be read by anyone, including you.
 > Test the break-glass key once (step 5) and keep it in a safe.
@@ -128,7 +155,8 @@ Plug in the disk that is due. The window shows what happens:
 | You see | What to do |
 | --- | --- |
 | *Insert USB disk BACKUP1* | Plug in BACKUP1. |
-| *This week BACKUP1 is due. Remove BACKUP2 and insert BACKUP1* | Swap the disks. |
+| *It is the turn of BACKUP1. Remove BACKUP2 and insert BACKUP1* | Swap the disks. |
+| *The backup of 2026-W47 was made on BACKUP1. Next: BACKUP2* | Nothing: BACKUP2 is for the next week (or day, or month). |
 | *This disk is not registered* | It is not one of your backup disks. |
 | *Backup in progress, do not remove the disk* (with progress) | Wait; **Cancel** stops safely. |
 | *Checking the backup* | Wait. |
@@ -155,7 +183,7 @@ verified, and only for folders like `2026/47` that this program made.
 
 ### With the window
 
-Gear → log in → **Browse and restore**. Double-click a week and source on
+Gear → log in → **Browse and restore**. Double-click a backup and source on
 the left; on the right double-click folders to open them (**Up** goes
 back, **Search** finds names). Select files or folders (Ctrl/Shift-click)
 and choose:
@@ -237,12 +265,12 @@ manual edit makes every run stop with exit code 7).
 | --- | --- | --- |
 | `sources` | `C:\Data` on Windows | Folders with a tag; use `config add-source` / `remove-source` |
 | `exclude` | `*.tmp`, `~$*`, `Thumbs.db`, `desktop.ini` | Skipped for every source (`*.tmp` matches a name, `logs/*.log` a path) |
-| `keepPerDisk` | `25` | Folders kept per disk; `0` = never delete |
+| `keepPerDisk` | `25` | Backups kept per disk; `0` = never delete |
 | `keepMinDays` | `0` | Never delete folders younger than this |
 | `freeSpaceAction` | `stop` | Too little space: `stop`, or `deleteOldest` (only if that frees enough; the newest older backup always stays) |
-| `schedule` | `isoWeek` | One folder per `isoWeek`, `day` or `month` |
-| `folderPattern` | `{year}\{week}` | Folder layout, e.g. `{year}-{week}` or `{year}\{month}\{day}` |
-| `rotation` | `oddEven` | `oddEven`, `roundRobin` over all disks, or `any` |
+| `schedule` | `isoWeek` | A backup per `isoWeek`, `day` or `month`, or at every `insert` of a disk; changing it also changes a `folderPattern` that does not fit |
+| `folderPattern` | `{year}\{week}` | Folder layout. Default for `day`: `{year}\{month}-{day}`, `month`: `{year}-{month}`, `insert`: `{year}\{month}-{day}_{hour}{minute}` |
+| `rotation` | `inTurn` | `inTurn`: the disk that was used longest ago; `any`: every disk is fine |
 | `minIntervalHours` | `20` | Within the same folder, back up again only after this |
 | `duplicateGuardMinutes` | `10` | Ignore a second trigger within this time |
 | `compressionLevel` | `6` | Deflate 1–9; `0` stores everything |

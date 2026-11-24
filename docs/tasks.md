@@ -132,6 +132,11 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T12.4 GoReleaser** Bij een git-tag: Windows amd64 en arm64, Linux amd64 en arm64, setup, pakketten, `SHA256SUMS` met handtekening, als release op GitHub. *Klaar als:* een test-tag levert alle bestanden op.
 - [x] **T12.5 README** Installeren, eerste keer instellen (wizard of CLI), gebruik, herstellen, noodherstel met break-glass, exitcodes. *Klaar als:* een nieuwe gebruiker kan met alleen de README een back-up maken en een bestand terugzetten.
 
+## Fase 13 – Meer schijven en frequentie
+
+- [x] **T13.1 Om de beurt** Elk aantal schijven, de langst niet gebruikte is aan de beurt, onthouden op de pc; oneven/even en `roundRobin` vervallen (oude instellingen worden `inTurn`). *Klaar als:* tests met vier schijven, overgeslagen weken, een nieuwe en een vergeten schijf, en een beschadigd beurtbestand.
+- [x] **T13.2 Frequentie** `schedule` ook `insert`; keuze onder Algemeen; standaardpatronen die niet door elkaar lopen; oude back-ups blijven te herstellen en tellen mee bij het bewaren. *Klaar als:* tests voor elke frequentie en voor een wisseling van frequentie.
+
 ## Open punten
 
 Claude Code schrijft hier vragen of afwijkingen van het ontwerp die tijdens de bouw opkomen.
@@ -174,3 +179,5 @@ Claude Code schrijft hier vragen of afwijkingen van het ontwerp die tijdens de b
 - **Icoon (besluit):** getekend door `scripts/genicon` (Go, geen nieuwe afhankelijkheid of hulpprogramma); de `.syso`-bestanden staan in git, zodat een gewone `go build` het icoon meeneemt. `make icon` maakt ze opnieuw; een test controleert dat ze bij de tekening horen.
 - **T8.x/T11.9 – tijdtaken vervallen (besluit van de eigenaar, 2026-11-24):** het scherm Planning en de dag- en weektaken zijn verwijderd, ook uit de CLI en de pakketten. Starten bij insteken blijft, als vinkje onder Algemeen dat de werkelijke stand toont (`install --check`). Taken van oudere versies kunnen alleen nog worden verwijderd; de Windows-setup doet dat bij het bijwerken. De instelling `schedule` gaat over mapnamen (week, dag of maand) en blijft.
 - **Gemiste back-ups (besluit van de eigenaar, 2026-11-24):** geen detectie; alleen de datum van de laatste back-up van een aangesloten schijf.
+- **T13.1 – afwijking op verzoek van de gebruiker (24-11-2026):** drie, vier of meer schijven om de beurt in plaats van oneven/even weken; vervangt het besluit bij T1.1. Aanname: een schijf die niet aan de beurt is wordt geweigerd (zoals eerst), met `--any-disk` als uitzondering.
+- **T13.2 – aanname (24-11-2026):** dagelijks, wekelijks en maandelijks bepalen hoe vaak de beurt doorschuift, niet wanneer er iets start. Er komt geen tijdschema terug (dat is op verzoek verwijderd).

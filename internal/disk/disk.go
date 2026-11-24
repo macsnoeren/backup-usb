@@ -45,8 +45,11 @@ const (
 
 // Registration is one enrolled disk in usb-backup.disks.json.
 type Registration struct {
-	Name           string `json:"name"`
-	Weeks          string `json:"weeks,omitempty"`
+	Name string `json:"name"`
+	// OldWeeks was the odd or even weeks of this disk. Disks are used in
+	// turn now; lists that still have it are read, and it is dropped when
+	// the list is saved.
+	OldWeeks       string `json:"weeks,omitempty"`
 	ID             string `json:"id"`
 	VolumeSerial   string `json:"volumeSerial"`
 	PartitionID    string `json:"partitionId"`
@@ -95,13 +98,11 @@ func ParseRegistry(data []byte) (*Registry, error) {
 		return nil, fmt.Errorf("registration list: %w", err)
 	}
 	seenName, seenID := map[string]bool{}, map[string]bool{}
-	for _, d := range r.Disks {
+	for i, d := range r.Disks {
 		if !ValidName(d.Name) || !ValidID(d.ID) {
 			return nil, fmt.Errorf("registration list: invalid entry %q", d.Name)
 		}
-		if d.Weeks != "" && d.Weeks != "odd" && d.Weeks != "even" {
-			return nil, fmt.Errorf("registration list: invalid weeks %q for %s", d.Weeks, d.Name)
-		}
+		r.Disks[i].OldWeeks = ""
 		if seenName[strings.ToLower(d.Name)] || seenID[d.ID] {
 			return nil, fmt.Errorf("registration list: %s registered twice", d.Name)
 		}

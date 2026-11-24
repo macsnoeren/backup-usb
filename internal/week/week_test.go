@@ -33,16 +33,20 @@ func TestFolders(t *testing.T) {
 		pattern string
 		folder  string
 		label   string
-		number  int
 	}{
-		{d(2026, 12, 31), ISOWeek, `{jaar}\{week}`, "2026/53", "2026-W53", 53},
-		{d(2027, 1, 1), ISOWeek, `{year}\{week}`, "2026/53", "2026-W53", 53},
-		{d(2027, 1, 4), ISOWeek, `{year}\{week}`, "2027/01", "2027-W01", 1},
-		{d(2026, 1, 29), ISOWeek, `{year}\{week}`, "2026/05", "2026-W05", 5},
-		{d(2026, 1, 29), ISOWeek, `{year}-{week}`, "2026-05", "2026-W05", 5},
-		{d(2026, 11, 22), ISOWeek, `{year}/W{week}`, "2026/W47", "2026-W47", 47},
-		{d(2026, 11, 22), Day, `{jaar}\{maand}\{dag}`, "2026/11/22", "2026-11-22", 22},
-		{d(2026, 3, 5), Month, `{year}\{month}`, "2026/03", "2026-03", 3},
+		{d(2026, 12, 31), ISOWeek, `{jaar}\{week}`, "2026/53", "2026-W53"},
+		{d(2027, 1, 1), ISOWeek, `{year}\{week}`, "2026/53", "2026-W53"},
+		{d(2027, 1, 4), ISOWeek, `{year}\{week}`, "2027/01", "2027-W01"},
+		{d(2026, 1, 29), ISOWeek, `{year}\{week}`, "2026/05", "2026-W05"},
+		{d(2026, 1, 29), ISOWeek, `{year}-{week}`, "2026-05", "2026-W05"},
+		{d(2026, 11, 22), ISOWeek, `{year}/W{week}`, "2026/W47", "2026-W47"},
+		{d(2026, 11, 22), Day, `{jaar}\{maand}\{dag}`, "2026/11/22", "2026-11-22"},
+		{d(2026, 3, 5), Month, `{year}\{month}`, "2026/03", "2026-03"},
+		{d(2026, 3, 5), Month, DefaultPattern(Month), "2026-03", "2026-03"},
+		{d(2026, 3, 5), Day, DefaultPattern(Day), "2026/03-05", "2026-03-05"},
+		{d(2026, 3, 5), ISOWeek, DefaultPattern(ISOWeek), "2026/10", "2026-W10"},
+		{d(2026, 3, 5).Add(5 * time.Minute), Insert, DefaultPattern(Insert), "2026/03-05_1205", "2026-03-05T12:05"},
+		{d(2026, 3, 5), Insert, `{jaar}\{maand}\{dag}\{uur}-{minuut}`, "2026/03/05/12-00", "2026-03-05T12:00"},
 	}
 	for _, tt := range tests {
 		p, err := ParsePattern(tt.pattern, tt.s)
@@ -53,14 +57,14 @@ func TestFolders(t *testing.T) {
 		if got := p.Folder(per); got != tt.folder {
 			t.Errorf("%v %s: folder %q, want %q", tt.when, tt.pattern, got, tt.folder)
 		}
-		if per.Label() != tt.label || per.Number() != tt.number {
-			t.Errorf("%v: label %s number %d", tt.when, per.Label(), per.Number())
+		if per.Label() != tt.label {
+			t.Errorf("%v: label %s", tt.when, per.Label())
 		}
-		back, ok := p.Match(tt.folder, tt.s)
+		back, ok := p.Match(tt.folder)
 		if !ok || back.Label() != tt.label {
 			t.Errorf("match %q: %v %v", tt.folder, back.Label(), ok)
 		}
-		if !per.Start.Before(tt.when) || !per.End().After(tt.when) {
+		if per.Start.After(tt.when) || !per.End().After(tt.when) {
 			t.Errorf("%v not within [%v, %v)", tt.when, per.Start, per.End())
 		}
 	}
@@ -73,17 +77,66 @@ func TestISOWeekStart(t *testing.T) {
 	}
 }
 
-func TestOrdinalIsContinuous(t *testing.T) {
-	for _, s := range []Schedule{ISOWeek, Day, Month} {
-		start := d(2025, 12, 1)
-		prev := For(start, s)
-		for i := 0; i < 800; i++ {
-			next := For(prev.End().Add(time.Hour), s)
-			if next.Ordinal() != prev.Ordinal()+1 {
-				t.Fatalf("%s: %s -> %s: ordinal %d -> %d", s, prev.Label(), next.Label(), prev.Ordinal(), next.Ordinal())
-			}
-			prev = next
+// After a change of schedule a disk holds folders of both: the default
+// patterns must never mix them up.
+func TestDefaultPatternsDoNotClash(t *testing.T) {
+	for _, a := range Schedules() {
+		pa, err := ParsePattern(DefaultPattern(a), a)
+		if err != nil || pa.Schedule() != a {
+			t.Fatalf("%s: %v", a, err)
 		}
+		for _, b := range Schedules() {
+			pb, _ := ParsePattern(DefaultPattern(b), b)
+			if pa.Clashes(pb) {
+				t.Errorf("%s clashes with %s", a, b)
+			}
+			for day := 0; day < 400; day += 5 {
+				folder := pa.Folder(For(d(2026, 1, 1).AddDate(0, 0, day), a))
+				if _, ok := pb.Match(folder); ok != (a == b) {
+					t.Fatalf("%s folder %s matches %s: %v", a, folder, b, ok)
+				}
+			}
+		}
+	}
+}
+
+func TestClashes(t *testing.T) {
+	for _, tc := range []struct {
+		a  string
+		as Schedule
+		b  string
+		bs Schedule
+		ok bool
+	}{
+		{`{year}\{week}`, ISOWeek, `{year}\{month}`, Month, true},
+		{`{year}\{week}`, ISOWeek, `{year}/{month}/{day}`, Day, true}, // inside it
+		{`{year}-{month}`, Month, `{year}-{month}\{day}`, Day, true},
+		{`{year}\W{week}`, ISOWeek, `{year}\{month}`, Month, false},
+		{`{year}\{week}`, ISOWeek, `{year}-{week}`, ISOWeek, false},
+		{`{year}\{week}`, ISOWeek, `{jaar}\{week}`, ISOWeek, false},
+	} {
+		pa, err := ParsePattern(tc.a, tc.as)
+		pb, err2 := ParsePattern(tc.b, tc.bs)
+		if err != nil || err2 != nil {
+			t.Fatal(err, err2)
+		}
+		if pa.Clashes(pb) != tc.ok || pb.Clashes(pa) != tc.ok {
+			t.Errorf("%s and %s: %v", tc.a, tc.b, !tc.ok)
+		}
+	}
+}
+
+func TestClamp(t *testing.T) {
+	per := For(d(2026, 11, 25), Month)
+	in := d(2026, 11, 3)
+	if got := per.Clamp(in); !got.Equal(in) {
+		t.Error(got)
+	}
+	if got := per.Clamp(d(2020, 1, 1)); !got.Equal(per.Start) {
+		t.Error(got)
+	}
+	if got := per.Clamp(d(2030, 1, 1)); !got.Before(per.End()) || got.Before(per.Start) {
+		t.Error(got)
 	}
 }
 
@@ -107,6 +160,9 @@ func TestPatternErrors(t *testing.T) {
 		{`{year} {week}`, ISOWeek},
 		{`{year}\{month}`, Day},
 		{`{year}\{month}`, "yearly"},
+		{`{year}\{month}-{day}`, Insert},
+		{`{year}\{month}-{day}_{minute}{hour}`, Insert},
+		{`{year}\{month}-{day}_{hour}{minute}`, Day},
 	}
 	for _, b := range bad {
 		if _, err := ParsePattern(b.p, b.s); err == nil {
@@ -118,11 +174,11 @@ func TestPatternErrors(t *testing.T) {
 func TestMatchIsStrict(t *testing.T) {
 	p, _ := ParsePattern(`{year}\{week}`, ISOWeek)
 	for _, rel := range []string{"2026/5", "2026/054", "2026/00", "2026/54", "2027/53", "foto's/01", "2026", "2026/01/x", "../2026/01", "1969/01", " 2026/01"} {
-		if _, ok := p.Match(rel, ISOWeek); ok {
+		if _, ok := p.Match(rel); ok {
 			t.Errorf("%q matched", rel)
 		}
 	}
-	if _, ok := p.Match(`2026\53`, ISOWeek); !ok {
+	if _, ok := p.Match(`2026\53`); !ok {
 		t.Error("2026-W53 exists")
 	}
 }
@@ -138,6 +194,10 @@ func TestParseLabel(t *testing.T) {
 		{"2026-W05", ISOWeek, "2026-W05", true},
 		{"2027-53", ISOWeek, "", false},
 		{"2026-11-22", Day, "2026-11-22", true},
+		{"2026-11-22T09:05", Insert, "2026-11-22T09:05", true},
+		{"2026-11-22T24:00", Insert, "", false},
+		{"2026-11-31T09:05", Insert, "", false},
+		{"2026-11-22", Insert, "", false},
 		{"2026-02-30", Day, "", false},
 		{"2026-11", Month, "2026-11", true},
 		{"x", Month, "", false},
@@ -152,14 +212,17 @@ func TestParseLabel(t *testing.T) {
 func FuzzPattern(f *testing.F) {
 	f.Add(`{year}\{week}`, "2026/47")
 	f.Add(`{jaar}-{week}`, "2026-01")
+	f.Add(`{year}\{month}-{day}_{hour}{minute}`, "2026/03-29_0230")
 	f.Fuzz(func(t *testing.T, pattern, rel string) {
-		p, err := ParsePattern(pattern, ISOWeek)
-		if err != nil {
-			return
-		}
-		if per, ok := p.Match(rel, ISOWeek); ok {
-			if p.Folder(per) != rel && p.Folder(per) != normalize(rel) {
-				t.Fatalf("pattern %q matched %q but formats %q", pattern, rel, p.Folder(per))
+		for _, s := range Schedules() {
+			p, err := ParsePattern(pattern, s)
+			if err != nil {
+				continue
+			}
+			if per, ok := p.Match(rel); ok {
+				if p.Folder(per) != rel && p.Folder(per) != normalize(rel) {
+					t.Fatalf("pattern %q (%s) matched %q but formats %q", pattern, s, rel, p.Folder(per))
+				}
 			}
 		}
 	})

@@ -27,7 +27,7 @@ import (
 
 func TestQuietSkipAndWait(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	w.mustRun(0, "run")
 	// 4 (recent) and 3 (wrong disk) are silent with --quiet-skip.
 	for _, setup := range []func(){func() {}, func() { w.clock.Advance(time.Hour); w.disks.Remove("BACKUP1") }} {

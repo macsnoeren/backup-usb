@@ -4,7 +4,7 @@ Nov 22, 2026 · @Maurice
 
 ## Doel en scope
 
-Eén losse `usb-backup.exe` maakt bij het inpluggen van een back-upschijf automatisch een gecontroleerde zip van `C:\Data`. In oneven weken gaat die naar BACKUP1, in even weken naar BACKUP2. Het resultaat verschijnt op het scherm.
+Eén losse `usb-backup.exe` maakt bij het inpluggen van een back-upschijf automatisch een gecontroleerde zip van `C:\Data`. Zijn er meer schijven, dan komen die om de beurt: de schijf die het langst niet gebruikt is, is de volgende. Het resultaat verschijnt op het scherm.
 
 Wat erin zit:
 
@@ -42,11 +42,19 @@ Alles wat Windows-specifiek is, zit in `_windows.go`-bestanden met een stub erna
 
 ## Back-upflow
 
-Bij elke aansluiting doorloopt `usb-backup.exe run` deze stappen. De schijfkeuze volgt het ISO-weeknummer: oneven = BACKUP1, even = BACKUP2.
+Bij elke aansluiting doorloopt `usb-backup.exe run` deze stappen. De schijfkeuze volgt de beurt (zie Om de beurt).
 
 &#91;embedded content: back-upflow · 10 stappen, 5 uitwegen\]
 
 Geen enkele uitweg aan de rechterkant verwijdert iets. Oude weekmappen gaan pas weg als de nieuwe zip volledig is uitgepakt en elke hash klopt.
+
+### Om de beurt
+
+- Elk aantal schijven kan. Aan de beurt is de schijf waarop het langst geleden een back-up is gemaakt; een nog nooit gebruikte schijf gaat voor. Is nog niets bekend, dan mag elke schijf beginnen.
+- `schedule` bepaalt hoe vaak: `day`, `isoWeek` (standaard) en `month` geven de beurt één keer per dag, week of maand door. Tot die tijd ververst dezelfde schijf zijn back-up; een andere schijf wordt geweigerd met "de back-up staat al op BACKUP1, daarna BACKUP2". `insert` maakt bij elk insteken een eigen map en geeft de beurt elke keer door. Er start niets op tijd: alleen insteken of het venster openen start een back-up.
+- De kalender bepaalt de volgorde niet: een gemiste periode of week 53 slaat geen schijf over en gebruikt er geen twee keer achter elkaar.
+- De pc onthoudt de beurt in `usb-backup.turns.json` in de logmap (een back-up draait zonder beheerdersrechten), met een volgnummer in plaats van de klok. Het bestand is niet ondertekend: het bepaalt alleen de volgorde van geregistreerde schijven. Ontbreekt het of is het beschadigd, dan wordt elke schijf geaccepteerd, zodat er nooit een back-up door uitvalt.
+- Een proefrun, een mislukte back-up en een run van één bronmap (`--tag`) gebruiken de beurt niet op.
 
 ## Indeling op de USB-schijf
 
@@ -92,7 +100,7 @@ Een schijf wordt herkend aan een ID-bestand op de schijf, samen met hardwarekenm
 
 ### Registreren
 
-`usb-backup-cli enroll E: --name BACKUP1 --weeks odd` doet drie dingen:
+`usb-backup-cli enroll E: --name BACKUP1` doet drie dingen:
 
 1. Het schrijft `Backup\disk-id.json` met een nieuwe UUID, als verborgen en alleen-lezen bestand.
 2. Het leest de serienummers en de partitie-ID uit.
@@ -101,7 +109,6 @@ Een schijf wordt herkend aan een ID-bestand op de schijf, samen met hardwarekenm
 ```
 {
   "name": "BACKUP1",
-  "weeks": "odd",
   "id": "3f9c2b1e-7a4d-4e8b-9c21-5d6e7f8a9b0c",
   "volumeSerial": "A41C-77E2",
   "partitionId": "{6b1f0c3e-2d4a-4f5b-8e9c-1a2b3c4d5e6f}",
@@ -110,7 +117,7 @@ Een schijf wordt herkend aan een ID-bestand op de schijf, samen met hardwarekenm
 }
 ```
 
-Verder zijn er `usb-backup-cli disks`, dat geregistreerde en aangesloten schijven naast elkaar toont, en `usb-backup-cli forget BACKUP1`. De koppeling van oneven en even weken komt zo uit de registratie, niet uit het label.
+Verder zijn er `usb-backup-cli disks`, dat geregistreerde en aangesloten schijven naast elkaar toont, en `usb-backup-cli forget BACKUP1`. Welke schijven meedoen in de beurt komt zo uit de registratie, niet uit het label.
 
 ### Ondertekening door de operator
 
@@ -155,7 +162,7 @@ Uitpakken naar `io.Discard` bewijst dat de zip uitpakbaar is, zonder extra schij
 
 | Controle | Hoe | Bij een probleem |
 | --- | --- | --- |
-| Juiste schijf voor deze week | Geregistreerde schijf (zie Schijfherkenning) tegen weeknummer: oneven = BACKUP1, even = BACKUP2 | Waarschuwing, geen back-up |
+| Juiste schijf | Geregistreerde schijf (zie Schijfherkenning) die aan de beurt is | Waarschuwing, geen back-up |
 | Bestandssysteem | `GetVolumeInformationW` | FAT32 en een zip van meer dan 4 GB verwacht: fout, advies om exFAT of NTFS te gebruiken |
 | Vrije ruimte | `GetDiskFreeSpaceExW`; nodig = grootte van `C:\Data` + 5% + 100 MB, opgeteld over alle bronmappen | Fout, er wordt niets verwijderd |
 | Schrijfbaar | Testbestand aanmaken en verwijderen | Fout |
@@ -165,7 +172,7 @@ Veel USB-sticks geven geen SMART-gegevens door. Daar is "Healthy" dus alleen wat
 
 ### Rotatie
 
-Na een geslaagde controle worden de mappen `jjjj\ww` gesorteerd. De oudste worden verwijderd tot er 25 over zijn, en een lege jaarmap gaat ook weg. Alleen mappen die precies aan dat patroon voldoen, worden aangeraakt. Elke schijf roteert apart, dus samen bewaren ze ongeveer 50 weken geschiedenis.
+Na een geslaagde controle worden de back-upmappen gesorteerd op het moment van de back-up (altijd binnen hun eigen periode). De oudste worden verwijderd tot er 25 over zijn, en een lege jaarmap gaat ook weg. Alleen mappen die precies voldoen aan een patroon dat op deze schijf gebruikt is, worden aangeraakt; na een wijziging van `schedule` tellen de oude mappen gewoon mee. Een map die bij twee schema's kan horen of andere back-ups bevat, wordt nooit verwijderd, en een `folderPattern` dat zulke mappen zou opleveren wordt geweigerd. Elke schijf roteert apart: met twee schijven samen ongeveer 50 back-ups.
 
 ### Meldingen
 
@@ -176,7 +183,7 @@ De taak draait als de ingelogde gebruiker, zodat een `MessageBoxW` (bovenop, met
 | Start | info, sluit vanzelf als het programma klaar is | "Back-up naar BACKUP1 bezig, schijf niet verwijderen" |
 | Geslaagd | info | Schijf en letter, week, aantal bestanden, grootte bron en zip, "controle OK", gezondheid, vrije ruimte, aantal weekmappen, "je kunt de schijf verwijderen" |
 | Geslaagd, bestanden overgeslagen | waarschuwing | Als hierboven, plus de eerste 10 vergrendelde bestanden |
-| Verkeerde schijf | waarschuwing | "Week 47 is voor BACKUP1, maar BACKUP2 is aangesloten" |
+| Verkeerde schijf | waarschuwing | "2026-W47 is voor BACKUP1, maar BACKUP2 is aangesloten" |
 | Mislukt | fout | Reden, en "oude back-ups zijn niet verwijderd" |
 
 ## Installatie, configuratie en logging
@@ -206,10 +213,10 @@ Alle instellingen staan in het operatorscherm en zijn ook met `usb-backup-cli co
 | Bronnen | `exclude` | `*.tmp`, `~$*`, `Thumbs.db`, `desktop.ini` | Uitsluitingen voor alle bronmappen |
 | Bronnen | `followSymlinks` | `false` | Linux: symlinks volgen of als link opslaan |
 | Doel | `targetFolder` | `Backup` | Map op de USB-schijf waarin alles komt, bijvoorbeeld `Back-ups\Kantoor` |
-| Doel | `folderPattern` | `{jaar}\{week}` | Indeling van de weekmappen; ook `{jaar}-{week}` of `{jaar}\{maand}\{dag}` bij een dagschema |
+| Doel | `folderPattern` | `{year}\{week}` | Indeling van de mappen. Standaard bij `day`: `{year}\{month}-{day}`, `month`: `{year}-{month}`, `insert`: `{year}\{month}-{day}_{hour}{minute}`; zo lopen schema's niet door elkaar |
 | Doel | `archiveName` | `{tag}.zip` | Bestandsnaam per bronmap |
-| Schema | `schedule` | `isoWeek` | Eenheid per map: `isoWeek`, `day` of `month` |
-| Schema | `rotation` | `oddEven` | Schijfwissel: `oddEven` (week), `roundRobin` over N schijven, of `any` |
+| Schema | `schedule` | `isoWeek` | Hoe vaak: `isoWeek`, `day`, `month` of `insert` (elk insteken); een `folderPattern` dat niet past verandert mee |
+| Schema | `rotation` | `inTurn` | Schijfwissel: `inTurn` (om de beurt) of `any`. Oude waarden `oddEven` en `roundRobin` worden `inTurn` |
 | Schema | `minIntervalHours` | `20` | Binnen dezelfde map pas opnieuw na deze tijd |
 | Schema | `duplicateGuardMinutes` | `10` | Een nieuwe trigger binnen deze tijd wordt genegeerd |
 | Bewaren | `keepPerDisk` | `25` | Aantal mappen per schijf; `0` = nooit verwijderen |
@@ -254,8 +261,8 @@ Een groot icoon, één zin in grote letters en hooguit één knop. Het scherm vo
 
 | Toestand | Wat de gebruiker ziet | Knop |
 | --- | --- | --- |
-| Geen schijf | "Plaats USB-schijf BACKUP1" (of BACKUP2, volgens de week) | Geen; het scherm wacht en reageert vanzelf op inpluggen |
-| Verkeerde schijf | "Deze week is BACKUP1 aan de beurt. Haal BACKUP2 eruit en plaats BACKUP1" | Geen |
+| Geen schijf | "Plaats USB-schijf BACKUP1" (de schijf die aan de beurt is) | Geen; het scherm wacht en reageert vanzelf op inpluggen |
+| Verkeerde schijf | "BACKUP1 is aan de beurt. Haal BACKUP2 eruit en plaats BACKUP1", of "De back-up van 2026-W47 is gemaakt op BACKUP1. Daarna: BACKUP2" | Geen |
 | Onbekende schijf | "Deze schijf is niet geregistreerd" | Geen |
 | Bezig | "Back-up bezig, schijf niet verwijderen", voortgang per bronmap ("Boekhouding, 2 van 3") met percentage en resterende tijd | Annuleren |
 | Controleren | "Back-up wordt gecontroleerd", voortgangsbalk | Geen |
@@ -269,8 +276,8 @@ Onder de hoofdzin staat altijd klein: laatste geslaagde back-up per schijf, gezo
 
 Bereikbaar via een tandwiel rechtsboven, alleen voor de operator en beveiligd met het vault-wachtwoord: wie dat wachtwoord kent, is operator. Het operatorscherm sluit na 5 minuten zonder activiteit. Tabbladen:
 
-- **Algemeen:** lijst met bronmappen, elk met een tag; toevoegen via een mapkiezer, tag aanpassen, verwijderen, en per map uitsluitingen (bijvoorbeeld \*.tmp). Verder het aantal te bewaren weken en de wachttijden
-- **Schijven:** aangesloten en geregistreerde schijven naast elkaar; knoppen Registreren (met naam en oneven of even weken) en Vergeten
+- **Algemeen:** lijst met bronmappen, elk met een tag; toevoegen via een mapkiezer, tag aanpassen, verwijderen, en per map uitsluitingen (bijvoorbeeld \*.tmp). Verder hoe vaak een back-up wordt gemaakt, het aantal te bewaren back-ups en de wachttijden
+- **Schijven:** aangesloten en geregistreerde schijven naast elkaar; per schijf de laatste back-up en of hij aan de beurt is; knoppen Registreren (met naam) en Vergeten
 - **Versleuteling:** aan of uit, sleutelpaar maken met een scherm dat dwingt de privésleutel op te slaan of te printen, ontvangers beheren
 - **Starten bij insteken:** aan of uit, een vinkje onder Algemeen (dag- en weektaken zijn vervallen)
 - **Controle en herstel:** back-ups controleren of terugzetten met de privésleutel, logboek bekijken
@@ -430,7 +437,7 @@ Een USB-trigger met de GUI start `usb-backup.exe --auto`, dat het venster toont 
 | `list` | Bladeren: weken, bronmappen en bestanden in een back-up tonen (leest de index) | `--week 2026-47`, `--tag <tag>`, `--path <map>`, `--search <tekst>`, `--password-stdin` of `--identity <pad>`, `--json` |
 | `restore` | Back-up ontsleutelen en uitpakken naar een map; ook losse bestanden of mappen | `--week 2026-47`, `--tag <tag>`, `--file <pad>`, `--to <map>`, `--original` (terug naar de oorspronkelijke plek), `--password-stdin` of `--identity <pad>` |
 | `status` | Aangesloten back-upschijven tonen: naam, gezondheid, vrije ruimte, weekmappen, laatste back-up | `--json` |
-| `enroll` | Schijf registreren: ID-bestand schrijven, serienummers vastleggen | `<schijf>`, `--name BACKUP1`, `--weeks odd\|even` |
+| `enroll` | Schijf registreren: ID-bestand schrijven, serienummers vastleggen | `<schijf>`, `--name BACKUP1` |
 | `disks` | Geregistreerde en aangesloten schijven naast elkaar tonen | `--json` |
 | `forget` | Registratie van een schijf verwijderen | `<naam>` |
 | `keys init` | Operationeel en break-glass sleutelpaar maken (post-quantum), vault met wachtwoord aanmaken | `--vault <pad>`, `--breakglass-out <pad>` |
@@ -444,7 +451,7 @@ Een USB-trigger met de GUI start `usb-backup.exe --auto`, dat het venster toont 
 Voor alle commando's gelden ook: `--config <pad>`, `--log <pad>`, `--ui` of `--no-ui`, en `--quiet`.
 
 - **`--target E:`:** gebruikt deze schijf. Het label moet nog steeds BACKUP1 of BACKUP2 zijn.
-- **`--any-disk`:** laat de regel voor oneven en even weken los; elke back-upschijf is dan goed.
+- **`--any-disk`:** laat de beurt los; elke back-upschijf is dan goed.
 - **`--force`:** negeert de grens van 10 minuten.
 - **`--wait <s>`:** hoe lang er op een schijfletter gewacht wordt. Standaard 0 bij de CLI-exe en 30 bij de trigger.
 - **`--dry-run`:** toont schijf, doelmap, verwachte grootte en welke weekmappen de rotatie zou verwijderen, en schrijft niets.
@@ -459,7 +466,7 @@ Voor alle commando's gelden ook: `--config <pad>`, `--log <pad>`, `--ui` of `--n
 | 0 | Geslaagd |
 | 1 | Geslaagd, met waarschuwingen (overgeslagen bestanden, gezondheid Warning) |
 | 2 | Geen back-upschijf aangesloten |
-| 3 | Verkeerde schijf voor deze week |
+| 3 | Verkeerde schijf: een andere is aan de beurt |
 | 4 | Overgeslagen: binnen de ingestelde tijd al een back-up gemaakt |
 | 5 | Er loopt al een back-up (andere instantie) |
 | 6 | Onbekende schijf: ID-bestand, handtekening of serienummers kloppen niet |
@@ -491,7 +498,7 @@ usb-backup-cli install
 ### Gebruik
 
 ```
-sudo usb-backup-cli enroll /dev/sdb1 --name BACKUP1 --weeks odd
+sudo usb-backup-cli enroll /dev/sdb1 --name BACKUP1
 usb-backup-cli config add-source --tag Projecten --path /home/maurice/projecten
 usb-backup-cli run --quiet-skip
 
@@ -560,16 +567,16 @@ De vaste regel: bij twijfel wordt niets verwijderd, en een mislukte back-up laat
 | Geplande taak en inpluggen tegelijk | Benoemde mutex `Global\UsbBackup`: de tweede instantie stopt met exitcode 5 |
 | Geplande taak terwijl er geen schijf in zit | Exitcode 2, geen melding (`--quiet-skip`) |
 | Schijfletter nog niet toegewezen | Tot 30 s elke seconde opnieuw zoeken (bij de CLI-exe standaard 0 s) |
-| Beide schijven tegelijk aangesloten | Alleen de schijf van deze week wordt gebruikt, tenzij `--any-disk` of `--target` is opgegeven |
-| Zelfde schijf twee keer in dezelfde week | Nieuwe zip vervangt de oude, pas na een geslaagde controle |
+| Meer schijven tegelijk aangesloten | Alleen de schijf die aan de beurt is wordt gebruikt, tenzij `--any-disk` of `--target` is opgegeven |
+| Zelfde schijf twee keer in dezelfde periode | Nieuwe zip vervangt de oude, pas na een geslaagde controle |
 | Bestand vergrendeld (bv. Outlook `.pst`) | Overslaan, opnemen in het rapport, gele melding, exitcode 1 |
 | Leesfout midden in een bestand | Back-up mislukt, `.part` wordt verwijderd, exitcode 11 |
 | Schijf eruit getrokken tijdens de back-up | Schrijffout, exitcode 11. Een achtergebleven `.part` wordt bij de volgende start opgeruimd |
 | Controle mislukt | `.part` wordt verwijderd, geen rotatie, rode melding, exitcode 12 |
 | `C:\Data` ontbreekt of is leeg | Ontbreekt: fout. Leeg: waarschuwing, geen zip |
-| Week 53 | In jaren met 53 ISO-weken zijn week 53 en week 1 allebei oneven, dus is BACKUP1 twee keer achter elkaar aan de beurt. Eerstvolgende keer: eind 2026 naar begin 2027 |
+| Week 53 | Geen bijzonderheid: de beurt volgt het gebruik, niet het weeknummer |
 | Paden langer dan 260 tekens | Go regelt het `\\?\`-voorvoegsel zelf; staat in het testplan |
-| Systeemklok staat verkeerd | Het weeknummer volgt de klok; geen speciale afhandeling |
+| Systeemklok staat verkeerd | De mapnaam volgt de klok; de beurt niet (volgnummer) |
 
 ## Repo, build en tests
 
@@ -661,7 +668,7 @@ Alle tests draaien met gewoon `go test` op de eigen machine, zonder Docker of vi
 - **CI:** dezelfde Make-doelen op ubuntu-latest en windows-latest. Linux-specifieke tests met een echt loop-device draaien alleen in CI (met sudo) en worden lokaal overgeslagen als er geen rechten zijn.
 
 * **Unit (alle platforms):**
-  - Week naar schijf, inclusief 2026-W53 en 2027-W01, en de andere schema's (dag, maand, roundRobin)
+  - Om de beurt met 1 tot 5 schijven, elk schema, overgeslagen periodes; mappen inclusief 2026-W53 en 2027-W01
   - Zip en controle heen en terug: meerdere bronmappen, geneste en lege mappen, Unicode-namen, bestanden van 0 bytes; zip64 boven 4 GB in een nachtelijke run
   - Controle vangt één gewijzigde byte en een ontbrekende entry
   - age: versleutelen en ontsleutelen met operationele en break-glass-sleutel; mix van sleuteltypes geweigerd

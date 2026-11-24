@@ -28,7 +28,7 @@ import (
 
 func TestSecondInstance(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	release, err := lock.Acquire(filepath.Join(w.cfgDir, "test.lock"))
 	if err != nil {
 		t.Fatal(err)

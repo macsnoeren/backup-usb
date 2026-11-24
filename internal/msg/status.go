@@ -20,6 +20,7 @@ package msg
 func init() {
 	add(map[string]entry{
 		"status.period":       {EN: "Period %s: %s is due.", NL: "Periode %s: %s is aan de beurt."},
+		"status.periodDone":   {EN: "Period %s: the backup is on %s. Next: %s.", NL: "Periode %s: de back-up staat op %s. Daarna: %s."},
 		"status.noDisks":      {EN: "No backup disk connected.", NL: "Geen back-upschijf aangesloten."},
 		"status.disk":         {EN: "%s (%s): health %s, %s free of %s, backups: %d, last backup %s%s", NL: "%s (%s): gezondheid %s, %s vrij van %s, back-ups: %d, laatste back-up %s%s"},
 		"status.never":        {EN: "never", NL: "nooit"},

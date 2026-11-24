@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestRotateAcrossYearBoundary(t *testing.T) {
 	testutil.WriteFile(t, dir, "2026/54/z", "no such week")
 	testutil.WriteFile(t, dir, "disk-id.json", "{}")
 	root := openRoot(t, dir)
-	folders, err := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	folders, err := Find(root, []*week.Pattern{pat}, nil)
 	if err != nil || len(folders) != 27 {
 		t.Fatalf("found %d: %v", len(folders), err)
 	}
@@ -84,7 +85,7 @@ func TestRotateAcrossYearBoundary(t *testing.T) {
 	if _, err := Delete(root, del); err != nil {
 		t.Fatal(err)
 	}
-	left, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	left, _ := Find(root, []*week.Pattern{pat}, nil)
 	if len(left) != 25 || left[0].Rel != "2026/32" {
 		t.Fatalf("left %d, oldest %s", len(left), left[0].Rel)
 	}
@@ -102,7 +103,7 @@ func TestEmptyYearFolderRemoved(t *testing.T) {
 	now := time.Date(2027, 1, 20, 12, 0, 0, 0, time.Local)
 	makeWeeks(t, dir, now, 5, pat) // 2026/52, 2026/53, 2027/01..03
 	root := openRoot(t, dir)
-	folders, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	folders, _ := Find(root, []*week.Pattern{pat}, nil)
 	if _, err := Delete(root, Plan(folders, Policy{KeepPerDisk: 3}, now)); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestKeepZeroAndMinDays(t *testing.T) {
 	now := time.Date(2026, 11, 22, 12, 0, 0, 0, time.Local)
 	makeWeeks(t, dir, now, 10, pat)
 	root := openRoot(t, dir)
-	folders, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	folders, _ := Find(root, []*week.Pattern{pat}, nil)
 	if len(folders) != 10 {
 		t.Fatalf("found %d", len(folders))
 	}
@@ -150,7 +151,7 @@ func TestSymlinkFoldersAreIgnored(t *testing.T) {
 	pat := pattern(t, `{year}\{week}`)
 	makeWeeks(t, dir, time.Date(2026, 11, 22, 12, 0, 0, 0, time.Local), 3, pat)
 	root := openRoot(t, dir)
-	folders, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	folders, _ := Find(root, []*week.Pattern{pat}, nil)
 	for _, f := range folders {
 		if f.Rel == "2020/01" {
 			t.Fatal("symlink counted as a week folder")
@@ -176,7 +177,7 @@ func TestFutureFoldersDoNotCount(t *testing.T) {
 	testutil.WriteFile(t, dir, "2099/01/Data.zip", "planted")
 	testutil.WriteFile(t, dir, "2098/01/Data.zip", "planted")
 	root := openRoot(t, dir)
-	folders, _ := Find(root, []*week.Pattern{pat}, week.ISOWeek)
+	folders, _ := Find(root, []*week.Pattern{pat}, nil)
 	if len(folders) != 5 {
 		t.Fatal(len(folders))
 	}
@@ -195,8 +196,81 @@ func TestMixedPatterns(t *testing.T) {
 	makeWeeks(t, dir, week.For(now, week.ISOWeek).Start.AddDate(0, 0, -21), 3, a)
 	makeWeeks(t, dir, now, 3, b)
 	root := openRoot(t, dir)
-	folders, _ := Find(root, []*week.Pattern{a, b}, week.ISOWeek)
+	folders, _ := Find(root, []*week.Pattern{a, b}, nil)
 	if len(folders) != 6 || folders[0].Rel != fmt.Sprintf("2026/%02d", 47-5) {
 		t.Fatalf("folders %+v", folders)
+	}
+}
+
+// A disk that was used with several schedules: one count over all of them,
+// oldest backup first, whatever the length of the period.
+func TestMixedSchedules(t *testing.T) {
+	dir := t.TempDir()
+	root := openRoot(t, dir)
+	var pats []*week.Pattern
+	for _, s := range week.Schedules() {
+		p, err := week.ParsePattern(week.DefaultPattern(s), s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pats = append(pats, p)
+	}
+	for _, rel := range []string{"2026/40", "2026/47", "2026-11", "2026/11-20", "2026/11-24_0905", "2026/photos", "letters"} {
+		testutil.WriteFile(t, dir, rel+"/Data.zip", "x")
+	}
+	made := map[string]time.Time{
+		"2026-11": time.Date(2026, 11, 23, 9, 0, 0, 0, time.Local), // later than week 47 and 11-20
+		"2026/40": time.Date(2031, 1, 1, 0, 0, 0, 0, time.Local),   // not within the week: cannot hide
+	}
+	folders, err := Find(root, pats, func(rel string) (time.Time, bool) { v, ok := made[rel]; return v, ok })
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range folders {
+		got = append(got, f.Rel)
+	}
+	want := []string{"2026/40", "2026/47", "2026/11-20", "2026-11", "2026/11-24_0905"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("%v, want %v", got, want)
+	}
+	now := time.Date(2026, 11, 25, 12, 0, 0, 0, time.Local)
+	removed, err := Delete(root, Plan(folders, Policy{KeepPerDisk: 3}, now, "2026/11-24_0905"))
+	if err != nil || !reflect.DeepEqual(removed, want[:2]) {
+		t.Fatalf("%v %v", removed, err)
+	}
+	if _, err := os.Stat(dir + "/2026/photos/Data.zip"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A folder that two schedules claim, or that holds backups of another
+// schedule, is never deleted.
+func TestSharedFoldersStay(t *testing.T) {
+	dir := t.TempDir()
+	root := openRoot(t, dir)
+	wk, _ := week.ParsePattern(`{year}\{week}`, week.ISOWeek)
+	mon, _ := week.ParsePattern(`{year}\{month}`, week.Month)
+	day, _ := week.ParsePattern(`{year}\{month}\{day}`, week.Day)
+	for _, rel := range []string{"2025/11/22", "2025/12", "2025/30", "2025/31", "2025/32"} {
+		testutil.WriteFile(t, dir, rel+"/Data.zip", "x")
+	}
+	for _, pats := range [][]*week.Pattern{{wk, mon, day}, {day, mon, wk}} {
+		folders, err := Find(root, pats, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range folders {
+			if want := f.Rel == "2025/11" || f.Rel == "2025/12"; f.Shared != want {
+				t.Errorf("%s shared %v", f.Rel, f.Shared)
+			}
+		}
+		var del []string
+		for _, f := range Plan(folders, Policy{KeepPerDisk: 1}, time.Date(2026, 11, 25, 12, 0, 0, 0, time.Local), "2025/32") {
+			del = append(del, f.Rel)
+		}
+		if !reflect.DeepEqual(del, []string{"2025/30", "2025/31", "2025/11/22"}) {
+			t.Fatalf("would delete %v", del)
+		}
 	}
 }

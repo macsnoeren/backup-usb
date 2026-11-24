@@ -31,7 +31,7 @@ import (
 
 func TestDryRunWritesNothing(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	w.set("keepPerDisk", 3)
 	w.oldWeeks("BACKUP1", 4)
 	testutil.WriteFile(t, w.disks.Disk("BACKUP1").Mount, "Backup/2026/46/Data.zip.part", "left over")

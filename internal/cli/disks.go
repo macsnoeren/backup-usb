@@ -61,7 +61,15 @@ func cmdDisks(c *ctx, args []string) error {
 		if r.Connected {
 			where = c.p.T("disk.isConnected", r.Mount)
 		}
-		fmt.Fprintf(w, "  %-10s %-5s %s  vol %s  part %s  hw %s  %s\n", r.Name, r.Weeks, r.Enrolled, r.VolumeSerial, r.PartitionID, orDash(r.HardwareSerial), where)
+		last := c.p.T("status.never")
+		if r.LastBackup != nil {
+			last = r.LastBackup.Local().Format("2006-01-02 15:04")
+		}
+		due := ""
+		if r.Due {
+			due = c.p.T("status.dueMark")
+		}
+		fmt.Fprintf(w, "  %-10s %s  vol %s  part %s  hw %s  %s  %s\n", r.Name, r.Enrolled, r.VolumeSerial, r.PartitionID, orDash(r.HardwareSerial), where, c.p.T("disk.lastBackup", last)+due)
 	}
 	fmt.Fprintln(w, c.p.T("disk.connected"))
 	if len(rep.Connected) == 0 {

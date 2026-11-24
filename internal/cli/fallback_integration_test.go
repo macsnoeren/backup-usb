@@ -31,7 +31,7 @@ import (
 func TestRestoreWithoutIndex(t *testing.T) {
 	for _, damage := range []string{"remove", "corrupt"} {
 		w := newWorld(t)
-		w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+		w.enrollUnsigned("BACKUP1")
 		bg := w.keysInit()
 		w.mustRun(0, "run")
 		ix := w.diskFile("BACKUP1", "Backup/2026/47/Data.index.age")
@@ -61,7 +61,7 @@ func TestRestoreWithoutIndex(t *testing.T) {
 // A plaintext index planted next to an encrypted archive is never used.
 func TestPlantedPlaintextIndexIgnored(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	bg := w.keysInit()
 	w.mustRun(0, "run")
 	os.Remove(w.diskFile("BACKUP1", "Backup/2026/47/Data.index.age"))

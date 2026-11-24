@@ -30,7 +30,7 @@ import (
 func TestRecognition(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 
 	// A copied ID file on another disk: unknown disk, exit 6, nothing
 	// written.
@@ -59,14 +59,14 @@ func TestRecognition(t *testing.T) {
 func TestFormattedDisk(t *testing.T) {
 	w := newWorld(t)
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 	// Formatting: new volume serial, ID file gone. The disk is unknown
 	// (silently, like any stick) until it is enrolled again.
 	w.disks.Update("BACKUP1", func(d *testutil.FakeDisk) { d.VolumeSerial = "1234-5678" })
 	os.RemoveAll(w.diskFile("BACKUP1", "Backup"))
 	w.mustRun(2, "run")
 	w.stdin = testPassword + "\n"
-	w.mustRun(0, "enroll", w.disks.Disk("BACKUP1").Mount, "--name", "BACKUP1", "--weeks", "odd", "--force", "--password-stdin", "--vault", w.vaultPath())
+	w.mustRun(0, "enroll", w.disks.Disk("BACKUP1").Mount, "--name", "BACKUP1", "--force", "--password-stdin", "--vault", w.vaultPath())
 	w.mustRun(0, "run")
 }
 
@@ -74,13 +74,13 @@ func TestRequireHardwareSerial(t *testing.T) {
 	w := newWorld(t)
 	w.disks.Update("BACKUP1", func(d *testutil.FakeDisk) { d.HardwareSerial = "" })
 	w.keysInit()
-	w.enroll("BACKUP1", "odd")
+	w.enroll("BACKUP1")
 	w.mustRun(0, "run", "--dry-run")
 	w.set("requireHardwareSerial", true)
 	w.mustRun(6, "run")
 	// A changed hardware serial on a disk that had one: unknown.
 	w.set("requireHardwareSerial", false)
-	w.enroll("BACKUP2", "even")
+	w.enroll("BACKUP2")
 	w.clock.Advance(7 * 24 * 3600e9)
 	w.disks.Remove("BACKUP1")
 	w.mustRun(0, "run", "--dry-run")

@@ -32,7 +32,7 @@ import (
 
 func TestVerifyWithKeys(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd", "BACKUP2": "even"})
+	w.enrollUnsigned("BACKUP1", "BACKUP2")
 	bg := w.keysInit()
 	w.mustRun(0, "run")
 	w.clock.Advance(14 * 24 * time.Hour)
@@ -68,7 +68,7 @@ func TestVerifyWithKeys(t *testing.T) {
 
 func TestVerifyFindsDamage(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	bg := w.keysInit()
 	w.mustRun(0, "run")
 	p := w.diskFile("BACKUP1", "Backup/2026/47/Data.zip.age")
@@ -85,7 +85,7 @@ func TestVerifyFindsDamage(t *testing.T) {
 
 func TestVerifyUnencrypted(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.mustRun(0, "run")
 	out, _ := w.mustRun(0, "verify")
 	if strings.Count(out, "files unpacked") != 2 {
@@ -96,7 +96,7 @@ func TestVerifyUnencrypted(t *testing.T) {
 
 func TestBreakglassNotRecordedWithoutDecryption(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.mustRun(0, "run") // unencrypted week
 	bg := w.keysInit()
 	w.mustRun(0, "verify", "--identity", bg)
@@ -107,7 +107,7 @@ func TestBreakglassNotRecordedWithoutDecryption(t *testing.T) {
 
 func TestVerifyFullAsksPassword(t *testing.T) {
 	w := newWorld(t)
-	w.enrollUnsigned(map[string]string{"BACKUP1": "odd"})
+	w.enrollUnsigned("BACKUP1")
 	w.keysInit()
 	w.mustRun(0, "run")
 	env := w.env()

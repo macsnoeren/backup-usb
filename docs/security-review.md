@@ -136,3 +136,15 @@ settings folder is refused by the CLI, and existing keys are never replaced.
 
 New libraries `setupapi.dll` and `cfgmgr32.dll` are loaded by full path. No
 external programs, no disk-controlled text.
+
+## T13: disks in turn, frequency (self-review)
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | Rotation now covers the folders of every schedule used on a disk. With `{year}\{week}` and `{year}\{month}\{day}`, deleting "week 11" would delete all days of November. | high (data loss) | A folder that matches two schedules or contains another period folder is never deleted; a pattern that clashes with an older one on the disk is refused before anything is written. The default patterns cannot clash. Tests. |
+| 2 | Backups made before a change of `schedule` were invisible to `list`, `restore` and the re-wrapping of keys, so an old key could be dropped while old backups still needed it. | high | All patterns recorded on the disk are used. Tests. |
+| 3 | The time of a backup comes from the disk and now orders the rotation. | checked | Only used within the period of the folder itself. Test. |
+| 4 | `usb-backup.turns.json` is not signed and can be written by users. | low | It only orders registered (signed) disks. Size limit, strict parsing, opened below the log folder without following links out of it; damaged means every disk is accepted; numbers cannot overflow. Tests. |
+| 5 | `keys.json` on a disk could list very many patterns, each one a walk through the folders. | low | At most 64 are used. |
+
+No secrets, new dependencies or external programs.

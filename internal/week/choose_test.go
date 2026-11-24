@@ -18,57 +18,90 @@
 package week
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
 )
 
 func TestChoose(t *testing.T) {
-	two := []Slot{{Name: "BACKUP1", Weeks: Odd, Order: 0}, {Name: "BACKUP2", Weeks: Even, Order: 1}}
-	three := []Slot{{Name: "A", Order: 0}, {Name: "B", Order: 1}, {Name: "C", Order: 2}}
+	now := For(d(2026, 11, 25), ISOWeek) // 2026-W48
 	tests := []struct {
 		name  string
-		when  time.Time
-		s     Schedule
+		per   Period
 		rot   Rotation
 		disks []Slot
-		want  []string
+		want  Turn
 	}{
-		{"week 47 odd", d(2026, 11, 22), ISOWeek, OddEven, two, []string{"BACKUP1"}},
-		{"week 48 even", d(2026, 11, 23), ISOWeek, OddEven, two, []string{"BACKUP2"}},
-		{"week 52 even", d(2026, 12, 21), ISOWeek, OddEven, two, []string{"BACKUP2"}},
-		{"week 53 odd", d(2026, 12, 31), ISOWeek, OddEven, two, []string{"BACKUP1"}},
-		{"week 1 after 53 also odd", d(2027, 1, 4), ISOWeek, OddEven, two, []string{"BACKUP1"}},
-		{"week 2 even", d(2027, 1, 11), ISOWeek, OddEven, two, []string{"BACKUP2"}},
-		{"day 22 even", d(2026, 11, 22), Day, OddEven, two, []string{"BACKUP2"}},
-		{"month 11 odd", d(2026, 11, 22), Month, OddEven, two, []string{"BACKUP1"}},
-		{"any", d(2026, 11, 22), ISOWeek, Any, two, []string{"BACKUP1", "BACKUP2"}},
-		{"no disks", d(2026, 11, 22), ISOWeek, OddEven, nil, nil},
-		{"only even registered", d(2026, 11, 22), ISOWeek, OddEven, two[1:], nil},
+		{"no disks", now, InTurn, nil, Turn{}},
+		{"one disk, never used", now, InTurn, []Slot{{Name: "A"}}, Turn{Due: []string{"A"}, Next: []string{"A"}}},
+		{"one disk, used last week", now, InTurn, []Slot{{"A", 4, "2026-W47"}}, Turn{Due: []string{"A"}, Next: []string{"A"}}},
+		{"nothing known: every disk may start", now, InTurn, []Slot{{Name: "A"}, {Name: "B"}, {Name: "C"}}, Turn{Due: []string{"A", "B", "C"}, Next: []string{"A", "B", "C"}}},
+		{"longest ago", now, InTurn, []Slot{{"A", 3, "2026-W47"}, {"B", 1, "2026-W45"}, {"C", 2, "2026-W46"}}, Turn{Due: []string{"B"}, Next: []string{"B"}}},
+		{"a new disk goes first", now, InTurn, []Slot{{"A", 3, "2026-W47"}, {"B", 2, "2026-W46"}, {Name: "C"}}, Turn{Due: []string{"C"}, Next: []string{"C"}}},
+		{"done this week: refresh only", now, InTurn, []Slot{{"A", 3, "2026-W48"}, {"B", 2, "2026-W47"}}, Turn{Due: []string{"A"}, Done: true, Next: []string{"B"}}},
+		{"done, one disk", now, InTurn, []Slot{{"A", 3, "2026-W48"}}, Turn{Due: []string{"A"}, Done: true, Next: []string{"A"}}},
+		{"weeks without a backup skip no disk", now, InTurn, []Slot{{"A", 2, "2026-W40"}, {"B", 1, "2026-W39"}}, Turn{Due: []string{"B"}, Next: []string{"B"}}},
+		{"a wrong clock does not matter", now, InTurn, []Slot{{"A", 2, "2031-W01"}, {"B", 1, "2026-W46"}}, Turn{Due: []string{"B"}, Next: []string{"B"}}},
+		{"any", now, Any, []Slot{{"A", 3, "2026-W48"}, {Name: "B"}}, Turn{Due: []string{"A", "B"}, Next: []string{"A", "B"}}},
+		{"insert: never the same disk twice", For(d(2026, 11, 25), Insert), InTurn, []Slot{{"A", 2, For(d(2026, 11, 25), Insert).Label()}, {"B", 1, "2026-11-25T11:00"}}, Turn{Due: []string{"B"}, Next: []string{"B"}}},
 	}
 	for _, tt := range tests {
-		got, err := Choose(For(tt.when, tt.s), tt.rot, tt.disks)
+		got, err := Choose(tt.per, tt.rot, tt.disks)
 		if err != nil || !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%s: got %v, %v; want %v", tt.name, got, err, tt.want)
+			t.Errorf("%s: got %+v, %v; want %+v", tt.name, got, err, tt.want)
 		}
 	}
-	// Round robin cycles through all disks in order, also across a year end.
-	per := For(d(2026, 12, 14), ISOWeek)
-	var seq []string
-	for i := 0; i < 6; i++ {
-		got, err := Choose(per, RoundRobin, three)
-		if err != nil || len(got) != 1 {
-			t.Fatal(got, err)
-		}
-		seq = append(seq, got[0])
-		per = For(per.End().Add(time.Hour), ISOWeek)
-	}
-	for i := 3; i < 6; i++ {
-		if seq[i] != seq[i-3] || seq[i] == seq[i-1] {
-			t.Fatalf("round robin sequence %v", seq)
-		}
-	}
-	if _, err := Choose(per, "weird", two); err == nil {
+	if _, err := Choose(now, "weird", nil); err == nil {
 		t.Fatal("unknown rotation accepted")
+	}
+}
+
+// Every number of disks with every schedule: all disks are used in a fixed
+// order, also when periods are skipped.
+func TestInTurnCycles(t *testing.T) {
+	for _, s := range Schedules() {
+		for n := 1; n <= 5; n++ {
+			disks := make([]Slot, n)
+			for i := range disks {
+				disks[i].Name = string(rune('A' + i))
+			}
+			now, seq := d(2026, 12, 14), uint64(0)
+			var used []string
+			for i := 0; i < 4*n; i++ {
+				per := For(now, s)
+				turn, err := Choose(per, InTurn, disks)
+				if err != nil || len(turn.Due) == 0 || turn.Done {
+					t.Fatalf("%s %d disks: %+v %v", s, n, turn, err)
+				}
+				used = append(used, turn.Due[0])
+				for k := range disks {
+					if disks[k].Name == turn.Due[0] {
+						seq++
+						disks[k].Seq, disks[k].Period = seq, per.Label()
+					}
+				}
+				skip := time.Duration(1 + i%3)
+				now = For(now, s).End().Add(skip * per.End().Sub(per.Start))
+			}
+			for i := n; i < len(used); i++ {
+				if used[i] != used[i-n] {
+					t.Fatalf("%s %d disks: %v", s, n, used)
+				}
+			}
+		}
+	}
+}
+
+func TestRotationJSON(t *testing.T) {
+	for in, want := range map[string]Rotation{"oddEven": InTurn, "roundRobin": InTurn, "inTurn": InTurn, "any": Any, "x": "x"} {
+		var r Rotation
+		if err := json.Unmarshal([]byte(`"`+in+`"`), &r); err != nil || r != want {
+			t.Errorf("%s: %q %v", in, r, err)
+		}
+	}
+	var r Rotation
+	if json.Unmarshal([]byte("3"), &r) == nil {
+		t.Error("a number is accepted")
 	}
 }

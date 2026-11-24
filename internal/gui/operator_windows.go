@@ -34,6 +34,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/password"
 	"github.com/macsnoeren/backup-usb/internal/secmem"
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 // operator is an open operator session.
@@ -230,14 +231,21 @@ func (o *operator) loadConfig() *config.Config {
 }
 
 func (o *operator) general(parent ui.Parent) {
-	m := newModal(parent, o.t("gui.tab.general"), 640, 480)
+	m := newModal(parent, o.t("gui.tab.general"), 640, 515)
 	srcList := listView(m, 10, 10, 620, 130, o.t("gui.tag"), o.t("gui.path"), o.t("gui.exclude"))
 	add := button(m, o.t("gui.addSource"), 10, 148, 140)
 	remove := button(m, o.t("gui.removeSource"), 160, 148, 100)
 	setList := listView(m, 10, 185, 620, 210, o.t("gui.setting"), o.t("gui.value"))
 	value := edit(m, "", 10, 405, 500, false)
 	save := button(m, o.t("gui.save"), 520, 403, 110)
-	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 445)).Size(ui.Dpi(620, 20)))
+	label(m, o.t("gui.schedule"), 10, 448, 130, 20)
+	var often []string
+	for _, s := range week.Schedules() {
+		often = append(often, o.t("gui.schedule."+string(s)))
+	}
+	schedule := combo(m, 145, 445, 340, 0, often...)
+	saveSchedule := button(m, o.t("gui.save"), 520, 443, 110)
+	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 482)).Size(ui.Dpi(620, 20)))
 	fill := func() {
 		cfg := o.loadConfig()
 		srcList.DeleteAllItems()
@@ -252,13 +260,28 @@ func (o *operator) general(parent ui.Parent) {
 			v, _ := cfg.Get(k)
 			setList.AddItem(k, v)
 		}
+		for i, s := range week.Schedules() {
+			if s == cfg.Schedule {
+				schedule.SelectIndex(i)
+			}
+		}
 	}
 	o.watchTimeout(m)
 	m.On().WmCreate(func(_ ui.WmCreate) int {
+		showDropDowns(schedule)
 		fill()
 		usb.SetCheck(o.main.cli.StartsOnInsert(context.Background()))
 		_ = m.Hwnd().SetTimer(timerOperator, 5000)
 		return 0
+	})
+	saveSchedule.On().BnClicked(func() {
+		i := schedule.SelectedIndex()
+		if i < 0 {
+			return
+		}
+		if o.report(m, o.call("config", "set", "schedule", string(week.Schedules()[i])), o.t("gui.saved")) {
+			fill()
+		}
 	})
 	usb.On().BnClicked(func() {
 		// Takes effect at once; the box shows what really is the case.
@@ -313,13 +336,13 @@ func (o *operator) general(parent ui.Parent) {
 func (o *operator) disks(parent ui.Parent) {
 	m := newModal(parent, o.t("gui.tab.disks"), 640, 380)
 	o.watchTimeout(m)
-	regList := listView(m, 10, 10, 620, 120, o.t("gui.name"), "weeks", o.t("gui.connected"))
+	regList := listView(m, 10, 10, 620, 120, o.t("gui.name"), o.t("gui.lastBackup"), o.t("gui.connected"))
 	forget := button(m, o.t("gui.forget"), 10, 138, 120)
+	label(m, o.t("gui.disksInTurn"), 140, 135, 490, 36)
 	conList := listView(m, 10, 175, 620, 120, o.t("gui.path"), "label", "state")
 	label(m, o.t("gui.name"), 10, 305, 60, 20)
-	name := edit(m, "BACKUP1", 70, 302, 140, false)
-	weeks := combo(m, 220, 302, 150, 0, o.t("gui.weeksOdd"), o.t("gui.weeksEven"))
-	register := button(m, o.t("gui.register"), 380, 300, 120)
+	name := edit(m, "", 70, 302, 140, false)
+	register := button(m, o.t("gui.register"), 220, 300, 120)
 	var rep app.DisksReport
 	fill := func() {
 		ev := o.plain("disks")
@@ -330,15 +353,15 @@ func (o *operator) disks(parent ui.Parent) {
 			if r.Connected {
 				c = r.Mount
 			}
-			regList.AddItem(r.Name, r.Weeks, c)
+			regList.AddItem(r.Name, DiskLastBackup(o.main.p, r), c)
 		}
+		name.SetText(NextDiskName(rep.Registered))
 		conList.DeleteAllItems()
 		for _, v := range rep.Connected {
 			conList.AddItem(v.Mount, v.Label, v.State+" "+v.Name)
 		}
 	}
 	m.On().WmCreate(func(_ ui.WmCreate) int {
-		showDropDowns(weeks)
 		fill()
 		_ = m.Hwnd().SetTimer(timerOperator, 5000)
 		return 0
@@ -348,11 +371,7 @@ func (o *operator) disks(parent ui.Parent) {
 		if len(items) != 1 {
 			return
 		}
-		w := "odd"
-		if weeks.SelectedIndex() == 1 {
-			w = "even"
-		}
-		if o.report(m, o.call("enroll", items[0].Text(0), "--name", name.Text(), "--weeks", w, "--force"), o.t("gui.saved")) {
+		if o.report(m, o.call("enroll", items[0].Text(0), "--name", name.Text(), "--force"), o.t("gui.saved")) {
 			fill()
 		}
 	})
@@ -620,11 +639,7 @@ func (o *operator) logAndLanguage(parent ui.Parent) {
 	o.watchTimeout(m, lang)
 	open.On().BnClicked(func() {
 		cfg := o.loadConfig()
-		dir := cfg.LogPath
-		if dir == "" {
-			dir = config.Dir()
-		}
-		_ = shellExecute("open", filepath.Join(dir, config.LogFileName))
+		_ = shellExecute("open", filepath.Join(cfg.LogDir(config.Dir()), config.LogFileName))
 	})
 	save.On().BnClicked(func() {
 		l := "en"
