@@ -140,3 +140,12 @@ func AboutText(p msg.Printer, a AboutInfo) string {
 	}
 	return p.T("gui.about", a.Version, a.Go, a.Platform, a.Folder, keys) + "\n\n" + p.T("license") + "\n\n" + p.T("gui.aboutMore", homepage)
 }
+
+// RestoreTo is the destination for restore; ok is false when no folder was
+// chosen (the folder picker was cancelled): then nothing is restored.
+func RestoreTo(dir string) (dest []string, ok bool) {
+	if dir == "" {
+		return nil, false
+	}
+	return []string{"--to", dir}, true
+}

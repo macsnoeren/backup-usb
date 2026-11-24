@@ -128,3 +128,12 @@ func TestEjectAfterBackup(t *testing.T) {
 		t.Fatalf("exit %d, ejected %d times", code, p.calls)
 	}
 }
+
+// The texts of unregistered disks take no name.
+func TestDisksTextHasNoFormatErrors(t *testing.T) {
+	w := newWorld(t)
+	out, _ := w.mustRun(0, "disks")
+	if strings.Contains(out, "%!") || !strings.Contains(out, "not a backup disk") {
+		t.Fatal(out)
+	}
+}

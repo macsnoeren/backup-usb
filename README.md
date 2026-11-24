@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="" width="96" align="right">
+
 # USB Backup
 
 Verified, encrypted backups of your folders to USB disks that you register.
@@ -164,7 +166,8 @@ and choose:
 - **Restore to original place**: existing files are **never** overwritten;
   a restored copy of an existing file is called
   `name (restored 2026-11-22).ext`.
-- **Save in…**: a folder you choose (default `Desktop\Restored`).
+- **Save in…**: a folder you choose; *Cancel* restores nothing.
+- **To Restored on the desktop**: the folder `Desktop\Restored`.
 
 ### With the command line
 

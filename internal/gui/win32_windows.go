@@ -176,3 +176,29 @@ func appendSubMenu(menu, sub win.HMENU, text string) {
 }
 
 func appendMenuSeparator(menu win.HMENU) { appendMenuItem(menu, 0x800, 0, "") } // MF_SEPARATOR
+
+var (
+	procLoadImage        = user32.NewProc("LoadImageW")
+	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
+	procGetModuleHandle  = kernel32.NewProc("GetModuleHandleW")
+	procSendMessage      = user32.NewProc("SendMessageW")
+)
+
+// setWindowIcon gives a window the program icon (resource 1, made by
+// scripts/genicon), each in its own size so it stays sharp.
+func setWindowIcon(hwnd uintptr) {
+	const (
+		imageIcon, wmSetIcon           = 1, 0x80
+		iconSmall, iconBig             = 0, 1
+		smCxIcon, smCyIcon             = 11, 12
+		smCxSmIcon, smCySmIcon uintptr = 49, 50
+	)
+	module, _, _ := procGetModuleHandle.Call(0)
+	for _, i := range []struct{ which, cx, cy uintptr }{{iconSmall, smCxSmIcon, smCySmIcon}, {iconBig, smCxIcon, smCyIcon}} {
+		w, _, _ := procGetSystemMetrics.Call(i.cx)
+		h, _, _ := procGetSystemMetrics.Call(i.cy)
+		if icon, _, _ := procLoadImage.Call(module, 1, imageIcon, w, h, 0); icon != 0 {
+			procSendMessage.Call(hwnd, wmSetIcon, i.which, icon) //nolint:errcheck,gosec // cosmetic
+		}
+	}
+}

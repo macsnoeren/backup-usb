@@ -48,6 +48,8 @@ BrandingText "${APP} ${VERSION}"
 !include "LogicLib.nsh"
 !include "x64.nsh"
 
+!define MUI_ICON "usb-backup.ico"
+!define MUI_UNICON "usb-backup.ico"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\usb-backup.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Open USB Backup to set it up (sources, disks, keys, schedule)"
 

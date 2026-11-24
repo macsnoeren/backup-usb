@@ -164,3 +164,13 @@ func TestAboutText(t *testing.T) {
 		}
 	}
 }
+
+// Cancelling the folder picker must not restore anything, anywhere.
+func TestRestoreToCancelled(t *testing.T) {
+	if dest, ok := RestoreTo(""); ok || dest != nil {
+		t.Fatalf("%v %v", dest, ok)
+	}
+	if dest, ok := RestoreTo(`C:\Temp`); !ok || len(dest) != 2 || dest[0] != "--to" || dest[1] != `C:\Temp` {
+		t.Fatalf("%v %v", dest, ok)
+	}
+}

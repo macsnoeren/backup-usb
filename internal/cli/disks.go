@@ -68,7 +68,11 @@ func cmdDisks(c *ctx, args []string) error {
 		fmt.Fprintln(w, c.p.T("disk.none"))
 	}
 	for _, v := range rep.Connected {
-		state := c.p.T("disk.state."+v.State, v.Name)
+		var args []any // only a registered disk has a name in its text
+		if v.Name != "" {
+			args = append(args, v.Name)
+		}
+		state := c.p.T("disk.state."+v.State, args...)
 		fmt.Fprintf(w, "  %-12s %-10s %-6s vol %s  part %s  hw %s  %s\n", orDash(v.Mount), orDash(v.Label), v.FileSystem, v.VolumeSerial, v.PartitionID, orDash(v.HardwareSerial), state)
 	}
 	return nil

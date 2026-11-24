@@ -124,6 +124,7 @@ func newMainWindow(cli CLI, p msg.Printer, auto bool) *mainWindow {
 
 func (m *mainWindow) events() {
 	m.wnd.On().WmCreate(func(_ ui.WmCreate) int {
+		setWindowIcon(uintptr(m.wnd.Hwnd()))
 		m.render(m.model.View())
 		go m.refresh(m.auto)
 		return 0

@@ -118,6 +118,7 @@ func init() {
 		"gui.search":            {EN: "Search", NL: "Zoeken"},
 		"gui.up":                {EN: "Up", NL: "Omhoog"},
 		"gui.restoreOriginal":   {EN: "Restore to original place", NL: "Terugzetten naar oorspronkelijke plek"},
+		"gui.restoreDesktop":    {EN: "To Restored on the desktop", NL: "Naar Restored op het bureaublad"},
 		"gui.restoreTo":         {EN: "Save in…", NL: "Opslaan in…"},
 		"gui.testBreakglass":    {EN: "Test break-glass…", NL: "Break-glass testen…"},
 		"gui.restored":          {EN: "%d files restored to %s.", NL: "%d bestanden teruggezet naar %s."},

@@ -14,6 +14,7 @@ as the release notes.
 
 ### Added
 
+- A program icon, for the window, the programs and the setup.
 - The window shows how many backups are on the disk and how much space is
   free, also after the disk was ejected; `status` shows the same.
 - Windows: a menu bar with *File → Settings…*, *File → Exit* and
@@ -30,6 +31,9 @@ as the release notes.
 
 ### Fixed
 
+- Windows: cancelling *Save in…* when restoring still restored the files, to
+  `Restored` on the desktop. That folder now has its own button.
+- `disks` printed `%!(EXTRA …)` after disks that are not registered.
 - `ejectAfter` did not work: the disk was ejected while the backup folder was
   still open. On Windows, hard disks are now ejected the way "Safely remove
   hardware" does, which needs no administrator rights.

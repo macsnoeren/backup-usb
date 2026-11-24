@@ -515,7 +515,8 @@ func (o *operator) restore(parent ui.Parent) {
 	up := button(m, o.t("gui.up"), 770, 8, 80)
 	files := listView(m, 280, 40, 570, 380, o.t("gui.files"), o.t("gui.size"), o.t("gui.modified"))
 	toOrig := button(m, o.t("gui.restoreOriginal"), 280, 430, 230)
-	toDir := button(m, o.t("gui.restoreTo"), 520, 430, 150)
+	toDir := button(m, o.t("gui.restoreTo"), 520, 430, 110)
+	toDesktop := button(m, o.t("gui.restoreDesktop"), 640, 430, 210)
 	bg := button(m, o.t("gui.testBreakglass"), 10, 430, 260)
 	var cur struct{ week, tag, path string }
 	var entries []app.ListEntry
@@ -587,10 +588,16 @@ func (o *operator) restore(parent ui.Parent) {
 		}
 		return out
 	}
-	doRestore := func(dest []string) {
+	// doRestore asks where to only when something is selected; a question
+	// that is cancelled restores nothing.
+	doRestore := func(where func() (dest []string, ok bool)) {
 		sel := selected()
 		if len(sel) == 0 {
 			_, _ = m.Hwnd().MessageBox(o.t("gui.selectFiles"), o.t("gui.title"), co.MB_ICONINFORMATION)
+			return
+		}
+		dest, ok := where()
+		if !ok {
 			return
 		}
 		args := []string{"restore", "--week", cur.week, "--tag", cur.tag}
@@ -607,13 +614,12 @@ func (o *operator) restore(parent ui.Parent) {
 			_ = shellExecute("open", r.Destination)
 		}
 	}
-	toOrig.On().BnClicked(func() { doRestore([]string{"--original"}) })
+	toOrig.On().BnClicked(func() { doRestore(func() ([]string, bool) { return []string{"--original"}, true }) })
 	toDir.On().BnClicked(func() {
-		dir := pickFolder(uintptr(m.Hwnd()), o.t("gui.restoreTo"))
-		if dir == "" {
-			dir = desktopRestored()
-		}
-		doRestore([]string{"--to", dir})
+		doRestore(func() ([]string, bool) { return RestoreTo(pickFolder(uintptr(m.Hwnd()), o.t("gui.restoreTo"))) })
+	})
+	toDesktop.On().BnClicked(func() {
+		doRestore(func() ([]string, bool) { return RestoreTo(desktopRestored()) })
 	})
 	bg.On().BnClicked(func() {
 		file := fileDialog(uintptr(m.Hwnd()), false, o.t("gui.testBreakglass"), "")

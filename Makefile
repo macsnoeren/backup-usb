@@ -29,7 +29,7 @@ GOLANGCI_LINT := $(call tool,golangci-lint)
 GOVULNCHECK   := $(call tool,govulncheck)
 GOSEC         := $(call tool,gosec)
 
-.PHONY: notices release-check setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
+.PHONY: icon notices release-check setup-windows packages-linux gosec-raw all test test-integration test-e2e test-long cover lint security fuzz \
         build-windows build-linux build-testbin clean
 
 all: lint test build-linux build-windows
@@ -103,6 +103,11 @@ packages-linux: build-linux
 # Test binary with fake disks and a fake clock (build tag "fakes"). Never ship it.
 build-testbin:
 	$(BUILD) -tags fakes -ldflags "-X main.version=$(VERSION)" -o dist/test/usb-backup-cli$(shell $(GO) env GOEXE) ./cmd/usb-backup-cli
+
+# The program icon (.ico, PNG and the Windows resource objects), drawn by
+# scripts/genicon. A test fails when the files do not match the drawing.
+icon:
+	$(GO) run ./scripts/genicon
 
 # THIRD-PARTY-NOTICES.txt: the licenses of the compiled-in modules. Rerun
 # after changing go.mod; a test fails when it is out of date.
