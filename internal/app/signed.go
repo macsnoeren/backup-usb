@@ -111,9 +111,10 @@ func writeSigned(path string, data []byte, key *secmem.Buffer, purpose string) e
 	return nil
 }
 
-// SaveConfig validates, writes and signs the settings.
+// SaveConfig validates, writes and signs the settings. A source folder that
+// is missing right now does not block a change; a backup reports it.
 func SaveConfig(dir string, cfg *config.Config, key *secmem.Buffer) error {
-	if err := cfg.Validate(config.ValidateOptions{}); err != nil {
+	if err := cfg.Validate(config.ValidateOptions{SkipPathCheck: true}); err != nil {
 		return Errorf(KindUsage, err, "err.config", err.Error())
 	}
 	data, err := cfg.Marshal()

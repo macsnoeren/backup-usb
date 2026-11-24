@@ -133,7 +133,8 @@ func cmdConfigSet(c *ctx, args []string) error {
 	if err != nil {
 		return usageErr("%v", err)
 	}
-	if err := cfg.Validate(config.ValidateOptions{}); err != nil {
+	// Only paths that were just entered must exist.
+	if err := cfg.Validate(config.ValidateOptions{SkipPathCheck: pos[0] != "sources"}); err != nil {
 		return app.Errorf(app.KindUsage, err, "err.config", err.Error())
 	}
 	return c.saveConfig(cfg, *stdin, *vaultPath, func(l func(string, ...any)) {

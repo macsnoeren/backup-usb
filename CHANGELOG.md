@@ -28,6 +28,13 @@ as the release notes.
   choosing an existing file for the break-glass key deleted that file.
 - Windows: the settings screens ignored the real settings (folders, language
   and timeout were read from the wrong field of the CLI's answer).
+- Windows: drop-down lists (odd or even weeks, scheduled task, day, language)
+  opened without any items, so only the first choice could be used; the
+  language list always showed English.
+- A source folder that does not exist (such as the default `C:\Data`) blocked
+  saving every setting and adding or removing other folders.
+- Windows: switching off "start a backup when a disk is inserted" failed when
+  that task did not exist, and the rest of the schedule was not saved.
 - `keys init` without administrator rights left a vault behind that blocked
   every later attempt; it now checks first and undoes a failed run.
 

@@ -25,6 +25,7 @@ import (
 
 	"github.com/rodrigocfd/windigo/co"
 	"github.com/rodrigocfd/windigo/ui"
+	"github.com/rodrigocfd/windigo/win"
 )
 
 // newModal creates a modal window.
@@ -60,8 +61,25 @@ func listView(p ui.Parent, x, y, w, h int, cols ...string) *ui.ListView {
 	return ui.NewListView(p, o)
 }
 
-func combo(p ui.Parent, x, y, w int, items ...string) *ui.ComboBox {
-	return ui.NewComboBox(p, ui.OptsComboBox().Position(ui.Dpi(x, y)).Width(ui.DpiX(w)).CtrlStyle(co.CBS_DROPDOWNLIST).Texts(items...).Select(0))
+// combo makes a drop-down list with selected chosen. windigo creates it with
+// height 0, and without version 6 of the common controls Windows takes that
+// as the height of the list: nothing to choose from. showDropDowns fixes it.
+func combo(p ui.Parent, x, y, w, selected int, items ...string) *ui.ComboBox {
+	return ui.NewComboBox(p, ui.OptsComboBox().Position(ui.Dpi(x, y)).Width(ui.DpiX(w)).CtrlStyle(co.CBS_DROPDOWNLIST).Texts(items...).Select(selected))
+}
+
+// showDropDowns gives drop-down lists room to open; Windows shrinks the
+// list to the number of items. Call it from WM_CREATE on.
+func showDropDowns(boxes ...*ui.ComboBox) {
+	for _, b := range boxes {
+		rc, err := b.Hwnd().GetWindowRect()
+		if err != nil {
+			continue
+		}
+		_ = b.Hwnd().SetWindowPos(win.HWND(0), win.POINT{},
+			win.SIZE{Cx: rc.Right - rc.Left, Cy: int32(ui.DpiY(220))}, //nolint:gosec // a small constant
+			co.SWP_NOMOVE|co.SWP_NOZORDER|co.SWP_NOACTIVATE)
+	}
 }
 
 var (

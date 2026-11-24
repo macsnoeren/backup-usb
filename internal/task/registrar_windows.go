@@ -103,7 +103,16 @@ func (s *Schtasks) Install(spec Spec) error {
 	return s.run("/Create", "/TN", Name(spec.Trigger), "/XML", f.Name(), "/F")
 }
 
-// Uninstall removes a task.
+// Uninstall removes a task; a task that does not exist is fine.
 func (s *Schtasks) Uninstall(t Trigger) error {
-	return s.run("/Delete", "/TN", Name(t), "/F")
+	err := s.run("/Delete", "/TN", Name(t), "/F")
+	if err == nil {
+		return nil
+	}
+	// schtasks has one exit code for every failure: ask whether it is there.
+	var ee *exec.ExitError
+	if errors.As(s.run("/Query", "/TN", Name(t)), &ee) {
+		return nil
+	}
+	return err
 }

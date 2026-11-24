@@ -65,8 +65,11 @@ func cmdConfigAddSource(c *ctx, args []string) error {
 			return usageErr("tag %q is already used", *tag)
 		}
 	}
+	if st, err := os.Stat(abs); err != nil || !st.IsDir() {
+		return app.Errorf(app.KindUsage, err, "err.config", fmt.Sprintf("%q does not exist or is not a folder", abs))
+	}
 	cfg.Sources = append(cfg.Sources, config.Source{Tag: *tag, Path: abs, Exclude: excludes})
-	if err := cfg.Validate(config.ValidateOptions{}); err != nil {
+	if err := cfg.Validate(config.ValidateOptions{SkipPathCheck: true}); err != nil {
 		return app.Errorf(app.KindUsage, err, "err.config", err.Error())
 	}
 	return c.saveConfig(cfg, *stdin, *vaultPath, func(l func(string, ...any)) {

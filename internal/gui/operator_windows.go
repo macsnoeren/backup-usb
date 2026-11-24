@@ -72,9 +72,11 @@ func (o *operator) report(parent ui.Parent, ev Event, okText string) bool {
 	return true
 }
 
-// watchTimeout closes the modal when the session expired.
-func (o *operator) watchTimeout(m *ui.Modal) {
+// watchTimeout closes the modal when the session expired. The boxes are the
+// drop-down lists of the modal; a window has only one WM_CREATE handler.
+func (o *operator) watchTimeout(m *ui.Modal, boxes ...*ui.ComboBox) {
 	m.On().WmCreate(func(_ ui.WmCreate) int {
+		showDropDowns(boxes...)
 		_ = m.Hwnd().SetTimer(timerOperator, 5000)
 		return 0
 	})
@@ -301,7 +303,7 @@ func (o *operator) disks(parent ui.Parent) {
 	conList := listView(m, 10, 175, 620, 120, o.t("gui.path"), "label", "state")
 	label(m, o.t("gui.name"), 10, 305, 60, 20)
 	name := edit(m, "BACKUP1", 70, 302, 140, false)
-	weeks := combo(m, 220, 302, 150, o.t("gui.weeksOdd"), o.t("gui.weeksEven"))
+	weeks := combo(m, 220, 302, 150, 0, o.t("gui.weeksOdd"), o.t("gui.weeksEven"))
 	register := button(m, o.t("gui.register"), 380, 300, 120)
 	var rep app.DisksReport
 	fill := func() {
@@ -320,7 +322,12 @@ func (o *operator) disks(parent ui.Parent) {
 			conList.AddItem(v.Mount, v.Label, v.State+" "+v.Name)
 		}
 	}
-	m.On().WmCreate(func(_ ui.WmCreate) int { fill(); _ = m.Hwnd().SetTimer(timerOperator, 5000); return 0 })
+	m.On().WmCreate(func(_ ui.WmCreate) int {
+		showDropDowns(weeks)
+		fill()
+		_ = m.Hwnd().SetTimer(timerOperator, 5000)
+		return 0
+	})
 	register.On().BnClicked(func() {
 		items := conList.SelectedItems()
 		if len(items) != 1 {
@@ -455,15 +462,15 @@ func (o *operator) keys(parent ui.Parent) {
 
 func (o *operator) schedule(parent ui.Parent) {
 	m := newModal(parent, o.t("gui.tab.schedule"), 460, 220)
-	o.watchTimeout(m)
 	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 15)).Size(ui.Dpi(440, 20)).State(co.BST_CHECKED))
 	label(m, o.t("gui.scheduled"), 10, 55, 140, 20)
-	kind := combo(m, 150, 52, 140, o.t("gui.none"), o.t("gui.daily"), o.t("gui.weekly"))
+	kind := combo(m, 150, 52, 140, 0, o.t("gui.none"), o.t("gui.daily"), o.t("gui.weekly"))
 	label(m, o.t("gui.time"), 10, 90, 140, 20)
 	at := edit(m, "02:00", 150, 87, 80, false)
 	label(m, o.t("gui.day"), 10, 125, 140, 20)
-	day := combo(m, 150, 122, 140, "mon", "tue", "wed", "thu", "fri", "sat", "sun")
+	day := combo(m, 150, 122, 140, 0, "mon", "tue", "wed", "thu", "fri", "sat", "sun")
 	save := button(m, o.t("gui.save"), 330, 165, 110)
+	o.watchTimeout(m, kind, day)
 	save.On().BnClicked(func() {
 		var evs []Event
 		if usb.IsChecked() {
@@ -617,14 +624,15 @@ func (o *operator) restore(parent ui.Parent) {
 
 func (o *operator) logAndLanguage(parent ui.Parent) {
 	m := newModal(parent, o.t("gui.tab.log"), 360, 160)
-	o.watchTimeout(m)
 	open := button(m, o.t("gui.openLog"), 20, 15, 320)
 	label(m, o.t("gui.language"), 20, 65, 100, 20)
-	lang := combo(m, 120, 62, 120, "English", "Nederlands")
+	current := 0
 	if o.main.p.Lang == "nl" {
-		lang.SelectIndex(1)
+		current = 1
 	}
+	lang := combo(m, 120, 62, 120, current, "English", "Nederlands")
 	save := button(m, o.t("gui.save"), 250, 60, 90)
+	o.watchTimeout(m, lang)
 	open.On().BnClicked(func() {
 		cfg := o.loadConfig()
 		dir := cfg.LogPath
