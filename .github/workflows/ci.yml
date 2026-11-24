@@ -27,8 +27,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
       - name: Install tools
@@ -55,8 +55,8 @@ jobs:
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
       - name: Build for Windows (amd64, arm64)
@@ -90,7 +90,7 @@ jobs:
           for f in dist/*.tar.gz; do tar -tzf "$f"; done
           dpkg --contents dist/usb-backup_*_amd64.deb | grep -q ' ./usr/bin/usb-backup-cli$'
           rpm -qlp dist/*x86_64.rpm | grep -qx /usr/bin/usb-backup-cli
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist/
@@ -99,8 +99,8 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest

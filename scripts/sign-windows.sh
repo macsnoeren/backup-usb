@@ -17,8 +17,8 @@
 # USB Backup. If not, see <https://www.gnu.org/licenses/>.
 
 # Signs the Windows executables and the setup with osslsigncode, when a
-# code-signing certificate is available; otherwise it prints a warning and
-# succeeds (unsigned builds work, with a SmartScreen warning on first start).
+# code-signing certificate is available; otherwise it says so (a warning
+# in a release) and succeeds (unsigned builds work, with a SmartScreen warning on first start).
 #
 #   WINDOWS_CERT_PFX_BASE64   the PKCS#12 certificate, base64 (CI secret)
 #   WINDOWS_CERT_PASSWORD     its password (CI secret)
@@ -29,7 +29,10 @@ set -eu
 
 if [ -z "${WINDOWS_CERT_PFX_BASE64:-}" ]; then
   msg="No code-signing certificate configured (WINDOWS_CERT_PFX_BASE64): Windows files stay unsigned."
-  if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::warning::$msg"; else echo "warning: $msg" >&2; fi
+  # Only a release needs attention; on every other build it is expected.
+  if [ -z "${GITHUB_ACTIONS:-}" ]; then echo "warning: $msg" >&2
+  elif [ "${GITHUB_REF_TYPE:-}" = tag ]; then echo "::warning::$msg"
+  else echo "$msg"; fi
   exit 0
 fi
 command -v osslsigncode >/dev/null 2>&1 || { echo "sign-windows.sh: osslsigncode is not installed" >&2; exit 1; }
