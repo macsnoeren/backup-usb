@@ -238,6 +238,7 @@ Alle instellingen staan in het operatorscherm en zijn ook met `usb-backup-cli co
 | Versleuteling | `operatorTimeoutMinutes` | `5` | Operatorscherm en wachtwoord vergeten na deze tijd |
 | Meldingen | `notify` | `always` | `always`, `problemsOnly` of `never` |
 | Meldingen | `language` | `nl` | Taal van scherm en meldingen: `nl` of `en` |
+| Meldingen | `trayIcon` | `false` | Windows: sluiten verbergt het venster; het programma blijft als pictogram bij de klok en blijft op schijven letten (zie Systeemvak) |
 | Meldingen | `webhookUrl` | leeg | Optioneel: rapport als JSON naar een URL sturen, bijvoorbeeld voor monitoring |
 | Logboek | `logPath` | configuratiemap | Map voor `usb-backup.log` |
 | Logboek | `logMaxSizeMB` | `1` | Daarboven wordt het logboek omgewisseld |
@@ -271,6 +272,17 @@ Een groot icoon, één zin in grote letters en hooguit één knop. Het scherm vo
 | Mislukt | Rood: "Back-up mislukt" en de reden in gewone taal | Opnieuw proberen |
 
 Onder de hoofdzin staat altijd klein: laatste geslaagde back-up per schijf, gezondheid van de aangesloten schijf en vrije ruimte. Wordt een back-up gestart door de USB-trigger, dan opent hetzelfde venster vanzelf. De losse MessageBox-meldingen vervallen.
+
+### Systeemvak (Windows, optioneel)
+
+Met `trayIcon` aan blijft `usb-backup.exe` na het sluiten van het venster draaien, als gewoon gebruikersproces zonder beheerdersrechten; er is geen service. Standaard uit: dan verandert er niets.
+
+- **Sluiten** (kruisje) verbergt het venster, ook tijdens een back-up. Alleen als het pictogram er echt staat; anders sluit het programma zoals altijd. **Afsluiten** (menu of pictogram) stopt het programma, niet tijdens een back-up en niet zolang de instellingen open staan.
+- **Pictogram:** klik opent het venster; het menu heeft *USB Backup openen* en *Afsluiten*; de tekst toont de toestand. Herstart Verkenner, dan komt het pictogram terug.
+- **Insteken met verborgen venster:** een Windows-event is alleen een seintje om te kijken. Het programma vraagt `disks` en vergelijkt met de vorige keer; alleen een geregistreerde schijf die er nog niet was start een back-up. Een andere stick doet dus niets, ook niet als er al een geregistreerde schijf in zit. De run krijgt die schijf mee (`--target`) als hij aan de beurt is, zodat een andere aangesloten schijf niet wordt gebruikt. Een schijf die tijdens een back-up wordt ingestoken, volgt daarna; niet na annuleren, en na een fout of waarschuwing alleen als hij aan de beurt is. Loopt er een andere back-up, controle of herstel (exitcode 5), dan volgt elke minuut een nieuwe poging, zonder venster.
+- **Venster naar voren:** bij een back-up (één keer, niet opnieuw als de gebruiker het verbergt), bij een geregistreerde schijf die niet aan de beurt is of net is gebruikt, en bij een fout of waarschuwing. Gelukt met verborgen venster: alleen een melding. Niet bij geen schijf, een onbekende schijf of een andere back-up die al loopt (exitcode 5, bijvoorbeeld van een tweede ingelogde gebruiker).
+- **USB-taak:** `usb-backup.exe --auto` laat een verborgen venster alleen kijken en haalt het niet naar voren. Na *Afsluiten* start de taak het programma zoals altijd. Met `trayIcon` aan heeft de taak geen tijdslimiet (anders stopt Taakplanner het programma na 12 uur); het instellingenscherm vraagt of de taak opnieuw geregistreerd mag worden, met de naam van de gebruiker voor wie, op de commandline is dat nog een keer `install`.
+- **Starten bij inloggen:** een apart vinkje, standaard uit. `install --trigger login` zet `usb-backup.exe --tray` onder `HKLM\Software\Microsoft\Windows\CurrentVersion\Run` (alle gebruikers, vraagt beheerdersrechten, en alleen voor een programma in Program Files, dat gebruikers niet kunnen vervangen); het verwijderprogramma haalt het weg. Het venster start verborgen. Zit er dan al een schijf in die aan de beurt is, dan start de back-up, behalve bij `schedule` `insert`: inloggen (en een klik op het pictogram) is geen insteken. Staat `trayIcon` uit, dan stopt `--tray` meteen.
 
 ### Instellingenscherm (beheerder)
 

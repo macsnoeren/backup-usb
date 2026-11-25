@@ -83,6 +83,9 @@ func SystemdFiles(s Spec) (map[string]string, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
+	if s.Trigger != USB {
+		return nil, errTrigger(s.Trigger)
+	}
 	if err := checkArgs(s); err != nil {
 		return nil, err
 	}

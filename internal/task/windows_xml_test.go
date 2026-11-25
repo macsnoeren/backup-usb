@@ -61,12 +61,21 @@ func TestWindowsXMLGolden(t *testing.T) {
 	}
 }
 
+// A window that stays next to the clock must not be ended after 12 hours.
+func TestWindowsXMLStays(t *testing.T) {
+	x, err := WindowsXML(Spec{Trigger: USB, Command: exe, Args: []string{"--auto"}, Stays: true})
+	if err != nil || !strings.Contains(x, "<ExecutionTimeLimit>PT0S<") || strings.Contains(x, "PT12H") {
+		t.Fatalf("%v\n%s", err, x)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	bad := []Spec{
 		{Trigger: OldDaily, Command: exe},
 		{Trigger: OldWeekly, Command: exe},
 		{Trigger: "hourly", Command: exe},
 		{Trigger: USB},
+		{Trigger: Login, Command: exe},
 	}
 	for _, s := range bad {
 		if _, err := WindowsXML(s); err == nil {

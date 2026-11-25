@@ -25,6 +25,9 @@ type Trigger string
 // USB starts a backup when a registered disk is plugged in.
 const USB Trigger = "usb"
 
+// Login starts the window, hidden, when a user logs in (Windows).
+const Login Trigger = "login"
+
 // Older versions could also start a backup at a time of day. Those tasks
 // can only be removed now.
 const (
@@ -33,7 +36,7 @@ const (
 )
 
 // Triggers lists every trigger that can be removed.
-var Triggers = []Trigger{USB, OldDaily, OldWeekly}
+var Triggers = []Trigger{USB, Login, OldDaily, OldWeekly}
 
 // Spec describes a task to register.
 type Spec struct {
@@ -44,6 +47,9 @@ type Spec struct {
 	// VolumeUUIDs are the file system UUIDs of the registered disks (Linux
 	// udev rule).
 	VolumeUUIDs []string
+	// Stays: the program may keep running (Windows, trayIcon), so Task
+	// Scheduler must not end it after 12 hours.
+	Stays bool
 }
 
 // Registrar registers and removes tasks.
@@ -57,7 +63,7 @@ type Registrar interface {
 
 // Validate checks the spec.
 func (s Spec) Validate() error {
-	if s.Trigger != USB {
+	if s.Trigger != USB && s.Trigger != Login {
 		return fmt.Errorf("unknown trigger %q", s.Trigger)
 	}
 	if s.Command == "" {
@@ -69,10 +75,17 @@ func (s Spec) Validate() error {
 // Name returns the task name for a trigger.
 func Name(t Trigger) string {
 	switch t {
+	case Login:
+		return "USB Backup (login)"
 	case OldDaily:
 		return "USB Backup (daily)"
 	case OldWeekly:
 		return "USB Backup (weekly)"
 	}
 	return "USB Backup"
+}
+
+// errTrigger is returned for a trigger that this registration cannot make.
+func errTrigger(t Trigger) error {
+	return fmt.Errorf("trigger %q is not possible here", t)
 }

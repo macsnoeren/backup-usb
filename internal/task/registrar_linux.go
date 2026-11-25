@@ -135,6 +135,9 @@ func (s *Systemd) Install(spec Spec) error {
 
 // Installed reports whether the udev rule or the timer exists.
 func (s *Systemd) Installed(t Trigger) bool {
+	if t == Login {
+		return false // only Windows has a window
+	}
 	unitDir, rulesDir := s.dirs()
 	p := filepath.Join(rulesDir, UdevRule)
 	if t != USB {
@@ -168,6 +171,9 @@ func rootOwned(p string) error {
 
 // Uninstall disables and removes the files of a trigger.
 func (s *Systemd) Uninstall(t Trigger) error {
+	if t == Login {
+		return nil // never there
+	}
 	if s.UnitDir == "" && os.Geteuid() != 0 {
 		return ErrNeedRoot
 	}

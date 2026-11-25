@@ -45,19 +45,26 @@ func windowsArgs(args []string) string {
 // WindowsXML returns the Task Scheduler definition for spec: the user's
 // interactive session (so the window and messages are visible), least
 // privilege, a new start is ignored while one runs, no battery limits, at
-// most 12 hours.
+// most 12 hours unless the program stays.
 func WindowsXML(s Spec) (string, error) {
 	if err := s.Validate(); err != nil {
 		return "", err
 	}
+	if s.Trigger != USB {
+		return "", errTrigger(s.Trigger)
+	}
 	trig := "    <EventTrigger>\n      <Enabled>true</Enabled>\n      <Subscription>" + esc(usbSubscription) + "</Subscription>\n    </EventTrigger>\n"
+	limit := "PT12H"
+	if s.Stays {
+		limit = "PT0S" // none
+	}
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-16"?>` + "\n")
 	b.WriteString(`<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">` + "\n")
 	b.WriteString("  <RegistrationInfo>\n    <Description>" + esc("USB Backup: "+string(s.Trigger)+" trigger") + "</Description>\n    <URI>" + esc(`\`+Name(s.Trigger)) + "</URI>\n  </RegistrationInfo>\n")
 	b.WriteString("  <Triggers>\n" + trig + "  </Triggers>\n")
 	b.WriteString("  <Principals>\n    <Principal id=\"Author\">\n      <LogonType>InteractiveToken</LogonType>\n      <RunLevel>LeastPrivilege</RunLevel>\n    </Principal>\n  </Principals>\n")
-	b.WriteString("  <Settings>\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n    <StartWhenAvailable>false</StartWhenAvailable>\n    <ExecutionTimeLimit>PT12H</ExecutionTimeLimit>\n    <Enabled>true</Enabled>\n    <Hidden>false</Hidden>\n  </Settings>\n")
+	b.WriteString("  <Settings>\n    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n    <StartWhenAvailable>false</StartWhenAvailable>\n    <ExecutionTimeLimit>" + limit + "</ExecutionTimeLimit>\n    <Enabled>true</Enabled>\n    <Hidden>false</Hidden>\n  </Settings>\n")
 	b.WriteString("  <Actions Context=\"Author\">\n    <Exec>\n      <Command>" + esc(escapeArg(s.Command)) + "</Command>\n")
 	if len(s.Args) > 0 {
 		b.WriteString("      <Arguments>" + esc(windowsArgs(s.Args)) + "</Arguments>\n")

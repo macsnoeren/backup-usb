@@ -94,6 +94,9 @@ type Config struct {
 	Notify     string `json:"notify"`
 	Language   string `json:"language"`
 	WebhookURL string `json:"webhookUrl"`
+	// TrayIcon keeps the window running behind an icon next to the clock
+	// when it is closed (Windows).
+	TrayIcon bool `json:"trayIcon"`
 	// Log
 	LogPath      string `json:"logPath"`
 	LogMaxSizeMB int    `json:"logMaxSizeMB"`
@@ -148,6 +151,7 @@ func Defaults() *Config {
 		Notify:                 NotifyAlways,
 		Language:               "en",
 		WebhookURL:             "",
+		TrayIcon:               false,
 		LogPath:                "",
 		LogMaxSizeMB:           1,
 		LogKeep:                5,

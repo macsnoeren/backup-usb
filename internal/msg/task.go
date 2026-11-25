@@ -21,6 +21,9 @@ func init() {
 	add(map[string]entry{
 		"task.on":        {EN: "A backup starts when a registered disk is plugged in.", NL: "Een back-up start als een geregistreerde schijf wordt ingestoken."},
 		"task.off":       {EN: "Nothing starts when a disk is plugged in.", NL: "Er start niets als een schijf wordt ingestoken."},
+		"task.loginOn":   {EN: "The window starts, hidden, when a user logs in.", NL: "Het venster start, verborgen, als een gebruiker inlogt."},
+		"err.trayOff":    {EN: "switch on trayIcon first: without it the window cannot run hidden", NL: "zet eerst trayIcon aan: zonder die instelling kan het venster niet verborgen draaien"},
+		"err.noWindow":   {EN: "usb-backup.exe is not next to usb-backup-cli; starting at login is for Windows only", NL: "usb-backup.exe staat niet naast usb-backup-cli; starten bij inloggen kan alleen op Windows"},
 		"err.install":    {EN: "the task %q could not be registered", NL: "de taak %q kon niet worden geregistreerd"},
 		"err.uninstall":  {EN: "the task %q could not be removed", NL: "de taak %q kon niet worden verwijderd"},
 		"task.installed": {EN: "Task %q registered.", NL: "Taak %q geregistreerd."},

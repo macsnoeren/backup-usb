@@ -19,10 +19,12 @@ package cli
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/macsnoeren/backup-usb/internal/task"
+	"github.com/macsnoeren/backup-usb/internal/testutil"
 )
 
 type fakeTasks struct {
@@ -44,7 +46,14 @@ func (f *fakeTasks) Uninstall(t task.Trigger) error {
 	return nil
 }
 
-func (f *fakeTasks) Installed(task.Trigger) bool { return len(f.installed) > 0 }
+func (f *fakeTasks) Installed(t task.Trigger) bool {
+	for _, s := range f.installed {
+		if s.Trigger == t {
+			return true
+		}
+	}
+	return false
+}
 
 func TestInstall(t *testing.T) {
 	w := newWorld(t)
@@ -78,5 +87,44 @@ func TestInstall(t *testing.T) {
 	ft.fail = true
 	if code, _, _ := run(t, env, "install"); code != 11 {
 		t.Fatal("failure not reported")
+	}
+}
+
+// Starting the window at login needs the window and trayIcon, and changes
+// nothing about starting on insert.
+func TestInstallLogin(t *testing.T) {
+	w := newWorld(t)
+	ft := &fakeTasks{}
+	dir := t.TempDir()
+	env := w.env()
+	env.Tasks, env.Executable = ft, filepath.Join(dir, "usb-backup-cli")
+	if code, _, errOut := run(t, env, "install", "--trigger", "login"); code != 64 || !strings.Contains(errOut, "trayIcon") {
+		t.Fatalf("without trayIcon: %d %s", code, errOut)
+	}
+	w.cfgData["trayIcon"] = true
+	w.writeConfig()
+	if code, _, errOut := run(t, env, "install", "--trigger", "login"); code != 64 || !strings.Contains(errOut, "usb-backup.exe") {
+		t.Fatalf("without the window: %d %s", code, errOut)
+	}
+	if len(ft.installed) != 0 {
+		t.Fatalf("%+v", ft.installed)
+	}
+	testutil.WriteFile(t, dir, "usb-backup.exe", "MZ")
+	if code, _, errOut := run(t, env, "install", "--trigger", "login"); code != 0 {
+		t.Fatalf("%d %s", code, errOut)
+	}
+	if len(ft.installed) != 1 || ft.installed[0].Trigger != task.Login || ft.installed[0].Command != filepath.Join(dir, "usb-backup.exe") || strings.Join(ft.installed[0].Args, " ") != "--tray" {
+		t.Fatalf("%+v", ft.installed)
+	}
+	_, out, _ := run(t, env, "install", "--check", "--json")
+	if !strings.Contains(out, `"usb": false`) || !strings.Contains(out, `"login": true`) {
+		t.Fatal(out)
+	}
+	if code, _, _ := run(t, env, "uninstall", "--trigger", "all"); code != 0 || len(ft.removed) != 4 {
+		t.Fatalf("%v", ft.removed)
+	}
+	ft.removed = nil
+	if code, _, _ := run(t, env, "uninstall", "--trigger", "login"); code != 0 || len(ft.removed) != 1 || ft.removed[0] != task.Login {
+		t.Fatalf("%v", ft.removed)
 	}
 }

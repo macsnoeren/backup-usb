@@ -29,6 +29,7 @@ func TestSet(t *testing.T) {
 	cases := []struct{ key, value, want string }{
 		{"keepPerDisk", "10", "10"},
 		{"verifyAfterBackup", "false", "false"},
+		{"trayIcon", "true", "true"},
 		{"folderPattern", `{year}-{week}`, `"{year}-{week}"`},
 		{"schedule", "day", `"day"`},
 		{"exclude", "*.bak, *.tmp", `["*.bak","*.tmp"]`},

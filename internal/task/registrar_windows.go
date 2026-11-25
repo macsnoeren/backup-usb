@@ -31,10 +31,20 @@ import (
 type Schtasks struct {
 	// Run runs schtasks with arguments; nil uses the real one.
 	Run func(args ...string) error
+	// login is where programs that start at login are registered; tests
+	// replace it.
+	login *runKey
 }
 
 // NewPlatformRegistrar returns the registrar for this platform.
 func NewPlatformRegistrar() Registrar { return &Schtasks{} }
+
+func (s *Schtasks) loginKey() *runKey {
+	if s.login != nil {
+		return s.login
+	}
+	return &machineRun
+}
 
 func schtasksPath() string {
 	root := os.Getenv("SystemRoot")
@@ -86,6 +96,9 @@ func (l *limitedBuffer) String() string { return string(l.b) }
 // Install writes the XML as UTF-16 LE with BOM to a temporary file and
 // registers it with schtasks /Create /XML /F.
 func (s *Schtasks) Install(spec Spec) error {
+	if spec.Trigger == Login {
+		return s.loginKey().set(Name(Login), spec)
+	}
 	x, err := WindowsXML(spec)
 	if err != nil {
 		return err
@@ -105,6 +118,9 @@ func (s *Schtasks) Install(spec Spec) error {
 
 // Uninstall removes a task; a task that does not exist is fine.
 func (s *Schtasks) Uninstall(t Trigger) error {
+	if t == Login {
+		return s.loginKey().remove(Name(Login))
+	}
 	err := s.run("/Delete", "/TN", Name(t), "/F")
 	if err == nil {
 		return nil
@@ -119,5 +135,8 @@ func (s *Schtasks) Uninstall(t Trigger) error {
 
 // Installed reports whether the task exists.
 func (s *Schtasks) Installed(t Trigger) bool {
+	if t == Login {
+		return s.loginKey().exists(Name(Login))
+	}
 	return s.run("/Query", "/TN", Name(t)) == nil
 }

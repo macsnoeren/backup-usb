@@ -28,7 +28,7 @@ import (
 )
 
 func init() {
-	register(&command{name: "install", summary: "Start a backup when a registered disk is plugged in.", run: cmdInstall})
+	register(&command{name: "install", summary: "Start a backup when a registered disk is plugged in, or (--trigger login, Windows) the window when a user logs in.", run: cmdInstall})
 	register(&command{name: "uninstall", summary: "Stop starting a backup when a disk is plugged in; --trigger all also removes tasks of older versions.", run: cmdUninstall})
 }
 
@@ -55,7 +55,7 @@ func (c *ctx) executable() (string, error) {
 
 func cmdInstall(c *ctx, args []string) error {
 	fs := c.newFlags("install")
-	trig := fs.String("trigger", "usb", "`usb`")
+	trig := fs.String("trigger", "usb", "`usb` or login")
 	check := fs.Bool("check", false, "only show whether it is switched on")
 	asJSON := fs.Bool("json", false, "with --check: print as JSON")
 	pos, err := c.parse(fs, args)
@@ -66,15 +66,18 @@ func cmdInstall(c *ctx, args []string) error {
 		return err
 	}
 	if *check {
-		on := c.registrar().Installed(task.USB)
+		usb, login := c.registrar().Installed(task.USB), c.registrar().Installed(task.Login)
 		if *asJSON {
-			return writeJSON(c.env.Stdout, map[string]bool{"usb": on})
+			return writeJSON(c.env.Stdout, map[string]bool{"usb": usb, "login": login})
 		}
 		key := "task.off"
-		if on {
+		if usb {
 			key = "task.on"
 		}
 		fmt.Fprintln(c.env.Stdout, c.p.T(key))
+		if login {
+			fmt.Fprintln(c.env.Stdout, c.p.T("task.loginOn"))
+		}
 		return nil
 	}
 	cfg, err := c.loadConfig()
@@ -90,18 +93,24 @@ func cmdInstall(c *ctx, args []string) error {
 	if runtime.GOOS == "windows" {
 		gui := filepath.Join(filepath.Dir(exe), "usb-backup.exe")
 		if st, err := os.Stat(gui); err == nil && !st.IsDir() {
-			spec.Command, spec.Args = gui, []string{"--auto"}
+			spec.Command, spec.Args, spec.Stays = gui, []string{"--auto"}, cfg.TrayIcon
 		}
 	}
-	reg, err := app.LoadRegistry(c.configDir(), cfg)
-	if err != nil {
-		return err
-	}
-	for _, d := range reg.Disks {
-		spec.VolumeUUIDs = append(spec.VolumeUUIDs, d.VolumeSerial)
-	}
-	if c.opts.configDir != "" {
-		spec.Args = append(spec.Args, "--config", c.opts.configDir)
+	if spec.Trigger == task.Login {
+		if spec, err = loginSpec(exe, cfg.TrayIcon); err != nil {
+			return err
+		}
+	} else {
+		reg, err := app.LoadRegistry(c.configDir(), cfg)
+		if err != nil {
+			return err
+		}
+		for _, d := range reg.Disks {
+			spec.VolumeUUIDs = append(spec.VolumeUUIDs, d.VolumeSerial)
+		}
+		if c.opts.configDir != "" {
+			spec.Args = append(spec.Args, "--config", c.opts.configDir)
+		}
 	}
 	if err := spec.Validate(); err != nil {
 		return usageErr("%v", err)
@@ -116,9 +125,22 @@ func cmdInstall(c *ctx, args []string) error {
 	return nil
 }
 
+// loginSpec starts the window next to the CLI, hidden. Without trayIcon a
+// hidden window would end at once.
+func loginSpec(exe string, trayIcon bool) (task.Spec, error) {
+	if !trayIcon {
+		return task.Spec{}, app.Errorf(app.KindUsage, nil, "err.trayOff")
+	}
+	gui := filepath.Join(filepath.Dir(exe), "usb-backup.exe")
+	if st, err := os.Stat(gui); err != nil || !st.Mode().IsRegular() {
+		return task.Spec{}, app.Errorf(app.KindUsage, err, "err.noWindow")
+	}
+	return task.Spec{Trigger: task.Login, Command: gui, Args: []string{"--tray"}}, nil
+}
+
 func cmdUninstall(c *ctx, args []string) error {
 	fs := c.newFlags("uninstall")
-	trig := fs.String("trigger", "usb", "`usb`, or all (also tasks of older versions)")
+	trig := fs.String("trigger", "usb", "`usb`, login, or all (also tasks of older versions)")
 	pos, err := c.parse(fs, args)
 	if err != nil {
 		return err
@@ -130,12 +152,15 @@ func cmdUninstall(c *ctx, args []string) error {
 	switch *trig {
 	case "all":
 		triggers = task.Triggers
-	case "usb", "daily", "weekly":
+	case "usb", "login", "daily", "weekly":
 	default:
-		return usageErr("--trigger must be usb, daily, weekly or all")
+		return usageErr("--trigger must be usb, login, daily, weekly or all")
 	}
 	var firstErr error
 	for _, t := range triggers {
+		if *trig == "all" && t == task.Login && !c.registrar().Installed(t) {
+			continue // most computers never had it
+		}
 		if err := c.registrar().Uninstall(t); err != nil {
 			if *trig != "all" && firstErr == nil {
 				firstErr = app.Errorf(app.KindIO, err, "err.uninstall", task.Name(t))
