@@ -12,6 +12,8 @@ as the release notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-25
+
 ### Added
 
 - Windows: USB Backup can keep running next to the clock when the window is
