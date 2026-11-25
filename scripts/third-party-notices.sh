@@ -16,12 +16,15 @@
 # You should have received a copy of the GNU General Public License along with
 # USB Backup. If not, see <https://www.gnu.org/licenses/>.
 
-# Writes THIRD-PARTY-NOTICES.txt: the license of every module that is
-# compiled into the Linux or Windows binaries. Their BSD and MIT licenses ask
+# Writes THIRD-PARTY-NOTICES.txt: the license of Go itself (its runtime and
+# standard library) and of every module that is compiled into the Linux or
+# Windows binaries. Their BSD and MIT licenses ask
 # that the notice ships with the binaries. Run after changing go.mod.
 set -eu
 GO=${GO:-go}
 out=${1:-THIRD-PARTY-NOTICES.txt}
+goroot=$($GO env GOROOT)
+[ -s "$goroot/LICENSE" ] || { echo "no license file for Go in $goroot" >&2; exit 1; }
 self=$($GO list -m)
 mods=$( { $GO list -deps -f '{{if .Module}}{{.Module.Path}}@{{.Module.Version}}{{end}}' ./...
           GOOS=windows $GO list -deps -f '{{if .Module}}{{.Module.Path}}@{{.Module.Version}}{{end}}' ./...; } |
@@ -29,6 +32,12 @@ mods=$( { $GO list -deps -f '{{if .Module}}{{.Module.Path}}@{{.Module.Version}}{
 {
   echo "USB Backup includes the following third-party software. Each part"
   echo "stays under its own license, reproduced below."
+  echo
+  echo "================================================================"
+  echo "Go runtime and standard library"
+  echo "================================================================"
+  echo
+  cat "$goroot/LICENSE"
   for m in $mods; do
     dir=$($GO list -m -f "{{.Dir}}" "${m%@*}")
     lic=$(ls "$dir"/LICENSE* "$dir"/COPYING* 2>/dev/null | head -1)

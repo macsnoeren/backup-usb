@@ -90,6 +90,12 @@ func TestThirdPartyNotices(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The Go runtime and standard library are in every program.
+	for _, want := range []string{"\nGo runtime and standard library\n", "\nCopyright 2009 The Go Authors.\n"} {
+		if !strings.Contains(string(notices), want) {
+			t.Errorf("THIRD-PARTY-NOTICES.txt lacks %q; run make notices", strings.TrimSpace(want))
+		}
+	}
 	inRequire := false
 	for _, line := range strings.Split(string(gomod), "\n") {
 		line = strings.TrimSpace(line)

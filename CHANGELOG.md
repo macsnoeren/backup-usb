@@ -12,6 +12,8 @@ as the release notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
 ### Added
 
 - Any number of disks: they take turns, and the one that was used longest ago
@@ -49,6 +51,7 @@ as the release notes.
 
 ### Fixed
 
+- `THIRD-PARTY-NOTICES.txt` lacked the license of Go itself.
 - Built with a Go version without known holes in `os.Root` (GO-2026-6604,
   GO-2026-4970, GO-2026-4602); Go 1.26.9 is now the minimum.
 - Windows: *Open log* looked in the wrong folder.
@@ -65,8 +68,8 @@ as the release notes.
   choosing an existing file for the break-glass key deleted that file.
 - Windows: the settings screens ignored the real settings (folders, language
   and timeout were read from the wrong field of the CLI's answer).
-- Windows: drop-down lists opened without any items, so only the first choice could be used; the
-  language list always showed English.
+- Windows: drop-down lists opened without any items, so only the first choice
+  could be used; the language list always showed English.
 - Cancelling while the backup was being checked was reported as a failed
   check (exit 12) instead of cancelled.
 - A source folder that does not exist (such as the default `C:\Data`) blocked
@@ -78,7 +81,7 @@ as the release notes.
 
 ## [0.1.0] - 2026-11-23
 
-First release.
+First version; tagged, but not published as a release.
 
 ### Added
 
@@ -109,5 +112,6 @@ First release.
 - GPL-3.0-or-later license notices in all source files, `version` output and
   the window; `THIRD-PARTY-NOTICES.txt` for the bundled modules.
 
-[Unreleased]: https://github.com/macsnoeren/backup-usb/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/macsnoeren/backup-usb/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/macsnoeren/backup-usb/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/macsnoeren/backup-usb/releases/tag/v0.1.0
