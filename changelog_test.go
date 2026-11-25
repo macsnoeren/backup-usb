@@ -26,41 +26,33 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
-var (
-	versionHeading = regexp.MustCompile(`^## \[(\d+)\.(\d+)\.(\d+)\] - (\d{4}-\d{2}-\d{2})$`)
-	linkRef        = regexp.MustCompile(`^\[([^\]]+)\]: https://`)
-)
+var versionHeading = regexp.MustCompile(`^## (\d+)\.(\d+)\.(\d+)$`)
 
 // TestChangelog checks CHANGELOG.md: an Unreleased section first, then
-// versions with a valid date, newest first, each with a link at the bottom,
-// and scripts/release-notes.sh can extract every one of them.
+// versions, newest first, and scripts/release-notes.sh can extract every one
+// of them.
 func TestChangelog(t *testing.T) {
 	b, err := os.ReadFile("CHANGELOG.md")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var versions []string
-	links := map[string]bool{}
 	var prev [3]int
 	sawUnreleased := false
 	for _, line := range strings.Split(string(b), "\n") {
 		switch {
-		case line == "## [Unreleased]":
+		case line == "## Unreleased":
 			if len(versions) > 0 {
-				t.Error("## [Unreleased] must come before the versions")
+				t.Error("## Unreleased must come before the versions")
 			}
 			sawUnreleased = true
-		case strings.HasPrefix(line, "## ["):
+		case strings.HasPrefix(line, "## "):
 			m := versionHeading.FindStringSubmatch(line)
 			if m == nil {
-				t.Errorf("heading %q is not ## [X.Y.Z] - YYYY-MM-DD", line)
+				t.Errorf("heading %q is not ## X.Y.Z", line)
 				continue
-			}
-			if _, err := time.Parse("2006-01-02", m[4]); err != nil {
-				t.Errorf("%q: invalid date", line)
 			}
 			var v [3]int
 			for i := range v {
@@ -71,22 +63,13 @@ func TestChangelog(t *testing.T) {
 			}
 			prev = v
 			versions = append(versions, m[1]+"."+m[2]+"."+m[3])
-		default:
-			if m := linkRef.FindStringSubmatch(line); m != nil {
-				links[m[1]] = true
-			}
 		}
 	}
 	if !sawUnreleased {
-		t.Error("no ## [Unreleased] section")
+		t.Error("no ## Unreleased section")
 	}
 	if len(versions) == 0 {
 		t.Fatal("no versions in CHANGELOG.md")
-	}
-	for _, v := range append([]string{"Unreleased"}, versions...) {
-		if !links[v] {
-			t.Errorf("no link reference [%s]: at the bottom", v)
-		}
 	}
 
 	sh, err := exec.LookPath("sh")
@@ -110,20 +93,24 @@ func TestCheckRelease(t *testing.T) {
 	if err != nil {
 		t.Skip("no sh")
 	}
-	const old = "## [1.2.0] - 2026-11-01\n\n- First.\n\n[1.2.0]: https://x\n"
-	const ready = "# C\n\n## [Unreleased]\n\n## [1.3.0] - 2026-11-20\n\n### Added\n\n- New.\n\n" + old
+	const old = "## 1.2.0\n\n- First.\n"
+	const ready = "# C\n\n## Unreleased\n\n## 1.3.0\n\n### Added\n\n- New.\n\n" + old
 	for _, tc := range []struct {
 		name, tag, changelog string
 		ok                   bool
 	}{
 		{"newest version", "v1.3.0", ready, true},
-		{"headings only under Unreleased", "v1.3.0", strings.Replace(ready, "[Unreleased]\n", "[Unreleased]\n\n### Added\n", 1), true},
-		{"changes left under Unreleased", "v1.3.0", strings.Replace(ready, "[Unreleased]\n", "[Unreleased]\n\n- Forgotten.\n", 1), false},
+		{"headings only under Unreleased", "v1.3.0", strings.Replace(ready, "Unreleased\n", "Unreleased\n\n### Added\n", 1), true},
+		{"changes left under Unreleased", "v1.3.0", strings.Replace(ready, "Unreleased\n", "Unreleased\n\n- Forgotten.\n", 1), false},
 		{"older version", "v1.2.0", ready, false},
 		{"not in the changelog", "v1.4.0", ready, false},
-		{"no date", "v1.3.0", strings.Replace(ready, " - 2026-11-20", "", 1), false},
-		{"empty section", "v1.3.0", "## [Unreleased]\n\n## [1.3.0] - 2026-11-20\n\n" + old, false},
-		{"pre-release", "v1.4.0-rc1", strings.Replace(ready, "[Unreleased]\n", "[Unreleased]\n\n- Next.\n", 1), true},
+		{"with a date", "v1.3.0", strings.Replace(ready, "## 1.3.0", "## 1.3.0 - 2026-11-20", 1), false},
+		{"in brackets", "v1.3.0", strings.Replace(ready, "## 1.3.0", "## [1.3.0]", 1), false},
+		{"newer version in brackets", "v1.2.0", strings.Replace(ready, "## 1.3.0", "## [1.3.0]", 1), false},
+		{"longer version", "v1.3.0", strings.Replace(ready, "## 1.3.0", "## 1.3.01", 1), false},
+		{"Unreleased in brackets", "v1.3.0", strings.Replace(ready, "## Unreleased", "## [Unreleased]", 1), false},
+		{"empty section", "v1.3.0", "## Unreleased\n\n## 1.3.0\n\n" + old, false},
+		{"pre-release", "v1.4.0-rc1", strings.Replace(ready, "Unreleased\n", "Unreleased\n\n- Next.\n", 1), true},
 		{"pre-release without changes", "v1.4.0-rc1", ready, false},
 		{"no v", "1.3.0", ready, false},
 		{"leading zero", "v1.03.0", ready, false},
@@ -198,7 +185,7 @@ func TestPlanRelease(t *testing.T) {
 	git("push", "-q", "origin", "v1.3.0", "v1.4.0", "v1.5.0")
 
 	changelog := func(version, unreleased string) string {
-		return "## [Unreleased]\n\n" + unreleased + "\n## [" + version + "] - 2026-11-25\n\n- New.\n\n## [1.2.0] - 2026-11-01\n\n- First.\n"
+		return "## Unreleased\n\n" + unreleased + "\n## " + version + "\n\n- New.\n\n## 1.2.0\n\n- First.\n"
 	}
 	script, err := filepath.Abs("scripts/plan-release.sh")
 	if err != nil {
@@ -216,9 +203,12 @@ func TestPlanRelease(t *testing.T) {
 		{"after ci, tagged on another commit, no release", afterCI, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\nnotes=false\n"},
 		{"after ci, tagged here, no release", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\nnotes=false\n"},
 		{"after ci, release without a tag (draft)", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\nnotes=false\n"},
-		{"after ci, only Unreleased", afterCI, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\nnotes=false\n"},
+		{"after ci, only Unreleased", afterCI, "refs/heads/main", "", "## Unreleased\n\n- Next.\n", "", "release=false\ntag=\nnotes=false\n"},
 		{"after ci, new version but changes under Unreleased", afterCI, "refs/heads/main", "", changelog("2.0.0", "- Next.\n"), "", ""},
-		{"after ci, new version without a date", afterCI, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), " - 2026-11-25", "", 1), "", ""},
+		{"after ci, new version with a date", afterCI, "refs/heads/main", "", changelog("2.0.0 - 2026-11-25", ""), "", ""},
+		{"after ci, new version in brackets", afterCI, "refs/heads/main", "", changelog("[2.0.0]", ""), "", ""},
+		{"after ci, heading that is no version", afterCI, "refs/heads/main", "", changelog("$(id)", ""), "", ""},
+		{"after ci, Unreleased in brackets", afterCI, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), "## Unreleased", "## [Unreleased]", 1), "", ""},
 		{"push to main itself", push, "refs/heads/main", "", changelog("2.0.0", ""), "", ""},
 		{"pull request", "pull_request", "refs/pull/1/merge", "", changelog("2.0.0", ""), "", ""},
 		{"tag", push, "refs/tags/v1.5.0", "", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\nnotes=false\n"},

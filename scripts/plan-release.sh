@@ -58,12 +58,14 @@ elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
 elif [ "$GITHUB_EVENT_NAME" != workflow_run ]; then
   fail "nothing is released for $GITHUB_EVENT_NAME of $GITHUB_REF"
 else
-  version=$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' "$file" | head -n 1)
+  # Another heading than a version is a mistake, not a reason to look further.
+  version=$(sed -n '/^## Unreleased$/d; s/^## //p' "$file" | head -n 1)
   tag=v$version
   if [ -z "$version" ]; then
     echo "::notice::CHANGELOG.md has no version yet." >&2
     answer false "" false
   fi
+  case $version in *[!0-9.]*) fail "the newest heading in CHANGELOG.md must be a version like '## 1.2.3'" ;; esac
   sha=$(remote_tag "$tag")
   if gh release view "$tag" >/dev/null 2>&1; then
     echo "::notice::$tag, the newest version in CHANGELOG.md, is released already." >&2

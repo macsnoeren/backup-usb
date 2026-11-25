@@ -1,18 +1,18 @@
 # Changelog
 
-All notable changes to USB Backup are listed here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the version
-numbers follow [Semantic Versioning](https://semver.org/).
+All notable changes to USB Backup are listed here. The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), without dates and
+links, and the version numbers follow
+[Semantic Versioning](https://semver.org/).
 
-New changes go under **Unreleased**. To release, rename that section to the
-new version with today's date, add an empty **Unreleased** above it, commit,
-and push a tag `v<version>` (see "Releasing" in the README). The release
-workflow refuses a tag without a matching section here and uses the section
-as the release notes.
+New changes go under **Unreleased**. To release, rename that heading to the
+new version (`## 1.2.3`), add an empty `## Unreleased` above it, commit and
+push (see "Releasing" in the README). The release workflow refuses a version
+without a section here and uses the section as the release notes.
 
-## [Unreleased]
+## Unreleased
 
-## [0.3.0] - 2026-11-25
+## 0.3.0
 
 ### Added
 
@@ -25,7 +25,6 @@ as the release notes.
 ### Changed
 
 - Windows: "another backup is running" is no longer shown as a failed backup.
-
 - Windows: the settings ask for administrator rights when they are needed, and
   open in a window of their own. *Run as administrator* is not needed any more,
   and backups keep running without those rights.
@@ -38,7 +37,7 @@ as the release notes.
 - `keys rotate` without administrator rights left a new key in the vault that
   was not used.
 
-## [0.2.0] - 2026-11-25
+## 0.2.0
 
 ### Added
 
@@ -108,7 +107,7 @@ as the release notes.
 - `keys init` without administrator rights left a vault behind that blocked
   every later attempt; it now checks first and undoes a failed run.
 
-## [0.1.0] - 2026-11-23
+## 0.1.0
 
 First version, not published.
 
@@ -140,7 +139,3 @@ First version, not published.
   `SHA256SUMS` signed with Sigstore cosign.
 - GPL-3.0-or-later license notices in all source files, `version` output and
   the window; `THIRD-PARTY-NOTICES.txt` for the bundled modules.
-
-[Unreleased]: https://github.com/macsnoeren/backup-usb/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/macsnoeren/backup-usb/releases/tag/v0.2.0
-[0.1.0]: https://github.com/macsnoeren/backup-usb/commits/30d0802

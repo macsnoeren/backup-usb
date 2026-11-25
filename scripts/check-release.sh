@@ -45,9 +45,9 @@ sh "$(dirname "$0")/release-notes.sh" "$tag" "$file" >/dev/null ||
 
 case $tag in *-*) exit 0 ;; esac
 
-newest=$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' "$file" | head -n 1)
+newest=$(sed -n '/^## Unreleased$/d; s/^## //p' "$file" | head -n 1)
 [ "v$newest" = "$tag" ] ||
   fail "$tag is not the newest version in CHANGELOG.md, that is v$newest"
-left=$(awk '/^## \[/ { in_unreleased = ($0 ~ /^## \[Unreleased\]/); next } in_unreleased && /^[-*] / { n++ } END { print n + 0 }' "$file")
+left=$(awk '/^## / { in_unreleased = ($0 == "## Unreleased"); next } in_unreleased && /^[-*] / { n++ } END { print n + 0 }' "$file")
 [ "$left" -eq 0 ] ||
   fail "CHANGELOG.md lists $left changes under Unreleased; move them to the section of a version first"

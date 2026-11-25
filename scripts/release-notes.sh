@@ -17,9 +17,9 @@
 # USB Backup. If not, see <https://www.gnu.org/licenses/>.
 
 # Prints the CHANGELOG.md section of one version, for the release notes.
-# Fails when the section is missing, has no date or is empty, so a tag
+# Fails when the section is missing or empty, so a tag
 # cannot be released without its changelog entry. A pre-release tag
-# (v1.2.3-rc1) uses the "Unreleased" section, which needs no date.
+# (v1.2.3-rc1) uses the "Unreleased" section.
 #
 #   scripts/release-notes.sh v1.2.3 [CHANGELOG.md]
 set -eu
@@ -27,33 +27,22 @@ set -eu
 version=${1#v}
 file=${2:-CHANGELOG.md}
 case $version in
-  [0-9]*.[0-9]*.[0-9]*-*) section=Unreleased; dated=0 ;;
-  [0-9]*.[0-9]*.[0-9]*) section=$version; dated=1 ;;
+  [0-9]*.[0-9]*.[0-9]*-*) section=Unreleased ;;
+  [0-9]*.[0-9]*.[0-9]*) section=$version ;;
   *) echo "release-notes.sh: '$1' is not a version tag like v1.2.3" >&2; exit 64 ;;
 esac
 
-awk -v v="$section" -v dated="$dated" '
-  BEGIN { found = 0; body = 0; h = "## [" v "]" }
-  /^## \[/ {
+awk -v v="$section" '
+  /^## / {
     if (found) exit
-    if (index($0, h) == 1 && (length($0) == length(h) || substr($0, length(h) + 1, 1) == " ")) {
-      if (dated && $0 !~ /^## \[[^]]+\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) {
-        print "release-notes.sh: the heading of " v " needs a date: ## [" v "] - YYYY-MM-DD" > "/dev/stderr"
-        bad = 1
-        exit 2
-      }
-      found = 1
-      next
-    }
+    if ($0 == "## " v) { found = 1; next }
   }
-  /^\[[^]]+\]: / { if (found) exit }
   found {
     if ($0 ~ /[^ \t]/) body = 1
     if (body) lines[++n] = $0
   }
   END {
-    if (bad) exit 2
-    if (!found) { print "release-notes.sh: CHANGELOG has no section ## [" v "]" (dated ? " - YYYY-MM-DD" : "") > "/dev/stderr"; exit 2 }
+    if (!found) { print "release-notes.sh: CHANGELOG has no section \"## " v "\"" > "/dev/stderr"; exit 2 }
     while (n > 0 && lines[n] !~ /[^ \t]/) n--
     if (n == 0) { print "release-notes.sh: the section of " v " is empty" > "/dev/stderr"; exit 2 }
     for (i = 1; i <= n; i++) print lines[i]

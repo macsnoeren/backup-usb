@@ -387,9 +387,8 @@ make setup-windows packages-linux      # installers (needs makensis and nfpm)
 Changes are listed in [`CHANGELOG.md`](CHANGELOG.md). To publish version
 1.2.3:
 
-1. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [1.2.3] - YYYY-MM-DD`,
-   add a new empty `## [Unreleased]` above it and update the links at the
-   bottom.
+1. In `CHANGELOG.md`, rename `## Unreleased` to `## 1.2.3` and add a new empty
+   `## Unreleased` above it.
 2. `make release-check TAG=v1.2.3` checks the tag, shows the release notes and
    checks the GoReleaser configuration.
 3. Commit and push `main`. That is all: once **ci** has passed, a version in
