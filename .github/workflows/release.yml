@@ -58,6 +58,7 @@ jobs:
     outputs:
       release: ${{ steps.plan.outputs.release }}
       tag: ${{ steps.plan.outputs.tag }}
+      notes: ${{ steps.plan.outputs.notes }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -74,15 +75,32 @@ jobs:
           cat "$RUNNER_TEMP/plan"
           cat "$RUNNER_TEMP/plan" >> "$GITHUB_OUTPUT"
       - name: Release notes from CHANGELOG.md
-        if: steps.plan.outputs.release == 'true'
+        if: steps.plan.outputs.release == 'true' || steps.plan.outputs.notes == 'true'
         env:
           TAG: ${{ steps.plan.outputs.tag }}
         run: sh scripts/release-notes.sh "$TAG" > release-notes.md
       - uses: actions/upload-artifact@v6
-        if: steps.plan.outputs.release == 'true'
+        if: steps.plan.outputs.release == 'true' || steps.plan.outputs.notes == 'true'
         with:
           name: release-notes
           path: release-notes.md
+
+  # A release without a text gets its section of CHANGELOG.md.
+  notes:
+    needs: check
+    if: needs.check.outputs.notes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # change the text of the release
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-notes
+      - name: Fill in the text of the release
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
 
   ci:
     needs: check

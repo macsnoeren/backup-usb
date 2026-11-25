@@ -168,8 +168,10 @@ func TestPlanRelease(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// RELEASED is the tag that has a release.
-	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\n[ \"$1 $2 $3\" = \"release view $RELEASED\" ]\n"), 0o700); err != nil {
+	// RELEASED is the tag that has a release, BODY its text.
+	const gh = "#!/bin/sh\n[ \"$1 $2 $3\" = \"release view $RELEASED\" ] || exit 1\n" +
+		"[ \"$4 $5 $6 $7\" != \"--json body --jq .body\" ] || printf '%s\\n' \"$BODY\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	git := func(args ...string) string {
@@ -207,22 +209,23 @@ func TestPlanRelease(t *testing.T) {
 		name, event, ref, input, changelog, released string
 		want                                         string // empty: refused
 	}{
-		{"after ci, new version", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v1.5.0", "release=true\ntag=v2.0.0\n"},
-		{"after ci, released already", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0", "release=false\ntag=v1.5.0\n"},
-		{"after ci, released, work in progress", afterCI, "refs/heads/main", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=false\ntag=v1.5.0\n"},
-		{"after ci, tagged on another commit, no release", afterCI, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\n"},
-		{"after ci, tagged here, no release", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\n"},
-		{"after ci, release without a tag (draft)", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\n"},
-		{"after ci, only Unreleased", afterCI, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\n"},
+		{"after ci, new version", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v1.5.0", "release=true\ntag=v2.0.0\nnotes=false\n"},
+		{"after ci, released already", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0", "release=false\ntag=v1.5.0\nnotes=false\n"},
+		{"after ci, released without a text", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0 empty", "release=false\ntag=v1.5.0\nnotes=true\n"},
+		{"after ci, released, work in progress", afterCI, "refs/heads/main", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=false\ntag=v1.5.0\nnotes=false\n"},
+		{"after ci, tagged on another commit, no release", afterCI, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\nnotes=false\n"},
+		{"after ci, tagged here, no release", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\nnotes=false\n"},
+		{"after ci, release without a tag (draft)", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\nnotes=false\n"},
+		{"after ci, only Unreleased", afterCI, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\nnotes=false\n"},
 		{"after ci, new version but changes under Unreleased", afterCI, "refs/heads/main", "", changelog("2.0.0", "- Next.\n"), "", ""},
 		{"after ci, new version without a date", afterCI, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), " - 2026-11-25", "", 1), "", ""},
 		{"push to main itself", push, "refs/heads/main", "", changelog("2.0.0", ""), "", ""},
 		{"pull request", "pull_request", "refs/pull/1/merge", "", changelog("2.0.0", ""), "", ""},
-		{"tag", push, "refs/tags/v1.5.0", "", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\n"},
+		{"tag", push, "refs/tags/v1.5.0", "", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\nnotes=false\n"},
 		{"tag that is not the newest", push, "refs/tags/v1.5.0", "", changelog("2.0.0", ""), "", ""},
-		{"pre-release tag", push, "refs/tags/v2.0.0-rc1", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=true\ntag=v2.0.0-rc1\n"},
-		{"by hand", dispatch, "refs/heads/main", "v2.0.0", changelog("2.0.0", ""), "", "release=true\ntag=v2.0.0\n"},
-		{"by hand, tagged here", dispatch, "refs/heads/main", "v1.5.0", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\n"},
+		{"pre-release tag", push, "refs/tags/v2.0.0-rc1", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=true\ntag=v2.0.0-rc1\nnotes=false\n"},
+		{"by hand", dispatch, "refs/heads/main", "v2.0.0", changelog("2.0.0", ""), "", "release=true\ntag=v2.0.0\nnotes=false\n"},
+		{"by hand, tagged here", dispatch, "refs/heads/main", "v1.5.0", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\nnotes=false\n"},
 		{"by hand, tagged on another commit", dispatch, "refs/heads/main", "v1.4.0", changelog("1.4.0", ""), "", ""},
 		{"by hand, annotated on another commit", dispatch, "refs/heads/main", "v1.3.0", changelog("1.3.0", ""), "", ""},
 		{"by hand, other branch", dispatch, "refs/heads/test", "v2.0.0", changelog("2.0.0", ""), "", ""},
@@ -238,9 +241,14 @@ func TestPlanRelease(t *testing.T) {
 		if strings.HasPrefix(tc.ref, "refs/tags/") {
 			refType = "tag"
 		}
+		released, empty, _ := strings.Cut(tc.released, " ")
+		body := "Text."
+		if empty != "" {
+			body = "\r\n \n"
+		}
 		cmd := exec.Command("sh", script, file)
 		cmd.Dir = work
-		cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "RELEASED="+tc.released,
+		cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "RELEASED="+released, "BODY="+body,
 			"GITHUB_ACTIONS=true", "GITHUB_EVENT_NAME="+tc.event, "GITHUB_REF="+tc.ref, "GITHUB_REF_TYPE="+refType,
 			"GITHUB_REF_NAME="+tc.ref[strings.LastIndex(tc.ref, "/")+1:], "GITHUB_SHA="+old, "INPUT_TAG="+tc.input, "DEFAULT_BRANCH=main")
 		var stdout, stderr strings.Builder
@@ -249,6 +257,26 @@ func TestPlanRelease(t *testing.T) {
 		if (err == nil) != (tc.want != "") || stdout.String() != tc.want {
 			t.Errorf("%s (old %s): %v\n%q\n%s", tc.name, old, err, stdout.String(), stderr.String())
 		}
+	}
+}
+
+// TestReleaseNotesReachGitHub: with changelog.disable GoReleaser also ignores
+// --release-notes, and the release has no text.
+func TestReleaseNotesReachGitHub(t *testing.T) {
+	config, err := os.ReadFile(".goreleaser.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, changelog, ok := strings.Cut(string(config), "\nchangelog:")
+	if ok && regexp.MustCompile(`(?m)^ +disable:`).MatchString(changelog) {
+		t.Error(".goreleaser.yaml disables the changelog, so --release-notes is ignored")
+	}
+	workflow, err := os.ReadFile(".github/workflows/release.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(workflow), "--release-notes ") {
+		t.Error("release.yml does not pass --release-notes")
 	}
 }
 

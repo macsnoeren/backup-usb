@@ -17,7 +17,8 @@
 # USB Backup. If not, see <https://www.gnu.org/licenses/>.
 
 # Decides for .github/workflows/release.yml whether to release, and what. It
-# prints two lines for GITHUB_OUTPUT: release=true or false, and tag=v1.2.3.
+# prints three lines for GITHUB_OUTPUT: release=true or false, tag=v1.2.3, and
+# notes=true when that release exists but has no text yet.
 #
 #   workflow_dispatch  the tag in INPUT_TAG, from the branch DEFAULT_BRANCH
 #   push of a tag      that tag
@@ -29,6 +30,9 @@ set -eu
 file=${1:-CHANGELOG.md}
 here=$(dirname "$0")
 commit=$(git rev-parse HEAD) # what was checked out, and what ci tested
+
+# answer release tag notes
+answer() { printf 'release=%s\ntag=%s\nnotes=%s\n' "$1" "$2" "$3"; exit 0; }
 
 fail() { echo "::error::$1" >&2; exit 1; }
 
@@ -58,19 +62,22 @@ else
   tag=v$version
   if [ -z "$version" ]; then
     echo "::notice::CHANGELOG.md has no version yet." >&2
-    printf 'release=false\ntag=\n'
-    exit 0
+    answer false "" false
   fi
   sha=$(remote_tag "$tag")
   if gh release view "$tag" >/dev/null 2>&1; then
     echo "::notice::$tag, the newest version in CHANGELOG.md, is released already." >&2
-    printf 'release=false\ntag=%s\n' "$tag"
-    exit 0
+    # A text that somebody wrote is never replaced.
+    body=$(gh release view "$tag" --json body --jq .body) || fail "cannot read the release $tag"
+    if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
+      sh "$here/release-notes.sh" "$tag" "$file" >/dev/null || fail "CHANGELOG.md has no usable section for $tag"
+      answer false "$tag" true
+    fi
+    answer false "$tag" false
   elif [ -n "$sha" ]; then
     echo "::warning::$tag has a tag ($sha) but no release. Run this workflow by hand to release it." >&2
-    printf 'release=false\ntag=%s\n' "$tag"
-    exit 0
+    answer false "$tag" false
   fi
   sh "$here/check-release.sh" "$tag" "$file" >&2
 fi
-printf 'release=true\ntag=%s\n' "$tag"
+answer true "$tag" false

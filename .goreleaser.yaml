@@ -141,7 +141,6 @@ release:
   extra_files:
     - glob: dist/USB-Backup-Setup.exe
 
-# The release notes come from CHANGELOG.md (scripts/release-notes.sh, passed
-# with --release-notes in .github/workflows/release.yml), not from git log.
-changelog:
-  disable: true
+# The release notes come from CHANGELOG.md: scripts/release-notes.sh, passed
+# with --release-notes in .github/workflows/release.yml. Do not disable the
+# changelog here: then GoReleaser ignores --release-notes as well.
