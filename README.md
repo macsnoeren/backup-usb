@@ -369,17 +369,18 @@ Changes are listed in [`CHANGELOG.md`](CHANGELOG.md). To publish version
    bottom.
 2. `make release-check TAG=v1.2.3` checks the tag, shows the release notes and
    checks the GoReleaser configuration.
-3. Commit and push `main`. That is all: a version in `CHANGELOG.md` that has no
-   tag and no release yet is released on its own. What is under *Unreleased*
+3. Commit and push `main`. That is all: once **ci** has passed, a version in
+   `CHANGELOG.md` that has no tag and no release yet is released on its own.
+   Nothing is released when ci fails. What is under *Unreleased*
    is work in progress and is never released.
 
-To start it by hand, for example after a failure: **Actions → release → Run
+To start it by hand, for example after a failure (ci then runs first): **Actions → release → Run
 workflow**, branch `main`, and fill in the tag `v1.2.3`. Pushing a tag also
 works: `git tag -a v1.2.3 -m v1.2.3 && git push origin v1.2.3`.
 
 The workflow (`.github/workflows/release.yml`) refuses a tag that is not the
 newest version in `CHANGELOG.md`, or while changes are left under
-*Unreleased*. It runs the tests on Linux and Windows, makes the tag, and then
+*Unreleased*. When ci has passed on Linux and Windows it makes the tag, and then
 publishes a GitHub release with the Windows setup (`USB-Backup-Setup.exe`),
 `.deb`, `.rpm` and `.tar.gz` for Linux (amd64 and arm64), `.zip` files for
 Windows, and `SHA256SUMS` signed with cosign. The changelog section becomes

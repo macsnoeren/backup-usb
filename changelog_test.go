@@ -192,7 +192,6 @@ func TestPlanRelease(t *testing.T) {
 	git("tag", "v1.4.0")
 	old := git("rev-parse", "HEAD")
 	git("commit", "-q", "--allow-empty", "-m", "two")
-	head := git("rev-parse", "HEAD")
 	git("tag", "-a", "v1.5.0", "-m", "x")
 	git("push", "-q", "origin", "v1.3.0", "v1.4.0", "v1.5.0")
 
@@ -203,20 +202,22 @@ func TestPlanRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const push, dispatch = "push", "workflow_dispatch"
+	const push, dispatch, afterCI = "push", "workflow_dispatch", "workflow_run"
 	for _, tc := range []struct {
 		name, event, ref, input, changelog, released string
 		want                                         string // empty: refused
 	}{
-		{"main, new version", push, "refs/heads/main", "", changelog("2.0.0", ""), "v1.5.0", "release=true\ntag=v2.0.0\n"},
-		{"main, released already", push, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0", "release=false\ntag=v1.5.0\n"},
-		{"main, released, work in progress", push, "refs/heads/main", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=false\ntag=v1.5.0\n"},
-		{"main, tagged on another commit, no release", push, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\n"},
-		{"main, tagged here, no release", push, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\n"},
-		{"main, release without a tag (draft)", push, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\n"},
-		{"main, only Unreleased", push, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\n"},
-		{"main, new version but changes under Unreleased", push, "refs/heads/main", "", changelog("2.0.0", "- Next.\n"), "", ""},
-		{"main, new version without a date", push, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), " - 2026-11-25", "", 1), "", ""},
+		{"after ci, new version", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v1.5.0", "release=true\ntag=v2.0.0\n"},
+		{"after ci, released already", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0", "release=false\ntag=v1.5.0\n"},
+		{"after ci, released, work in progress", afterCI, "refs/heads/main", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=false\ntag=v1.5.0\n"},
+		{"after ci, tagged on another commit, no release", afterCI, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\n"},
+		{"after ci, tagged here, no release", afterCI, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\n"},
+		{"after ci, release without a tag (draft)", afterCI, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\n"},
+		{"after ci, only Unreleased", afterCI, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\n"},
+		{"after ci, new version but changes under Unreleased", afterCI, "refs/heads/main", "", changelog("2.0.0", "- Next.\n"), "", ""},
+		{"after ci, new version without a date", afterCI, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), " - 2026-11-25", "", 1), "", ""},
+		{"push to main itself", push, "refs/heads/main", "", changelog("2.0.0", ""), "", ""},
+		{"pull request", "pull_request", "refs/pull/1/merge", "", changelog("2.0.0", ""), "", ""},
 		{"tag", push, "refs/tags/v1.5.0", "", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\n"},
 		{"tag that is not the newest", push, "refs/tags/v1.5.0", "", changelog("2.0.0", ""), "", ""},
 		{"pre-release tag", push, "refs/tags/v2.0.0-rc1", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=true\ntag=v2.0.0-rc1\n"},
@@ -241,7 +242,7 @@ func TestPlanRelease(t *testing.T) {
 		cmd.Dir = work
 		cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "RELEASED="+tc.released,
 			"GITHUB_ACTIONS=true", "GITHUB_EVENT_NAME="+tc.event, "GITHUB_REF="+tc.ref, "GITHUB_REF_TYPE="+refType,
-			"GITHUB_REF_NAME="+tc.ref[strings.LastIndex(tc.ref, "/")+1:], "GITHUB_SHA="+head, "INPUT_TAG="+tc.input, "DEFAULT_BRANCH=main")
+			"GITHUB_REF_NAME="+tc.ref[strings.LastIndex(tc.ref, "/")+1:], "GITHUB_SHA="+old, "INPUT_TAG="+tc.input, "DEFAULT_BRANCH=main")
 		var stdout, stderr strings.Builder
 		cmd.Stdout, cmd.Stderr = &stdout, &stderr
 		err := cmd.Run()

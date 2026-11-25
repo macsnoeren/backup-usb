@@ -11,6 +11,8 @@ on:
     # Weekly vulnerability scan, so new advisories show up without a commit.
     - cron: "17 5 * * 1"
   workflow_dispatch:
+  # release.yml runs it before a release that is started by hand or by a tag.
+  workflow_call:
 
 permissions:
   contents: read

@@ -1,21 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Maurice Snoeren
 
-# Makes a release of the newest version in CHANGELOG.md:
-#  - on its own: a push to main with a version that has no tag and no release
-#    yet. What is under "Unreleased" is work in progress and is not released.
+# Makes a release of the newest version in CHANGELOG.md, never before ci
+# passed on that commit:
+#  - on its own: after ci passed for a push to main, when the version has no
+#    tag and no release yet. What is under "Unreleased" is work in progress
+#    and is not released.
 #  - by hand: Actions → release → Run workflow, and fill in the tag (v1.2.3).
-#  - by pushing a tag v1.2.3. A tag like v1.2.3-rc1 becomes a pre-release with
-#    the "Unreleased" notes.
-# The tests run first. The release gets the Windows setup, .deb, .rpm, .tar.gz
-# and .zip files, SHA256SUMS signed with cosign, and the CHANGELOG.md section
-# of that version as release notes.
+#    ci runs first.
+#  - by pushing a tag v1.2.3; ci runs first. A tag like v1.2.3-rc1 becomes a
+#    pre-release with the "Unreleased" notes.
+# The release gets the Windows setup, .deb, .rpm, .tar.gz and .zip files,
+# SHA256SUMS signed with cosign, and the CHANGELOG.md section of that version
+# as release notes.
 name: release
-run-name: release ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '(new version in the changelog?)' }}
+run-name: release ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '(after ci)' }}
 
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
+  push:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -27,19 +33,35 @@ on:
 permissions:
   contents: read
 
-# One at a time: a second push waits, and then sees that the tag exists.
+# Per commit: a waiting run would be dropped when a third one comes. Two
+# commits cannot release the same version, as the tag can be pushed only once.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
+
+env:
+  # The commit that ci tested. With workflow_run, github.sha is the newest
+  # commit on main, which can be another one.
+  COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   check:
+    # After ci: only when it passed for a push to main of this repository.
+    # A pull request from a fork can have a branch called main as well.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       release: ${{ steps.plan.outputs.release }}
       tag: ${{ steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.COMMIT }}
       - name: Is there something to release?
         id: plan
         env:
@@ -62,33 +84,21 @@ jobs:
           name: release-notes
           path: release-notes.md
 
-  test:
+  ci:
     needs: check
-    if: needs.check.outputs.release == 'true'
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with:
-          go-version: stable # the newest security fixes, as in ci.yml
-      - name: Install tools
-        run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - run: make lint
-      - run: make test test-integration test-e2e
-      - run: govulncheck ./...
+    if: needs.check.outputs.release == 'true' && github.event_name != 'workflow_run'
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   release:
-    needs: [check, test]
+    needs: [check, ci]
+    # ci is skipped only after a workflow_run, where it passed already.
+    if: >-
+      !cancelled() &&
+      needs.check.result == 'success' &&
+      needs.check.outputs.release == 'true' &&
+      (needs.ci.result == 'success' ||
+       (needs.ci.result == 'skipped' && github.event_name == 'workflow_run'))
     runs-on: ubuntu-latest
     env:
       TAG: ${{ needs.check.outputs.tag }}
@@ -98,6 +108,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ env.COMMIT }}
           fetch-depth: 0
       - uses: actions/setup-go@v6
         with:

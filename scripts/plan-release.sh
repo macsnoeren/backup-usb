@@ -21,13 +21,14 @@
 #
 #   workflow_dispatch  the tag in INPUT_TAG, from the branch DEFAULT_BRANCH
 #   push of a tag      that tag
-#   push to a branch   the newest version in CHANGELOG.md, if it has no tag
+#   workflow_run       (after ci) the newest version in CHANGELOG.md, if it has no tag
 #                      and no release yet; "Unreleased" is never released
 #
 # A tag that does not fit CHANGELOG.md is an error (check-release.sh).
 set -eu
 file=${1:-CHANGELOG.md}
 here=$(dirname "$0")
+commit=$(git rev-parse HEAD) # what was checked out, and what ci tested
 
 fail() { echo "::error::$1" >&2; exit 1; }
 
@@ -44,12 +45,14 @@ if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
   [ "$GITHUB_REF" = "refs/heads/$DEFAULT_BRANCH" ] ||
     fail "Releases are made from $DEFAULT_BRANCH, not from $GITHUB_REF."
   sha=$(remote_tag "$tag")
-  if [ -n "$sha" ] && [ "$sha" != "$GITHUB_SHA" ]; then
+  if [ -n "$sha" ] && [ "$sha" != "$commit" ]; then
     fail "The tag $tag exists already, on another commit ($sha). Use the next version. If $tag was never released you can delete it first: git push origin :refs/tags/$tag"
   fi
-elif [ "$GITHUB_REF_TYPE" = tag ]; then
+elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
   tag=$GITHUB_REF_NAME
   sh "$here/check-release.sh" "$tag" "$file" >&2
+elif [ "$GITHUB_EVENT_NAME" != workflow_run ]; then
+  fail "nothing is released for $GITHUB_EVENT_NAME of $GITHUB_REF"
 else
   version=$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' "$file" | head -n 1)
   tag=v$version
