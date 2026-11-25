@@ -19,10 +19,12 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/macsnoeren/backup-usb/internal/secmem"
 	"github.com/macsnoeren/backup-usb/internal/testutil"
 )
 
@@ -37,8 +39,18 @@ func run(t *testing.T, env *Env, args ...string) (code int, stdout, stderr strin
 	if env.Stdin == nil {
 		env.Stdin = strings.NewReader("")
 	}
+	if env.Console == nil {
+		env.Console = noConsole{} // never wait for somebody at the real one
+	}
 	code = env.Run(append([]string{"usb-backup-cli"}, args...))
 	return code, out.String(), errOut.String()
+}
+
+// noConsole is a program that runs without a terminal.
+type noConsole struct{}
+
+func (noConsole) Password(string) (*secmem.Buffer, error) {
+	return nil, errors.New("no terminal")
 }
 
 func TestRunWithoutProcess(t *testing.T) {

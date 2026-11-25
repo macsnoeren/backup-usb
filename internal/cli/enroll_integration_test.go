@@ -55,7 +55,7 @@ func TestEnroll(t *testing.T) {
 	if !exists(w.cfgDir + "/usb-backup.disks.json.sig") {
 		t.Fatal("registration list not signed")
 	}
-	// The disk is now recognised as BACKUP1 for odd weeks: week 47 runs.
+	// The disk is now recognised as BACKUP1.
 	out, _ := w.mustRun(0, "run")
 	if !strings.Contains(out, "BACKUP1") {
 		t.Fatal(out)
@@ -69,5 +69,12 @@ func TestEnroll(t *testing.T) {
 	// Re-enrolling a disk replaces its read-only ID file.
 	w.stdin = testPassword + "\n"
 	w.mustRun(0, "enroll", w.disks.Disk("BACKUP2").Mount, "--name", "BACKUP2", "--force", "--password-stdin", "--vault", w.vaultPath())
-	w.mustRun(64, "enroll", "nonexistent-disk", "--name", "X")
+	// No password can be asked without a terminal; with one, there is no
+	// such disk.
+	_, errOut := w.mustRun(64, "enroll", "nonexistent-disk", "--name", "X")
+	if !strings.Contains(errOut, "no terminal") {
+		t.Fatal(errOut)
+	}
+	w.stdin = testPassword + "\n"
+	w.mustRun(2, "enroll", "nonexistent-disk", "--name", "X", "--password-stdin", "--vault", w.vaultPath())
 }
