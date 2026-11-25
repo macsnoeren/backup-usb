@@ -142,7 +142,7 @@ func cmdConfigExport(c *ctx, args []string) error {
 		werr = cerr
 	}
 	if werr != nil {
-		return app.Errorf(app.KindIO, werr, "err.write")
+		return app.Errorf(app.KindIO, werr, "err.restoreWrite", pos[0])
 	}
 	fmt.Fprintln(c.env.Stdout, c.p.T("cfg.exported", pos[0]))
 	return nil

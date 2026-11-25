@@ -22,6 +22,8 @@ package gui
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
 	"runtime"
 	"strings"
 	"sync"
@@ -41,8 +43,12 @@ var Version = "dev"
 
 const (
 	className      = "UsbBackupGuiMain"
+	guiMutex       = "UsbBackupGui"
+	settingsMutex  = "UsbBackupSettings"
+	settingsArg    = "--settings"
 	timerDevice    = 1
 	timerOperator  = 2
+	timerSettings  = 3
 	deviceSettleMs = 2500
 
 	// Menu commands; windigo numbers its controls down from 0xDFFF.
@@ -68,12 +74,27 @@ type mainWindow struct {
 	job      *Job
 	auto     bool
 	lastView View
+	// settingsOnly: this process only shows the settings, as administrator.
+	settingsOnly bool
+	// settingsOpen: such a process was started and has not ended yet.
+	settingsOpen bool
 }
 
-// Main shows the window. "--auto" starts a backup at once (USB trigger).
+// Main shows the window. "--auto" starts a backup at once (USB trigger);
+// "--settings" only shows the settings, and is how the window opens them as
+// administrator. The window itself, and so every backup, keeps running
+// without administrator rights.
 func Main(args []string) int {
 	runtime.LockOSThread()
-	if !singleInstance() {
+	auto, settings := false, false
+	for _, a := range args[1:] {
+		auto = auto || a == "--auto"
+		settings = settings || a == settingsArg
+	}
+	if settings && !singleInstance(settingsMutex) {
+		return 0
+	}
+	if !settings && !singleInstance(guiMutex) {
 		if h, ok := win.FindWindow(win.ClassNameStr(className), ""); ok {
 			h.ShowWindow(co.SW_RESTORE)
 			h.SetForegroundWindow()
@@ -95,23 +116,21 @@ func Main(args []string) int {
 		_, _ = win.HWND(0).MessageBox(p.T("gui.versionError", err.Error()), p.T("gui.title"), co.MB_ICONERROR)
 		return 1
 	}
-	auto := false
-	for _, a := range args[1:] {
-		auto = auto || a == "--auto"
-	}
-	m := newMainWindow(cli, p, auto)
+	m := newMainWindow(cli, p, auto, settings)
 	return m.wnd.RunAsMain()
 }
 
-func newMainWindow(cli CLI, p msg.Printer, auto bool) *mainWindow {
-	menu := newMainMenu(p.T)
-	wnd := ui.NewMain(ui.OptsMain().
-		Menu(menu).
-		ClassName(className).
-		Title(p.T("gui.title")).
-		Size(ui.Dpi(560, 300)).
-		Center(true))
-	m := &mainWindow{wnd: wnd, menu: menu, cli: cli, p: p, auto: auto, model: NewModel(p.Lang, time.Now)}
+func newMainWindow(cli CLI, p msg.Printer, auto, settingsOnly bool) *mainWindow {
+	opts := ui.OptsMain().Title(p.T("gui.title")).Size(ui.Dpi(560, 300)).Center(true)
+	var menu win.HMENU
+	if settingsOnly {
+		opts.ClassName(className + "Settings").Style(co.WS_CAPTION | co.WS_SYSMENU).CmdShow(co.SW_HIDE)
+	} else {
+		menu = newMainMenu(p.T)
+		opts.ClassName(className).Menu(menu)
+	}
+	wnd := ui.NewMain(opts)
+	m := &mainWindow{wnd: wnd, menu: menu, cli: cli, p: p, auto: auto, settingsOnly: settingsOnly, model: NewModel(p.Lang, time.Now)}
 	m.gear = ui.NewButton(wnd, ui.OptsButton().Text(p.T("gui.btn.settings")).Position(ui.Dpi(510, 8)).Width(ui.DpiX(36)))
 	m.head = ui.NewStatic(wnd, ui.OptsStatic().Text(p.T("gui.checking")).Position(ui.Dpi(20, 40)).Size(ui.Dpi(520, 50)).CtrlStyle(co.SS_CENTER))
 	m.detail = ui.NewStatic(wnd, ui.OptsStatic().Text("").Position(ui.Dpi(20, 95)).Size(ui.Dpi(520, 40)).CtrlStyle(co.SS_CENTER))
@@ -122,7 +141,52 @@ func newMainWindow(cli CLI, p msg.Printer, auto bool) *mainWindow {
 	return m
 }
 
+// settingsEvents shows the settings and ends with them.
+func (m *mainWindow) settingsEvents() {
+	m.wnd.On().WmCreate(func(_ ui.WmCreate) int {
+		setWindowIcon(uintptr(m.wnd.Hwnd()))
+		_ = m.wnd.Hwnd().SetTimer(timerSettings, 10) // after the message loop started
+		return 0
+	})
+	m.wnd.On().WmTimer(timerSettings, func() {
+		_ = m.wnd.Hwnd().KillTimer(timerSettings)
+		onGear(m)
+		_ = m.wnd.Hwnd().DestroyWindow()
+	})
+}
+
+// openElevated opens the settings as administrator, in a process of their
+// own, and waits for it in the background.
+func (m *mainWindow) openElevated() {
+	exe, err := os.Executable()
+	var wait func()
+	if err == nil {
+		wait, err = startElevated(uintptr(m.wnd.Hwnd()), exe, settingsArg)
+	}
+	if errors.Is(err, errDeclined) {
+		return
+	}
+	if err != nil {
+		_, _ = m.wnd.Hwnd().MessageBox(err.Error(), m.p.T("gui.title"), co.MB_ICONERROR)
+		return
+	}
+	m.settingsOpen = true
+	m.render(m.lastView)
+	go func() {
+		wait()
+		m.wnd.UiThread(func() {
+			m.settingsOpen = false
+			m.render(m.lastView)
+		})
+		m.refreshStatus()
+	}()
+}
+
 func (m *mainWindow) events() {
+	if m.settingsOnly {
+		m.settingsEvents()
+		return
+	}
 	m.wnd.On().WmCreate(func(_ ui.WmCreate) int {
 		setWindowIcon(uintptr(m.wnd.Hwnd()))
 		m.render(m.model.View())
@@ -193,11 +257,7 @@ func (m *mainWindow) busy() bool {
 // set, starts a backup; otherwise a dry run shows which disk is expected.
 func (m *mainWindow) refresh(start bool) {
 	ctx := context.Background()
-	ev := m.cli.Call(ctx, nil, "status")
-	var st app.StatusReport
-	if json.Unmarshal(ev.Report, &st) == nil {
-		m.wnd.UiThread(func() { m.model.SetStatus(&st); m.render(m.model.View()) })
-	}
+	m.refreshStatus()
 	if start {
 		m.startRun("--wait", "30")
 		return
@@ -212,6 +272,15 @@ func (m *mainWindow) refresh(start bool) {
 			go m.refresh(true)
 		}
 	})
+}
+
+// refreshStatus reads the status for the footer and the disk that is due.
+func (m *mainWindow) refreshStatus() {
+	ev := m.cli.Call(context.Background(), nil, "status")
+	var st app.StatusReport
+	if json.Unmarshal(ev.Report, &st) == nil {
+		m.wnd.UiThread(func() { m.model.SetStatus(&st); m.render(m.model.View()) })
+	}
 }
 
 func (m *mainWindow) startRun(extra ...string) {
@@ -315,7 +384,7 @@ func (m *mainWindow) render(v View) {
 	icon := map[Color]string{Green: "✔ ", Orange: "⚠ ", Red: "✖ "}[v.Color]
 	_ = m.wnd.Hwnd().SetWindowText(strings.TrimSpace(icon + m.p.T("gui.title")))
 	// The settings and closing are not available while a backup runs.
-	idle := v.State != StateBusy && v.State != StateVerifying
+	idle := v.State != StateBusy && v.State != StateVerifying && !m.settingsOpen
 	m.gear.Hwnd().EnableWindow(idle)
 	if m.menu != 0 {
 		_ = m.menu.EnableMenuItemByCmd(idle, cmdSettings, cmdExit)

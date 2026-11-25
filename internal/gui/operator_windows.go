@@ -98,6 +98,22 @@ func onGear(mw *mainWindow) {
 		_, _ = h.MessageBox(err.Error(), p("gui.title"), co.MB_ICONERROR)
 		return
 	}
+	if NeedsAdmin(st) && !mw.settingsOnly {
+		if ActionFor(st) == GearNeedAdmin {
+			if id, _ := h.MessageBox(p("gui.askAdminSetup"), p("gui.title"), co.MB_OKCANCEL|co.MB_ICONINFORMATION); id == co.ID_OK {
+				mw.openElevated()
+			}
+			return
+		}
+		switch id, _ := h.MessageBox(p("gui.askAdmin"), p("gui.title"), co.MB_YESNOCANCEL|co.MB_ICONINFORMATION); id {
+		case co.ID_YES:
+			mw.openElevated()
+			return
+		case co.ID_NO:
+		default:
+			return
+		}
+	}
 	switch ActionFor(st) {
 	case GearSetup:
 		firstSetup(mw)

@@ -58,6 +58,11 @@ func RotateKeys(deps *Deps, cfg *config.Config, v *vault.Vault, vaultPath string
 	if old == nil {
 		return nil, Errorf(KindDecrypt, nil, "err.vaultDamaged")
 	}
+	// The vault is saved before the recipients file, and is in another
+	// folder: without this check it would hold a key that nothing uses.
+	if err := dirWritable(deps.ConfigDir); err != nil {
+		return nil, SettingsError(cfg.RecipientsPath(deps.ConfigDir), err)
+	}
 	reg, err := LoadRegistry(deps.ConfigDir, cfg)
 	if err != nil {
 		return nil, err
@@ -81,7 +86,7 @@ func RotateKeys(deps *Deps, cfg *config.Config, v *vault.Vault, vaultPath string
 	ok.PendingDisks = pending
 	ok.FullRewrap = full
 	if err := v.Save(vaultPath, pw); err != nil {
-		return nil, Errorf(KindIO, err, "err.write")
+		return nil, SettingsError(vaultPath, err)
 	}
 	sk := v.SigningKey()
 	defer sk.Wipe()
@@ -173,7 +178,7 @@ func RewrapDisk(ctx context.Context, deps *Deps, cfg *config.Config, target stri
 		}
 	}
 	if err := v.Save(vaultPath, pw); err != nil {
-		return rep, Errorf(KindIO, err, "err.write")
+		return rep, SettingsError(vaultPath, err)
 	}
 	deps.Log.Info("disk re-wrapped", "disk", c.Reg.Name, "files", rep.Rewrapped, "full", full)
 	return rep, nil

@@ -234,3 +234,21 @@ func TestScheduleTexts(t *testing.T) {
 		}
 	}
 }
+
+func TestNeedsAdmin(t *testing.T) {
+	for _, tc := range []struct {
+		st   app.KeysState
+		want bool
+	}{
+		{app.KeysState{State: app.KeysReady}, true},
+		{app.KeysState{State: app.KeysIncomplete}, true},
+		{app.KeysState{State: app.KeysNone}, true},
+		{app.KeysState{State: app.KeysNoVault}, false}, // another account's vault: rights do not help
+		{app.KeysState{State: app.KeysReady, Writable: true}, false},
+		{app.KeysState{State: app.KeysNone, Writable: true}, false},
+	} {
+		if got := NeedsAdmin(tc.st); got != tc.want {
+			t.Errorf("%+v: %v", tc.st, got)
+		}
+	}
+}

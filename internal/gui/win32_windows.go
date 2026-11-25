@@ -33,6 +33,7 @@ var (
 	procCreateMutex      = kernel32.NewProc("CreateMutexW")
 	shell32              = syscall.NewLazyDLL("shell32.dll")
 	procShellExecute     = shell32.NewProc("ShellExecuteW")
+	procShellExecuteEx   = shell32.NewProc("ShellExecuteExW")
 	procSHBrowseFolder   = shell32.NewProc("SHBrowseForFolderW")
 	procSHGetPathFromIDL = shell32.NewProc("SHGetPathFromIDListW")
 	comdlg32             = syscall.NewLazyDLL("comdlg32.dll")
@@ -44,9 +45,9 @@ var (
 
 const errorAlreadyExists = 183
 
-// singleInstance takes the GUI mutex; false means another window runs.
-func singleInstance() bool {
-	name, _ := syscall.UTF16PtrFromString(`Local\UsbBackupGui`)
+// singleInstance takes a GUI mutex; false means another window has it.
+func singleInstance(mutex string) bool {
+	name, _ := syscall.UTF16PtrFromString(`Local\` + mutex)
 	h, _, err := procCreateMutex.Call(0, 0, uintptr(unsafe.Pointer(name))) //nolint:gosec // Win32 call
 	if h == 0 {
 		return true
@@ -68,6 +69,65 @@ func shellExecute(verb, file string) error {
 		return errors.New("cannot open " + filepath.Base(file))
 	}
 	return nil
+}
+
+type shellExecuteInfo struct {
+	size       uint32
+	mask       uint32
+	owner      uintptr
+	verb       *uint16
+	file       *uint16
+	parameters *uint16
+	directory  *uint16
+	show       int32
+	instApp    uintptr
+	idList     uintptr
+	class      *uint16
+	keyClass   uintptr
+	hotKey     uint32
+	icon       uintptr
+	process    uintptr
+}
+
+// errDeclined means that the user did not give permission.
+var errDeclined = errors.New("permission not given")
+
+const (
+	seeMaskNoCloseProcess = 0x40
+	swShowNormal          = 1
+	errorCancelled        = 1223
+	asfwAny               = 0xFFFFFFFF
+)
+
+// startElevated starts exe with one fixed argument as administrator, after
+// Windows asked for permission. The returned function waits until it ends.
+func startElevated(owner uintptr, exe, arg string) (func(), error) {
+	verb, _ := syscall.UTF16PtrFromString("runas")
+	file, err := syscall.UTF16PtrFromString(exe)
+	if err != nil {
+		return nil, err
+	}
+	param, err := syscall.UTF16PtrFromString(arg)
+	if err != nil {
+		return nil, err
+	}
+	_ = win.AllowSetForegroundWindow(asfwAny) // the new window may come to the front
+	info := shellExecuteInfo{mask: seeMaskNoCloseProcess, owner: owner, verb: verb, file: file, parameters: param, show: swShowNormal}
+	info.size = uint32(unsafe.Sizeof(info))
+	r, _, err := procShellExecuteEx.Call(uintptr(unsafe.Pointer(&info))) //nolint:gosec // Win32 call
+	if r == 0 {
+		if errors.Is(err, syscall.Errno(errorCancelled)) {
+			return nil, errDeclined
+		}
+		return nil, err
+	}
+	h := syscall.Handle(info.process)
+	return func() {
+		if h != 0 {
+			_, _ = syscall.WaitForSingleObject(h, syscall.INFINITE)
+			_ = syscall.CloseHandle(h)
+		}
+	}, nil
 }
 
 type browseInfo struct {

@@ -187,7 +187,7 @@ func cmdKeysPasswd(c *ctx, args []string) error {
 	}
 	defer newPw.Wipe()
 	if err := v.Save(*vaultPath, newPw); err != nil {
-		return app.Errorf(app.KindIO, err, "err.write")
+		return app.SettingsError(*vaultPath, err)
 	}
 	if l := c.logger(cfg); l != nil {
 		l.Info("vault password changed")

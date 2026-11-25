@@ -314,7 +314,7 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 		return nil, Errorf(KindIO, err, "err.breakglassWrite")
 	}
 	if err := os.MkdirAll(o.ConfigDir, 0o755); err != nil { //nolint:gosec // configuration folder is readable by everyone
-		return nil, Errorf(KindIO, err, "err.write")
+		return nil, SettingsError(filepath.Join(o.ConfigDir, config.SigningPubFile), err)
 	}
 	// None of these files existed before (checked above), and nothing can
 	// be encrypted for the new keys until this function succeeds.
@@ -327,7 +327,7 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 		}
 	}()
 	if err := v.Save(o.VaultPath, o.Password); err != nil {
-		return nil, Errorf(KindIO, err, "err.write")
+		return nil, SettingsError(o.VaultPath, err)
 	}
 	sk := v.SigningKey()
 	defer sk.Wipe()
@@ -340,7 +340,7 @@ func KeysInit(o KeysInitOptions) (*KeysInitResult, error) {
 	pub, _ := v.SigningPublic()
 	pubText := base64.StdEncoding.EncodeToString(pub)
 	if err := fsx.WriteFileAtomic(pubPath, []byte(pubText+"\n"), 0o644); err != nil {
-		return nil, Errorf(KindIO, err, "err.write")
+		return nil, SettingsError(pubPath, err)
 	}
 	done = true
 	return &KeysInitResult{
@@ -369,7 +369,7 @@ func CreateSecretFile(path string) (*os.File, error) {
 		return nil, Errorf(KindUsage, err, "err.fileExists", path)
 	}
 	if err != nil {
-		return nil, Errorf(KindIO, err, "err.write")
+		return nil, Errorf(KindIO, err, "err.restoreWrite", path)
 	}
 	return f, nil
 }

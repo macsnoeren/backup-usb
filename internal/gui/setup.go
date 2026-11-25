@@ -71,6 +71,12 @@ func ActionFor(st app.KeysState) GearAction {
 	}
 }
 
+// NeedsAdmin reports whether changing the settings needs administrator
+// rights that this process does not have.
+func NeedsAdmin(st app.KeysState) bool {
+	return !st.Writable && ActionFor(st) != GearNoVault
+}
+
 // KeysState asks the CLI which key files exist (no password needed).
 func (c CLI) KeysState(ctx context.Context) (app.KeysState, error) {
 	ev := c.Call(ctx, nil, "keys", "check", "--json")

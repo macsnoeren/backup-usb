@@ -69,16 +69,17 @@ backups yourself (step 2.5).
 
 ## 2. First-time setup
 
-You do this once, as the **administrator** (the "operator"). On Windows,
-start USB Backup with *Run as administrator* (right-click), because the
-settings folder `C:\ProgramData\USB Backup` is writable for administrators
-only. On Linux use `sudo` for a system-wide setup in `/etc/usb-backup`, or
+You do this once, as the **administrator** (the "operator"). The settings
+folder `C:\ProgramData\USB Backup` is writable for administrators only, so on
+Windows the window asks for administrator rights when you open the settings
+(in a window of their own; backups keep running without those rights). Choose
+*No* there to only look, browse and restore. On Linux use `sudo` for a system-wide setup in `/etc/usb-backup`, or
 run as yourself for `~/.config/usb-backup`.
 
 ### With the window (Windows)
 
-Right-click USB Backup in the Start menu, choose *Run as administrator* and
-click the gear (⚙) at the top right. On a fresh installation there is no
+Click the gear (⚙) at the top right and agree to the question about
+administrator rights. On a fresh installation there is no
 password yet; you choose it now:
 
 1. Choose a vault password (at least 12 characters, twice). Choose a **new**
@@ -130,7 +131,7 @@ this week is older than `minIntervalHours` (20).
   installation), any disk may start.
 - Another disk is refused, with a message that says which one to plug in.
   `run --any-disk` makes an exception; **Forget** takes a lost or broken disk
-  out of the turn.
+  out of the turn; the disk does not have to be connected.
 - With *every day*, *week* or *month* the turn passes once per day, week or
   month. Until then, plugging in the same disk again refreshes that backup
   (after `minIntervalHours`). A period without a backup skips no disk.

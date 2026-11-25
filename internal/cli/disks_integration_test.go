@@ -20,11 +20,15 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/macsnoeren/backup-usb/internal/app"
+	"github.com/macsnoeren/backup-usb/internal/testutil"
 )
 
 func TestDisksAndForget(t *testing.T) {
@@ -62,4 +66,42 @@ func TestDisksAndForget(t *testing.T) {
 	}
 	// The forgotten disk is no longer used.
 	w.mustRun(6, "run")
+}
+
+// A lost disk is forgotten without being connected. Without the right to
+// change the settings folder the message says so, and nothing about disks.
+func TestForgetLostDisk(t *testing.T) {
+	w := newWorld(t)
+	w.keysInit()
+	w.enroll("BACKUP1")
+	w.enroll("BACKUP2")
+	w.unplug("BACKUP2")
+	forget := []string{"forget", "BACKUP2", "--password-stdin", "--vault", w.vaultPath()}
+	if runtime.GOOS != "windows" && os.Geteuid() != 0 {
+		testutil.WriteFile(t, w.cfgDir, "test.lock", "")
+		if err := os.Chmod(w.cfgDir, 0o555); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(w.cfgDir, 0o755) })
+		for _, args := range [][]string{forget, {"config", "set", "keepPerDisk", "3", "--password-stdin", "--vault", w.vaultPath()}, {"keys", "rotate", "--password-stdin", "--vault", w.vaultPath()}} {
+			w.stdin = testPassword + "\n"
+			before, _ := os.ReadFile(w.vaultPath())
+			_, errOut := w.mustRun(11, args...)
+			if !strings.Contains(errOut, "administrator") || strings.Contains(errOut, "backup disk") {
+				t.Errorf("%v: %s", args, errOut)
+			}
+			if after, _ := os.ReadFile(w.vaultPath()); !bytes.Equal(before, after) {
+				t.Errorf("%v changed the vault", args)
+			}
+		}
+		if err := os.Chmod(w.cfgDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.stdin = testPassword + "\n"
+	w.mustRun(0, forget...)
+	if out, _ := w.mustRun(0, "disks"); strings.Contains(out, "BACKUP2") {
+		t.Fatal(out)
+	}
+	w.mustRun(0, "run")
 }

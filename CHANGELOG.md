@@ -12,6 +12,20 @@ as the release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- Windows: the settings ask for administrator rights when they are needed, and
+  open in a window of their own. *Run as administrator* is not needed any more,
+  and backups keep running without those rights.
+
+### Fixed
+
+- Forgetting a disk, or any other change of the settings, without
+  administrator rights said "writing to the backup disk failed". It now says
+  that the settings folder cannot be changed, and why.
+- `keys rotate` without administrator rights left a new key in the vault that
+  was not used.
+
 ## [0.2.0] - 2026-11-25
 
 ### Added

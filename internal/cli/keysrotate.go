@@ -167,10 +167,10 @@ func cmdKeysRewrap(c *ctx, args []string) error {
 			continue
 		}
 		if err := v.RemoveKey(id); err != nil {
-			return app.Errorf(app.KindIO, err, "err.write")
+			return app.SettingsError(vp, err)
 		}
 		if err := v.Save(vp, pw); err != nil {
-			return app.Errorf(app.KindIO, err, "err.write")
+			return app.SettingsError(vp, err)
 		}
 		deps.Log.Info("retired key deleted", "key", id)
 		if !*asJSON {

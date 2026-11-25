@@ -91,22 +91,32 @@ func LoadConfig(dir string) (*config.Config, error) {
 	return cfg, nil
 }
 
+// SettingsError is a failure to save a file on this computer (settings,
+// registrations, keys or the vault). Without the right to change its folder
+// the message says what to do.
+func SettingsError(path string, err error) error {
+	if errors.Is(err, fs.ErrPermission) {
+		return Errorf(KindIO, err, "err.configNotWritable", filepath.Dir(path))
+	}
+	return Errorf(KindIO, err, "err.settingsWrite", path)
+}
+
 // writeSigned writes data and its .sig (when a key is given).
 func writeSigned(path string, data []byte, key *secmem.Buffer, purpose string) error {
 	if key != nil {
 		sig, err := sign.SigFile(key.Bytes(), purpose, data)
 		if err != nil {
-			return Errorf(KindIO, err, "err.write")
+			return SettingsError(path, err)
 		}
 		// Signature first: a crash in between leaves the old data with a
 		// signature that does not fit (exit 7), never new unsigned data
 		// that is accepted.
 		if err := fsx.WriteFileAtomic(path+config.SignatureSuffix, sig, 0o644); err != nil {
-			return Errorf(KindIO, err, "err.write")
+			return SettingsError(path, err)
 		}
 	}
 	if err := fsx.WriteFileAtomic(path, data, 0o644); err != nil {
-		return Errorf(KindIO, err, "err.write")
+		return SettingsError(path, err)
 	}
 	return nil
 }
@@ -119,7 +129,7 @@ func SaveConfig(dir string, cfg *config.Config, key *secmem.Buffer) error {
 	}
 	data, err := cfg.Marshal()
 	if err != nil {
-		return Errorf(KindIO, err, "err.write")
+		return SettingsError(config.Path(dir), err)
 	}
 	return writeSigned(config.Path(dir), data, key, sign.PurposeConfig)
 }
@@ -128,7 +138,7 @@ func SaveConfig(dir string, cfg *config.Config, key *secmem.Buffer) error {
 func SaveRegistry(dir string, cfg *config.Config, reg *disk.Registry, key *secmem.Buffer) error {
 	data, err := reg.Marshal()
 	if err != nil {
-		return Errorf(KindIO, err, "err.write")
+		return SettingsError(cfg.DisksPath(dir), err)
 	}
 	return writeSigned(cfg.DisksPath(dir), data, key, sign.PurposeRegistry)
 }

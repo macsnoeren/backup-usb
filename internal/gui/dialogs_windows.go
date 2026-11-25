@@ -30,7 +30,11 @@ import (
 
 // newModal creates a modal window.
 func newModal(parent ui.Parent, title string, w, h int) *ui.Modal {
-	return ui.NewModal(parent, ui.OptsModal().Title(title).Size(ui.Dpi(w, h)))
+	opts := ui.OptsModal().Title(title).Size(ui.Dpi(w, h))
+	if !parent.Hwnd().IsWindowVisible() { // the settings process has no visible main window
+		opts.ExStyle(co.WS_EX_LEFT | co.WS_EX_DLGMODALFRAME | co.WS_EX_APPWINDOW)
+	}
+	return ui.NewModal(parent, opts)
 }
 
 func closeModal(m *ui.Modal) { _, _ = m.Hwnd().SendMessage(co.WM_CLOSE, 0, 0) }
