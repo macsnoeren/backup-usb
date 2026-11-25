@@ -52,6 +52,9 @@ as the release notes.
 ### Fixed
 
 - `THIRD-PARTY-NOTICES.txt` lacked the license of Go itself.
+- Windows: an empty password crashed the program instead of being refused.
+- Windows: updating a disk after replacing the key (`keys rewrap`) failed on
+  FAT and exFAT disks, because the old file was still open.
 - Built with a Go version without known holes in `os.Root` (GO-2026-6604,
   GO-2026-4970, GO-2026-4602); Go 1.26.9 is now the minimum.
 - Windows: *Open log* looked in the wrong folder.
@@ -81,7 +84,7 @@ as the release notes.
 
 ## [0.1.0] - 2026-11-23
 
-First version; tagged, but not published as a release.
+First version, not published.
 
 ### Added
 
@@ -113,5 +116,5 @@ First version; tagged, but not published as a release.
   the window; `THIRD-PARTY-NOTICES.txt` for the bundled modules.
 
 [Unreleased]: https://github.com/macsnoeren/backup-usb/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/macsnoeren/backup-usb/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/macsnoeren/backup-usb/releases/tag/v0.1.0
+[0.2.0]: https://github.com/macsnoeren/backup-usb/releases/tag/v0.2.0
+[0.1.0]: https://github.com/macsnoeren/backup-usb/commits/30d0802

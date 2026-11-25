@@ -88,7 +88,10 @@ func Reencrypt(root *os.Root, rel string, oldIDs []age.Identity, recipients []ag
 	if subtle.ConstantTimeCompare(h2.Sum(nil), want) != 1 {
 		return errors.New("re-encrypted content differs")
 	}
-	return fsx.RootRename(root, part, rel)
+	// Closed first: Windows does not replace an open file on FAT and exFAT.
+	_ = pf.Close()
+	_ = f.Close()
+	return replaceFile(root, part, rel)
 }
 
 // FileKeyOf returns the file key of an age file (tests and checks only).

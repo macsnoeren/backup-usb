@@ -78,7 +78,7 @@ func TestSignedConfig(t *testing.T) {
 	if got, _ := w.mustRun(0, "config", "show", "keepPerDisk"); strings.TrimSpace(got) != "12" {
 		t.Fatal("changed despite errors")
 	}
-	log, _ := os.ReadFile(filepath.Join(w.cfgDir, "usb-backup.log"))
+	log, _ := os.ReadFile(filepath.Join(w.logDir(), "usb-backup.log"))
 	if !strings.Contains(string(log), `setting changed key=keepPerDisk old=25 new=12`) || strings.Contains(string(log), testPassword) {
 		t.Fatalf("log:\n%s", log)
 	}

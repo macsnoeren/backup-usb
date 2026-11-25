@@ -79,3 +79,25 @@ func TestProtectProcess(t *testing.T) {
 		}
 	}
 }
+
+// A shortened buffer unlocks everything it locked; with nothing left there
+// is no address to pass to Windows (this crashed on an empty password).
+func TestWipeAfterTruncate(t *testing.T) {
+	old := unlockMem
+	defer func() { unlockMem = old }()
+	var unlocked []int
+	unlockMem = func(b []byte) error { unlocked = append(unlocked, len(b)); return old(b) }
+	for _, n := range []int{0, 3, 8} {
+		b := New(8)
+		b.locked = true
+		b.Truncate(n)
+		unlocked = nil
+		b.Wipe()
+		b.Wipe()
+		if len(unlocked) != 1 || unlocked[0] != 8 {
+			t.Errorf("truncated to %d: unlocked %v", n, unlocked)
+		}
+	}
+	_ = lock(nil)
+	_ = unlock(nil)
+}

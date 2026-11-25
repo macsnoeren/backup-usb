@@ -157,3 +157,10 @@ No secrets, new dependencies or external programs.
 | 2 | The tag is typed by a person and used in shell scripts and as a Git ref. | checked | Only an environment variable, quoted; checked against a strict pattern first (no spaces, newlines, options or patterns). Tests. Only on the default branch; an existing tag on another commit is never moved. |
 | 3 | A release starts on its own after ci (`workflow_run`, which has more rights than a pull request). | checked | Only when ci passed for a push to main of this repository, not for a pull request (a fork can have a branch called main), and on the commit that ci tested. Only the newest dated version, without a tag and a release; whoever may push to main could already push a tag. The decision is in `scripts/plan-release.sh`, with tests; the version is checked before it becomes a workflow output. |
 | 4 | The workflow may push tags. | checked | Only the release job has write access, after the tests. It removes only a tag that it made itself in the same run, and only without a release. |
+
+## Windows tests (self-review)
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | `secmem.Buffer.Wipe` after `Truncate` unlocked only what was left; with nothing left it indexed an empty slice and crashed on Windows (an empty password). The memory itself was wiped. | medium | Unlocks the whole buffer; `lock` and `unlock` accept an empty slice. Test. |
+| 2 | Re-wrapping replaced a file that was still open, which Windows refuses on FAT and exFAT: the disk kept the old key. | medium | Closed before the rename. Test that looks at the open files. |

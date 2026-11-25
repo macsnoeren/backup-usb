@@ -32,6 +32,9 @@ type Buffer struct {
 	locked bool
 }
 
+// unlockMem is replaced by a test.
+var unlockMem = unlock
+
 // New returns a zeroed, locked buffer of n bytes.
 func New(n int) *Buffer {
 	b := &Buffer{b: make([]byte, n)}
@@ -76,7 +79,7 @@ func (b *Buffer) Wipe() {
 	}
 	Wipe(b.b)
 	if b.locked {
-		_ = unlock(b.b)
+		_ = unlockMem(b.b[:cap(b.b)]) // also what Truncate cut off
 		b.locked = false
 	}
 	b.b = b.b[:0]

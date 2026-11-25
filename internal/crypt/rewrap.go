@@ -40,6 +40,9 @@ var ErrDamaged = errors.New("file is damaged")
 // (wrong key or damaged header).
 var ErrDecrypt = errors.New("cannot unwrap the file key")
 
+// replaceFile is replaced by a test.
+var replaceFile = fsx.RootRename
+
 // Rewrap re-wraps the age file rel inside root for new recipients: the
 // file key is unwrapped with oldIDs, wrapped for recipients, the header MAC
 // recomputed and the payload copied unchanged to rel+".part". The part file
@@ -108,7 +111,9 @@ func Rewrap(root *os.Root, rel string, oldIDs []age.Identity, recipients []age.R
 	if err := checkRewrapped(root, part, fileKey.Bytes(), check, want); err != nil {
 		return err
 	}
-	return fsx.RootRename(root, part, rel)
+	// Closed first: Windows does not replace an open file on FAT and exFAT.
+	_ = f.Close()
+	return replaceFile(root, part, rel)
 }
 
 func checkRewrapped(root *os.Root, part string, fileKey []byte, check age.Identity, payloadSum []byte) error {

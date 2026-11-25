@@ -42,13 +42,20 @@ jobs:
       - name: Lint
         run: make lint
       - name: Unit tests
-        run: make test
+        run: make test 2>&1 | tee "$RUNNER_TEMP/unit.log"
       - name: Integration tests
-        run: make test-integration
+        run: make test-integration 2>&1 | tee "$RUNNER_TEMP/integration.log"
       - name: End-to-end tests
-        run: make test-e2e
+        run: make test-e2e 2>&1 | tee "$RUNNER_TEMP/e2e.log"
       - name: Security
-        run: make security
+        run: make security 2>&1 | tee "$RUNNER_TEMP/security.log"
+      - name: Show failed tests
+        if: failure()
+        run: |
+          # As an annotation: on the summary page, and readable without a login.
+          cat "$RUNNER_TEMP"/*.log 2>/dev/null |
+            grep -aE '^ *--- FAIL|_test\.go:[0-9]+: |^panic:|RemoveAll' | head -n 60 |
+            tr -d '\r' | sed 's/%/%25/g' | awk '{ m = m $0 "%0A" } END { if (m) print "::error title=Failed tests::" m }'
       - name: Loop-device tests (Linux, root)
         if: runner.os == 'Linux'
         run: sudo --preserve-env=PATH,HOME,GOPATH,GOMODCACHE,GOCACHE env "PATH=$PATH" go test -tags integration,loopdev -count=1 ./internal/volume/...

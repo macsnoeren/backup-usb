@@ -33,6 +33,9 @@ var (
 )
 
 func lock(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
 	r, _, err := procVirtualLock.Call(uintptr(unsafe.Pointer(&b[0])), uintptr(len(b))) //nolint:gosec // Win32 call
 	if r == 0 {
 		return err
@@ -41,6 +44,9 @@ func lock(b []byte) error {
 }
 
 func unlock(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
 	r, _, err := procVirtualUnlock.Call(uintptr(unsafe.Pointer(&b[0])), uintptr(len(b))) //nolint:gosec // Win32 call
 	if r == 0 {
 		return err

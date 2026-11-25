@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -117,5 +118,48 @@ func TestRewrapRefusesDamagedFile(t *testing.T) {
 	}
 	if after, _ := os.ReadFile(filepath.Join(dir, "a.zip.age")); !bytes.Equal(after, data) {
 		t.Fatal("file changed")
+	}
+}
+
+// Windows does not replace a file that is open on FAT and exFAT, the usual
+// file systems of USB disks: everything is closed before the rename.
+func TestNothingOpenWhenReplacing(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("looks at /proc")
+	}
+	old := replaceFile
+	defer func() { replaceFile = old }()
+	dir := t.TempDir()
+	calls := 0
+	replaceFile = func(root *os.Root, from, to string) error {
+		calls++
+		fds, err := os.ReadDir("/proc/self/fd")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, fd := range fds {
+			if l, err := os.Readlink(filepath.Join("/proc/self/fd", fd.Name())); err == nil && strings.HasPrefix(l, dir+"/") {
+				t.Errorf("%s is open while %s is replaced", l, to)
+			}
+		}
+		return old(root, from, to)
+	}
+	var buf bytes.Buffer
+	w, _ := age.Encrypt(&buf, recipients(t)...)
+	w.Write([]byte("data"))
+	w.Close()
+	os.WriteFile(filepath.Join(dir, "Data.zip.age"), buf.Bytes(), 0o600)
+	root, _ := os.OpenRoot(dir)
+	defer root.Close()
+	r2, _ := age.ParseHybridRecipient(testutilRecipient(t, "operational2"))
+	op, op2 := identity(t, "operational"), identity(t, "operational2")
+	if err := Rewrap(root, "Data.zip.age", []age.Identity{op}, []age.Recipient{r2}, op2, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := Reencrypt(root, "Data.zip.age", []age.Identity{op2}, []age.Recipient{r2}, op2); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatal(calls)
 	}
 }
