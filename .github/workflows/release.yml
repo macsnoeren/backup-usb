@@ -1,19 +1,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Maurice Snoeren
 
-# Makes a release of a version in CHANGELOG.md, in one of two ways:
-#  - Actions → release → Run workflow, and fill in the tag (v1.2.3). After the
-#    tests the workflow makes the tag on the main branch.
-#  - push a tag v1.2.3.
-# The release gets the Windows setup, .deb, .rpm, .tar.gz and .zip files,
-# SHA256SUMS signed with cosign, and the CHANGELOG.md section of that version
-# as release notes. A tag like v1.2.3-rc1 becomes a pre-release with the
-# "Unreleased" notes.
+# Makes a release of the newest version in CHANGELOG.md:
+#  - on its own: a push to main with a version that has no tag and no release
+#    yet. What is under "Unreleased" is work in progress and is not released.
+#  - by hand: Actions → release → Run workflow, and fill in the tag (v1.2.3).
+#  - by pushing a tag v1.2.3. A tag like v1.2.3-rc1 becomes a pre-release with
+#    the "Unreleased" notes.
+# The tests run first. The release gets the Windows setup, .deb, .rpm, .tar.gz
+# and .zip files, SHA256SUMS signed with cosign, and the CHANGELOG.md section
+# of that version as release notes.
 name: release
-run-name: release ${{ inputs.tag || github.ref_name }}
+run-name: release ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || '(new version in the changelog?)' }}
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
     inputs:
@@ -25,45 +27,44 @@ on:
 permissions:
   contents: read
 
+# One at a time: a second push waits, and then sees that the tag exists.
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
-
-env:
-  # Only used as an environment variable, never pasted into a script.
-  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      tag: ${{ steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-      - name: The tag fits CHANGELOG.md
-        run: sh scripts/check-release.sh "$TAG"
-      - name: The tag can be made on this commit
-        if: github.event_name == 'workflow_dispatch'
+      - name: Is there something to release?
+        id: plan
         env:
-          MAIN: refs/heads/${{ github.event.repository.default_branch }}
+          # Only used as environment variables, never pasted into a script.
+          INPUT_TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "$GITHUB_REF" != "$MAIN" ]; then
-            echo "::error::Releases are made from $MAIN, not from $GITHUB_REF."
-            exit 1
-          fi
-          # An annotated tag is listed twice; the last line is its commit.
-          sha=$(git ls-remote origin "refs/tags/$TAG" "refs/tags/$TAG^{}" | tail -n 1 | cut -f 1)
-          if [ -n "$sha" ] && [ "$sha" != "$GITHUB_SHA" ]; then
-            echo "::error::The tag $TAG exists already, on another commit ($sha). Use the next version. If $TAG was never released you can delete it first: git push origin :refs/tags/$TAG"
-            exit 1
-          fi
+          sh scripts/plan-release.sh > "$RUNNER_TEMP/plan"
+          cat "$RUNNER_TEMP/plan"
+          cat "$RUNNER_TEMP/plan" >> "$GITHUB_OUTPUT"
       - name: Release notes from CHANGELOG.md
+        if: steps.plan.outputs.release == 'true'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
         run: sh scripts/release-notes.sh "$TAG" > release-notes.md
       - uses: actions/upload-artifact@v6
+        if: steps.plan.outputs.release == 'true'
         with:
           name: release-notes
           path: release-notes.md
 
   test:
     needs: check
+    if: needs.check.outputs.release == 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -87,8 +88,10 @@ jobs:
       - run: govulncheck ./...
 
   release:
-    needs: test
+    needs: [check, test]
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.check.outputs.tag }}
     permissions:
       contents: write # create the tag and the release
       id-token: write # keyless signing of SHA256SUMS with cosign
@@ -110,7 +113,7 @@ jobs:
           path: ${{ runner.temp }}
       - name: Make the tag
         id: tag
-        if: github.event_name == 'workflow_dispatch'
+        if: github.ref_type == 'branch'
         run: |
           if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
             echo "$TAG exists already on this commit"

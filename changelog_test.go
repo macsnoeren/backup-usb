@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -145,6 +146,107 @@ func TestCheckRelease(t *testing.T) {
 		}
 		if err != nil && len(out) == 0 {
 			t.Errorf("%s: no explanation", tc.name)
+		}
+	}
+}
+
+// TestPlanRelease checks when the release workflow releases, against a local
+// remote and a fake gh.
+func TestPlanRelease(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the workflow runs this script on Linux")
+	}
+	for _, tool := range []string{"sh", "git"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skip("no " + tool)
+		}
+	}
+	dir := t.TempDir()
+	work, bin := filepath.Join(dir, "work"), filepath.Join(dir, "bin")
+	for _, d := range []string{work, bin} {
+		if err := os.Mkdir(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// RELEASED is the tag that has a release.
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\n[ \"$1 $2 $3\" = \"release view $RELEASED\" ]\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = work
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q", "--bare", filepath.Join(dir, "origin"))
+	git("init", "-q")
+	git("remote", "add", "origin", filepath.Join(dir, "origin"))
+	git("commit", "-q", "--allow-empty", "-m", "one")
+	git("tag", "-a", "v1.3.0", "-m", "x")
+	git("tag", "v1.4.0")
+	old := git("rev-parse", "HEAD")
+	git("commit", "-q", "--allow-empty", "-m", "two")
+	head := git("rev-parse", "HEAD")
+	git("tag", "-a", "v1.5.0", "-m", "x")
+	git("push", "-q", "origin", "v1.3.0", "v1.4.0", "v1.5.0")
+
+	changelog := func(version, unreleased string) string {
+		return "## [Unreleased]\n\n" + unreleased + "\n## [" + version + "] - 2026-11-25\n\n- New.\n\n## [1.2.0] - 2026-11-01\n\n- First.\n"
+	}
+	script, err := filepath.Abs("scripts/plan-release.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const push, dispatch = "push", "workflow_dispatch"
+	for _, tc := range []struct {
+		name, event, ref, input, changelog, released string
+		want                                         string // empty: refused
+	}{
+		{"main, new version", push, "refs/heads/main", "", changelog("2.0.0", ""), "v1.5.0", "release=true\ntag=v2.0.0\n"},
+		{"main, released already", push, "refs/heads/main", "", changelog("1.5.0", ""), "v1.5.0", "release=false\ntag=v1.5.0\n"},
+		{"main, released, work in progress", push, "refs/heads/main", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=false\ntag=v1.5.0\n"},
+		{"main, tagged on another commit, no release", push, "refs/heads/main", "", changelog("1.4.0", ""), "", "release=false\ntag=v1.4.0\n"},
+		{"main, tagged here, no release", push, "refs/heads/main", "", changelog("1.5.0", ""), "", "release=false\ntag=v1.5.0\n"},
+		{"main, release without a tag (draft)", push, "refs/heads/main", "", changelog("2.0.0", ""), "v2.0.0", "release=false\ntag=v2.0.0\n"},
+		{"main, only Unreleased", push, "refs/heads/main", "", "## [Unreleased]\n\n- Next.\n", "", "release=false\ntag=\n"},
+		{"main, new version but changes under Unreleased", push, "refs/heads/main", "", changelog("2.0.0", "- Next.\n"), "", ""},
+		{"main, new version without a date", push, "refs/heads/main", "", strings.Replace(changelog("2.0.0", ""), " - 2026-11-25", "", 1), "", ""},
+		{"tag", push, "refs/tags/v1.5.0", "", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\n"},
+		{"tag that is not the newest", push, "refs/tags/v1.5.0", "", changelog("2.0.0", ""), "", ""},
+		{"pre-release tag", push, "refs/tags/v2.0.0-rc1", "", changelog("1.5.0", "- Next.\n"), "v1.5.0", "release=true\ntag=v2.0.0-rc1\n"},
+		{"by hand", dispatch, "refs/heads/main", "v2.0.0", changelog("2.0.0", ""), "", "release=true\ntag=v2.0.0\n"},
+		{"by hand, tagged here", dispatch, "refs/heads/main", "v1.5.0", changelog("1.5.0", ""), "", "release=true\ntag=v1.5.0\n"},
+		{"by hand, tagged on another commit", dispatch, "refs/heads/main", "v1.4.0", changelog("1.4.0", ""), "", ""},
+		{"by hand, annotated on another commit", dispatch, "refs/heads/main", "v1.3.0", changelog("1.3.0", ""), "", ""},
+		{"by hand, other branch", dispatch, "refs/heads/test", "v2.0.0", changelog("2.0.0", ""), "", ""},
+		{"by hand, from a tag", dispatch, "refs/tags/v1.5.0", "v1.5.0", changelog("1.5.0", ""), "", ""},
+		{"by hand, no tag", dispatch, "refs/heads/main", "", changelog("2.0.0", ""), "", ""},
+		{"by hand, output injection", dispatch, "refs/heads/main", "v2.0.0\nrelease=true", changelog("2.0.0", ""), "", ""},
+	} {
+		file := filepath.Join(t.TempDir(), "CHANGELOG.md")
+		if err := os.WriteFile(file, []byte(tc.changelog), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		refType := "branch"
+		if strings.HasPrefix(tc.ref, "refs/tags/") {
+			refType = "tag"
+		}
+		cmd := exec.Command("sh", script, file)
+		cmd.Dir = work
+		cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "RELEASED="+tc.released,
+			"GITHUB_ACTIONS=true", "GITHUB_EVENT_NAME="+tc.event, "GITHUB_REF="+tc.ref, "GITHUB_REF_TYPE="+refType,
+			"GITHUB_REF_NAME="+tc.ref[strings.LastIndex(tc.ref, "/")+1:], "GITHUB_SHA="+head, "INPUT_TAG="+tc.input, "DEFAULT_BRANCH=main")
+		var stdout, stderr strings.Builder
+		cmd.Stdout, cmd.Stderr = &stdout, &stderr
+		err := cmd.Run()
+		if (err == nil) != (tc.want != "") || stdout.String() != tc.want {
+			t.Errorf("%s (old %s): %v\n%q\n%s", tc.name, old, err, stdout.String(), stderr.String())
 		}
 	}
 }

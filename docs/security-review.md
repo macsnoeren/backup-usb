@@ -155,4 +155,5 @@ No secrets, new dependencies or external programs.
 | --- | --- | --- | --- |
 | 1 | The release was built with the Go version in `go.mod` (1.26.0), with known ways out of `os.Root`, also when following junctions on Windows. govulncheck stopped it. | high | The newest Go, as in CI; `go.mod` asks for 1.26.9 at least. |
 | 2 | The tag is typed by a person and used in shell scripts and as a Git ref. | checked | Only an environment variable, quoted; checked against a strict pattern first (no spaces, newlines, options or patterns). Tests. Only on the default branch; an existing tag on another commit is never moved. |
-| 3 | The workflow may push tags. | checked | Only the release job has write access, after the tests. It removes only a tag that it made itself in the same run, and only without a release. |
+| 3 | A push to main can release on its own. | checked | Only the newest dated version, without a tag and a release, and after the tests; whoever may push to main could already push a tag. The decision is in `scripts/plan-release.sh`, with tests; the version is checked before it becomes a workflow output. |
+| 4 | The workflow may push tags. | checked | Only the release job has write access, after the tests. It removes only a tag that it made itself in the same run, and only without a release. |

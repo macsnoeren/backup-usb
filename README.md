@@ -369,10 +369,13 @@ Changes are listed in [`CHANGELOG.md`](CHANGELOG.md). To publish version
    bottom.
 2. `make release-check TAG=v1.2.3` checks the tag, shows the release notes and
    checks the GoReleaser configuration.
-3. Commit and push `main`.
-4. On GitHub: **Actions → release → Run workflow**, branch `main`, and fill in
-   the tag `v1.2.3`. (Pushing a tag yourself also works: `git tag -a v1.2.3 -m
-   v1.2.3 && git push origin v1.2.3`.)
+3. Commit and push `main`. That is all: a version in `CHANGELOG.md` that has no
+   tag and no release yet is released on its own. What is under *Unreleased*
+   is work in progress and is never released.
+
+To start it by hand, for example after a failure: **Actions → release → Run
+workflow**, branch `main`, and fill in the tag `v1.2.3`. Pushing a tag also
+works: `git tag -a v1.2.3 -m v1.2.3 && git push origin v1.2.3`.
 
 The workflow (`.github/workflows/release.yml`) refuses a tag that is not the
 newest version in `CHANGELOG.md`, or while changes are left under
