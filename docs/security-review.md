@@ -148,3 +148,11 @@ external programs, no disk-controlled text.
 | 5 | `keys.json` on a disk could list very many patterns, each one a walk through the folders. | low | At most 64 are used. |
 
 No secrets, new dependencies or external programs.
+
+## Release workflow (self-review)
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | The release was built with the Go version in `go.mod` (1.26.0), with known ways out of `os.Root`, also when following junctions on Windows. govulncheck stopped it. | high | The newest Go, as in CI; `go.mod` asks for 1.26.9 at least. |
+| 2 | The tag is typed by a person and used in shell scripts and as a Git ref. | checked | Only an environment variable, quoted; checked against a strict pattern first (no spaces, newlines, options or patterns). Tests. Only on the default branch; an existing tag on another commit is never moved. |
+| 3 | The workflow may push tags. | checked | Only the release job has write access, after the tests. It removes only a tag that it made itself in the same run, and only without a release. |

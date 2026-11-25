@@ -349,7 +349,8 @@ On the computer: `C:\ProgramData\USB Backup\` or `/etc/usb-backup/`
 
 ## 9. Building and testing
 
-Go 1.25 or newer, no cgo, no Docker:
+Go 1.26.9 or newer (older versions have holes in `os.Root`, which keeps
+restores and deletions inside their folder), no cgo, no Docker:
 
 ```
 make test test-integration test-e2e    # tests (fake disks and a fake clock)
@@ -366,16 +367,21 @@ Changes are listed in [`CHANGELOG.md`](CHANGELOG.md). To publish version
 1. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [1.2.3] - YYYY-MM-DD`,
    add a new empty `## [Unreleased]` above it and update the links at the
    bottom.
-2. `make release-check TAG=v1.2.3` shows the release notes and checks the
-   GoReleaser configuration.
-3. Commit, then `git tag -a v1.2.3 -m v1.2.3 && git push origin main v1.2.3`.
+2. `make release-check TAG=v1.2.3` checks the tag, shows the release notes and
+   checks the GoReleaser configuration.
+3. Commit and push `main`.
+4. On GitHub: **Actions → release → Run workflow**, branch `main`, and fill in
+   the tag `v1.2.3`. (Pushing a tag yourself also works: `git tag -a v1.2.3 -m
+   v1.2.3 && git push origin v1.2.3`.)
 
-The tag starts `.github/workflows/release.yml`: it refuses a tag without a
-dated changelog section, runs the tests on Linux and Windows, and then
+The workflow (`.github/workflows/release.yml`) refuses a tag that is not the
+newest version in `CHANGELOG.md`, or while changes are left under
+*Unreleased*. It runs the tests on Linux and Windows, makes the tag, and then
 publishes a GitHub release with the Windows setup (`USB-Backup-Setup.exe`),
 `.deb`, `.rpm` and `.tar.gz` for Linux (amd64 and arm64), `.zip` files for
 Windows, and `SHA256SUMS` signed with cosign. The changelog section becomes
-the release notes. A tag such as `v1.2.3-rc1` is published as a pre-release
+the release notes. When publishing fails, the tag it made is removed again. A
+tag such as `v1.2.3-rc1` is published as a pre-release
 with the `Unreleased` notes. Windows files are code-signed when the secrets
 `WINDOWS_CERT_PFX_BASE64` and `WINDOWS_CERT_PASSWORD` are set.
 

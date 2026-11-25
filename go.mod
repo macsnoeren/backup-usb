@@ -1,6 +1,6 @@
 module github.com/macsnoeren/backup-usb
 
-go 1.26.0
+go 1.26.9
 
 require (
 	filippo.io/age v1.3.2

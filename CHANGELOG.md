@@ -49,6 +49,8 @@ as the release notes.
 
 ### Fixed
 
+- Built with a Go version without known holes in `os.Root` (GO-2026-6604,
+  GO-2026-4970, GO-2026-4602); Go 1.26.9 is now the minimum.
 - Windows: *Open log* looked in the wrong folder.
 - Windows: cancelling *Save in…* when restoring still restored the files, to
   `Restored` on the desktop. That folder now has its own button.

@@ -118,6 +118,7 @@ notices:
 # notes from CHANGELOG.md and checks the GoReleaser configuration.
 release-check:
 	@test -n "$(TAG)" || { echo "usage: make release-check TAG=v1.2.3" >&2; exit 64; }
+	sh scripts/check-release.sh $(TAG)
 	sh scripts/release-notes.sh $(TAG)
 	$(call tool,goreleaser) check
 
