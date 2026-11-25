@@ -112,8 +112,12 @@ func TestDirs(t *testing.T) {
 		t.Fatal(got)
 	}
 	c := Defaults()
-	if c.DisksPath("/etc/u") != filepath.Join("/etc/u", DefaultDisksFile) || c.LogDir("/d") != "/d" {
-		t.Fatal("resolve")
+	logs := "/d"
+	if runtime.GOOS == "windows" {
+		logs = `\d\logs`
+	}
+	if c.DisksPath("/etc/u") != filepath.Join("/etc/u", DefaultDisksFile) || c.LogDir("/d") != logs {
+		t.Fatal("resolve", c.LogDir("/d"))
 	}
 }
 

@@ -95,7 +95,7 @@ func TestKeysInit(t *testing.T) {
 		t.Fatal(err)
 	}
 	st, _ := os.Stat(bg)
-	if st.Mode().Perm() != 0o600 {
+	if !isWindows() && st.Mode().Perm() != 0o600 { // Windows has ACLs
 		t.Errorf("break-glass file mode %v", st.Mode().Perm())
 	}
 	bgData, _ := os.ReadFile(bg)

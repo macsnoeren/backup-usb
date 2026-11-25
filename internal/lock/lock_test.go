@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,9 @@ func TestTwoProcesses(t *testing.T) {
 }
 
 func TestLockRefusesSpecialFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the lock is a named mutex, not a file")
+	}
 	dir := t.TempDir()
 	if err := os.Symlink(filepath.Join(dir, "elsewhere"), filepath.Join(dir, "link.lock")); err == nil {
 		if _, err := Acquire(filepath.Join(dir, "link.lock")); err == nil {
