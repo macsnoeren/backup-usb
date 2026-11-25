@@ -21,8 +21,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/user"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -247,7 +249,7 @@ func (o *operator) loadConfig() *config.Config {
 }
 
 func (o *operator) general(parent ui.Parent) {
-	m := newModal(parent, o.t("gui.tab.general"), 640, 515)
+	m := newModal(parent, o.t("gui.tab.general"), 640, 567)
 	srcList := listView(m, 10, 10, 620, 130, o.t("gui.tag"), o.t("gui.path"), o.t("gui.exclude"))
 	add := button(m, o.t("gui.addSource"), 10, 148, 140)
 	remove := button(m, o.t("gui.removeSource"), 160, 148, 100)
@@ -262,8 +264,17 @@ func (o *operator) general(parent ui.Parent) {
 	schedule := combo(m, 145, 445, 340, 0, often...)
 	saveSchedule := button(m, o.t("gui.save"), 520, 443, 110)
 	usb := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.usbTrigger")).Position(ui.Dpi(10, 482)).Size(ui.Dpi(620, 20)))
+	tray := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.trayIcon")).Position(ui.Dpi(10, 508)).Size(ui.Dpi(620, 20)))
+	login := ui.NewCheckBox(m, ui.OptsCheckBox().Text(o.t("gui.startAtLogin")).Position(ui.Dpi(10, 534)).Size(ui.Dpi(620, 20)))
+	fillStart := func() {
+		st := o.main.cli.starts(context.Background())
+		usb.SetCheck(st.USB)
+		login.SetCheck(st.Login)
+		login.Hwnd().EnableWindow(tray.IsChecked() || st.Login)
+	}
 	fill := func() {
 		cfg := o.loadConfig()
+		tray.SetCheck(cfg.TrayIcon)
 		srcList.DeleteAllItems()
 		for _, s := range cfg.Sources {
 			srcList.AddItem(s.Tag, s.Path, strings.Join(s.Exclude, ", "))
@@ -286,7 +297,7 @@ func (o *operator) general(parent ui.Parent) {
 	m.On().WmCreate(func(_ ui.WmCreate) int {
 		showDropDowns(schedule)
 		fill()
-		usb.SetCheck(o.main.cli.StartsOnInsert(context.Background()))
+		fillStart()
 		_ = m.Hwnd().SetTimer(timerOperator, 5000)
 		return 0
 	})
@@ -306,7 +317,35 @@ func (o *operator) general(parent ui.Parent) {
 			args = []string{"install"}
 		}
 		o.report(m, o.plain(args...), "")
-		usb.SetCheck(o.main.cli.StartsOnInsert(context.Background()))
+		fillStart()
+	})
+	trayChanged := func(on bool) {
+		if !on && login.IsChecked() {
+			o.report(m, o.plain("uninstall", "--trigger", "login"), "")
+		}
+		if on && usb.IsChecked() {
+			// Without a time limit for the window that stays. The task becomes
+			// one of this user, who can be another one (the administrator).
+			if id, _ := m.Hwnd().MessageBox(o.t("gui.taskAgain", userName()), o.t("gui.title"), co.MB_YESNO|co.MB_ICONQUESTION); id == co.ID_YES {
+				o.report(m, o.plain("install"), "")
+			}
+		}
+	}
+	tray.On().BnClicked(func() {
+		on := tray.IsChecked()
+		if o.report(m, o.call("config", "set", "trayIcon", strconv.FormatBool(on)), "") {
+			trayChanged(on)
+		}
+		fill()
+		fillStart()
+	})
+	login.On().BnClicked(func() {
+		cmd := "uninstall"
+		if login.IsChecked() {
+			cmd = "install"
+		}
+		o.report(m, o.plain(cmd, "--trigger", "login"), "")
+		fillStart()
 	})
 	setList.On().LvnItemChanged(func(_ *winNMLISTVIEW) {
 		if items := setList.SelectedItems(); len(items) == 1 {
@@ -340,8 +379,14 @@ func (o *operator) general(parent ui.Parent) {
 		if len(items) != 1 {
 			return
 		}
-		if o.report(m, o.call("config", "set", items[0].Text(0), value.Text()), o.t("gui.saved")) {
+		key := items[0].Text(0)
+		before := tray.IsChecked()
+		if o.report(m, o.call("config", "set", key, value.Text()), o.t("gui.saved")) {
 			fill()
+			if on := tray.IsChecked(); on != before {
+				trayChanged(on)
+				fillStart()
+			}
 		}
 	})
 	m.ShowModal()
@@ -665,4 +710,13 @@ func (o *operator) logAndLanguage(parent ui.Parent) {
 		o.report(m, o.call("config", "set", "language", l), fmt.Sprintf("%s (%s)", o.t("gui.saved"), l))
 	})
 	m.ShowModal()
+}
+
+// userName is the Windows user of this process, for messages.
+func userName() string {
+	u, err := user.Current()
+	if err != nil {
+		return "?"
+	}
+	return u.Username
 }

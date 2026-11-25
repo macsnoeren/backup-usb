@@ -43,6 +43,7 @@ const (
 	StateFailed      State = "failed"
 	StateNeedsUpdate State = "needsUpdate"
 	StateSkipped     State = "skipped"
+	StateOtherBackup State = "otherBackup"
 )
 
 // Button is the one action button.
@@ -317,6 +318,8 @@ func (m *Model) failure(e Event) View {
 		v.Headline = m.P.T("gui.wrongDisk", argString(e.Args, 1), argString(e.Args, 2))
 	case "err.unknownDisk":
 		v.State, v.Color, v.Headline = StateUnknownDisk, Orange, m.P.T("gui.unknownDisk")
+	case "err.busy": // for example of another user
+		v.State, v.Color, v.Headline, v.Button = StateOtherBackup, Orange, m.P.T("gui.otherBackup"), ButtonRetry
 	case "err.duplicate", "err.recent":
 		v.State, v.Color, v.Headline, v.Button = StateSkipped, Green, m.P.T("gui.recent"), ButtonEject
 	default:

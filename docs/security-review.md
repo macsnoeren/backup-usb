@@ -165,3 +165,20 @@ No secrets, new dependencies or external programs.
 | --- | --- | --- | --- |
 | 1 | `secmem.Buffer.Wipe` after `Truncate` unlocked only what was left; with nothing left it indexed an empty slice and crashed on Windows (an empty password). The memory itself was wiped. | medium | Unlocks the whole buffer; `lock` and `unlock` accept an empty slice. Test. |
 | 2 | Re-wrapping replaced a file that was still open, which Windows refuses on FAT and exFAT: the disk kept the old key. | medium | Closed before the rename. Test that looks at the open files. |
+
+## T14: next to the clock (reviewed twice by an agent that did not write the code)
+
+| # | Finding | Severity | Resolution |
+| --- | --- | --- | --- |
+| 1 | *Exit* looked at the text on the screen, which a dry run could replace during a backup: the backup could be cancelled. | high | Only when no run is going on; a dry run never replaces the messages of a backup. |
+| 2 | With another backup or restore running, two new disks started programs one after the other without a pause. | high (load) | Another try after a minute, one timer. Test. |
+| 3 | A program that starts at login for every user could be in a folder where a user can replace it. | medium | Only in Program Files, read from a key that only administrators can change. Tests. |
+| 4 | Task Scheduler ended a window that stays, with a backup in it, after 12 hours. | medium | No limit with `trayIcon`. The settings ask before the task is made again, because it then belongs to the current user. Test. |
+| 5 | A disk was missed when another program was busy, or when it was pulled out while the disks were read; a run could take another disk than the one plugged in. | medium | Retry; old answers are not used; a disk that is due is named, and only then, so the turn is never bypassed. Tests. |
+| 6 | Coming forward with the focus: a key meant for another program could press *Cancel*. | medium | Shown without the focus. |
+| 7 | The command line in `HKLM\...\Run`. | checked | Program always quoted; quotes, control characters and long values refused; `advapi32.dll` with its full path. Tests. |
+| 8 | Messages from other programs of the same user. | checked | They only open the window or its menu, or make it look at the disks. The size of a device event is checked. |
+| 9 | Changed settings while the window is hidden. | checked | The window comes forward, also at login. |
+| 10 | Exit with a vault password in memory. | checked | Not while a dialog or the settings are open. |
+
+The window and the icon were only compiled, not run on Windows; see `handmatige-tests.md`. No new module (`Shell_NotifyIcon` is in windigo).

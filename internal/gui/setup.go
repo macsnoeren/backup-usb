@@ -157,10 +157,14 @@ func RestoreTo(dir string) (dest []string, ok bool) {
 }
 
 // StartsOnInsert asks whether a backup starts when a disk is plugged in.
-func (c CLI) StartsOnInsert(ctx context.Context) bool {
-	var r struct{ USB bool }
+func (c CLI) StartsOnInsert(ctx context.Context) bool { return c.starts(ctx).USB }
+
+// StartsAtLogin asks whether the window starts when a user logs in.
+func (c CLI) StartsAtLogin(ctx context.Context) bool { return c.starts(ctx).Login }
+
+func (c CLI) starts(ctx context.Context) (r struct{ USB, Login bool }) {
 	_ = json.Unmarshal([]byte(c.Call(ctx, nil, "install", "--check", "--json").Text()), &r) // unreadable: off
-	return r.USB
+	return r
 }
 
 // DiskLastBackup describes the last backup on a registered disk and whether

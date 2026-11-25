@@ -124,6 +124,27 @@ On Linux, `install` needs root (it writes a systemd unit and a udev rule). A
 run only does something when the right disk is there and the last backup of
 this week is older than `minIntervalHours` (20).
 
+### Next to the clock (Windows, optional)
+
+Tick *Keep running next to the clock when the window is closed* under
+**General and sources** (or `config set trayIcon true`, and
+`install` again if a backup starts when a disk is plugged in). It is off by
+default.
+
+- Closing the window hides it; the icon stays and USB Backup keeps looking
+  for disks. Click the icon to open the window; right-click → *Exit* ends the
+  program (not during a backup, and not while the settings are open).
+- The window comes forward by itself when a registered disk is plugged in,
+  and when a backup failed or has warnings. Any other stick does nothing.
+- *Start hidden next to the clock when a user logs in to Windows* is a
+  separate tick box (`install --trigger login`), for all users of the
+  computer and only for a program in Program Files. If the disk that is due is plugged in already, its backup starts
+  then, unless a backup is made *every time a disk is plugged in*.
+- An older version refuses settings that were saved with this version
+  ("unknown setting trayIcon"). To go back, uninstall with *Remove settings*
+  ticked and set it up again. Keep the vault and the break-glass key: older
+  backups need them.
+
 ### Taking turns
 
 - With more than one disk the one that was used longest ago is next. A disk
@@ -280,6 +301,7 @@ manual edit makes every run stop with exit code 7).
 | `encryption` | `auto` | `auto` (encrypt once keys exist), `age` (required), `none` |
 | `requireHardwareSerial` | `false` | Refuse disks without a hardware serial number |
 | `waitSeconds` | `30` | How long the trigger waits for the disk |
+| `trayIcon` | `false` | Windows: keep running next to the clock when the window is closed |
 | `ejectAfter` | `true` | Eject the disk after a good backup, so it can be unplugged. |
 | `language` | `en` | `en` or `nl` |
 | `logMaxSizeMB`, `logKeep`, `logLevel` | `1`, `5`, `info` | Log rotation and detail |
@@ -300,7 +322,7 @@ usb-backup-cli help run             # flags of one command
 | `enroll`, `forget` | Register or remove a disk |
 | `keys init/passwd/rotate/rewrap/status` | Keys |
 | `config show/set/add-source/remove-source/import/export` | Settings |
-| `install`, `uninstall` | Start a backup when a disk is plugged in (`install --check` shows it) |
+| `install`, `uninstall` | Start a backup when a disk is plugged in (`install --check` shows it); `--trigger login` starts the window at login (Windows) |
 | `version` | Version |
 
 Passwords are never accepted as arguments or environment variables: give

@@ -27,6 +27,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rodrigocfd/windigo/co"
@@ -36,6 +37,7 @@ import (
 	"github.com/macsnoeren/backup-usb/internal/app"
 	"github.com/macsnoeren/backup-usb/internal/config"
 	"github.com/macsnoeren/backup-usb/internal/msg"
+	"github.com/macsnoeren/backup-usb/internal/week"
 )
 
 // Version is the program version, set by main.
@@ -45,16 +47,17 @@ const (
 	className      = "UsbBackupGuiMain"
 	guiMutex       = "UsbBackupGui"
 	settingsMutex  = "UsbBackupSettings"
-	settingsArg    = "--settings"
 	timerDevice    = 1
 	timerOperator  = 2
 	timerSettings  = 3
+	timerTray      = 4
 	deviceSettleMs = 2500
 
 	// Menu commands; windigo numbers its controls down from 0xDFFF.
 	cmdSettings = 101
 	cmdExit     = 102
 	cmdAbout    = 103
+	cmdTrayOpen = 104
 )
 
 // mainWindow is the status screen.
@@ -78,33 +81,41 @@ type mainWindow struct {
 	settingsOnly bool
 	// settingsOpen: such a process was started and has not ended yet.
 	settingsOpen bool
+
+	// The icon next to the clock; see tray_windows.go. Only used in the
+	// window's own thread, unless noted otherwise.
+	opts     Options
+	start    TraySettings
+	tray     *trayIcon // nil: off
+	schedule week.Schedule
+	viewAt   time.Time // when lastView was new
+	hinted   bool      // told that the program keeps running
+	// Also used elsewhere.
+	trayOn   atomic.Bool
+	arrivals Arrivals
+	diskMu   sync.Mutex // one look at the disks at a time
+	pending  bool       // under mu: a disk came during a run
+	retrying atomic.Bool
 }
 
 // Main shows the window. "--auto" starts a backup at once (USB trigger);
-// "--settings" only shows the settings, and is how the window opens them as
+// "--tray" starts hidden, behind the icon (at login); "--settings" only shows the settings, and is how the window opens them as
 // administrator. The window itself, and so every backup, keeps running
 // without administrator rights.
 func Main(args []string) int {
 	runtime.LockOSThread()
-	auto, settings := false, false
-	for _, a := range args[1:] {
-		auto = auto || a == "--auto"
-		settings = settings || a == settingsArg
-	}
-	if settings && !singleInstance(settingsMutex) {
+	o := ParseOptions(args)
+	if o.Settings && !singleInstance(settingsMutex) {
 		return 0
 	}
-	if !settings && !singleInstance(guiMutex) {
-		if h, ok := win.FindWindow(win.ClassNameStr(className), ""); ok {
-			h.ShowWindow(co.SW_RESTORE)
-			h.SetForegroundWindow()
-		}
+	if !o.Settings && !singleInstance(guiMutex) {
+		secondStart(o)
 		return 0
 	}
 	cli, err := DefaultCLI()
 	lang := msg.Default
 	if err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), startTimeout(o))
 		err = cli.CheckVersion(ctx, Version)
 		if err == nil {
 			lang = cli.Language(ctx)
@@ -116,11 +127,57 @@ func Main(args []string) int {
 		_, _ = win.HWND(0).MessageBox(p.T("gui.versionError", err.Error()), p.T("gui.title"), co.MB_ICONERROR)
 		return 1
 	}
-	m := newMainWindow(cli, p, auto, settings)
+	tray, hidden := TraySettings{}, false
+	if !o.Settings {
+		// Unreadable settings (changed without the operator): no icon, and
+		// the window shows what is wrong.
+		ctx, cancel := context.WithTimeout(context.Background(), startTimeout(o))
+		tray, err = cli.TraySettings(ctx)
+		cancel()
+		hidden = o.Tray && err == nil
+		if hidden && !tray.Icon {
+			return 0 // switched off since it was set to start at login
+		}
+	}
+	m := newMainWindow(cli, p, o, tray, hidden)
 	return m.wnd.RunAsMain()
 }
 
-func newMainWindow(cli CLI, p msg.Printer, auto, settingsOnly bool) *mainWindow {
+// startTimeout is how long the CLI may take at the start: longer when a user
+// just logged in and everything starts at once.
+func startTimeout(o Options) time.Duration {
+	if o.Tray {
+		return 2 * time.Minute
+	}
+	return 20 * time.Second
+}
+
+// secondStart passes a start on to the window that is there already.
+func secondStart(o Options) {
+	h, ok := win.FindWindow(win.ClassNameStr(className), "")
+	if !ok {
+		return
+	}
+	id, msgErr := win.RegisterWindowMessage(checkMessage)
+	act := SecondStart(o)
+	if act == SecondCheck && msgErr == nil {
+		_ = win.AllowSetForegroundWindow(asfwAny) // without the icon it comes to the front
+		if h.PostMessage(id, checkDisk, 0) == nil {
+			return
+		}
+		act = SecondShow // refused: the window runs as administrator
+	}
+	if act == SecondShow {
+		h.ShowWindow(co.SW_RESTORE)
+		h.SetForegroundWindow()
+		if msgErr == nil {
+			_ = h.PostMessage(id, checkOpened, 0)
+		}
+	}
+}
+
+func newMainWindow(cli CLI, p msg.Printer, o Options, tray TraySettings, hidden bool) *mainWindow {
+	settingsOnly := o.Settings
 	opts := ui.OptsMain().Title(p.T("gui.title")).Size(ui.Dpi(560, 300)).Center(true)
 	var menu win.HMENU
 	if settingsOnly {
@@ -128,9 +185,14 @@ func newMainWindow(cli CLI, p msg.Printer, auto, settingsOnly bool) *mainWindow 
 	} else {
 		menu = newMainMenu(p.T)
 		opts.ClassName(className).Menu(menu)
+		if hidden {
+			// windigo's own style without WS_VISIBLE, which would show the
+			// window before it is hidden.
+			opts.CmdShow(co.SW_HIDE).Style(co.WS_CAPTION | co.WS_SYSMENU | co.WS_CLIPCHILDREN | co.WS_BORDER | co.WS_MINIMIZEBOX)
+		}
 	}
 	wnd := ui.NewMain(opts)
-	m := &mainWindow{wnd: wnd, menu: menu, cli: cli, p: p, auto: auto, settingsOnly: settingsOnly, model: NewModel(p.Lang, time.Now)}
+	m := &mainWindow{wnd: wnd, menu: menu, cli: cli, p: p, auto: o.Auto, settingsOnly: settingsOnly, opts: o, start: tray, model: NewModel(p.Lang, time.Now)}
 	m.gear = ui.NewButton(wnd, ui.OptsButton().Text(p.T("gui.btn.settings")).Position(ui.Dpi(510, 8)).Width(ui.DpiX(36)))
 	m.head = ui.NewStatic(wnd, ui.OptsStatic().Text(p.T("gui.checking")).Position(ui.Dpi(20, 40)).Size(ui.Dpi(520, 50)).CtrlStyle(co.SS_CENTER))
 	m.detail = ui.NewStatic(wnd, ui.OptsStatic().Text("").Position(ui.Dpi(20, 95)).Size(ui.Dpi(520, 40)).CtrlStyle(co.SS_CENTER))
@@ -178,6 +240,7 @@ func (m *mainWindow) openElevated() {
 			m.settingsOpen = false
 			m.render(m.lastView)
 		})
+		m.reloadTray()
 		m.refreshStatus()
 	}()
 }
@@ -189,33 +252,51 @@ func (m *mainWindow) events() {
 	}
 	m.wnd.On().WmCreate(func(_ ui.WmCreate) int {
 		setWindowIcon(uintptr(m.wnd.Hwnd()))
+		m.viewAt = time.Now()
+		tray := m.setTray(m.start)
 		m.render(m.model.View())
-		go m.refresh(m.auto)
+		go func() {
+			if tray {
+				m.baseline() // first: refresh finds a disk that comes now
+			}
+			m.refresh(m.auto, m.opts.Tray)
+		}()
 		return 0
 	})
 	// A disk was plugged in: check again after the drive letter settled.
 	m.wnd.On().WmDeviceChange(func(p ui.WmDeviceChange) co.BROADCAST_QUERY {
-		if p.Event() == co.DBT_DEVICEARRIVAL {
+		switch p.Event() {
+		case co.DBT_DEVICEARRIVAL:
 			_ = m.wnd.Hwnd().SetTimer(timerDevice, deviceSettleMs)
+		case co.DBT_DEVICEREMOVECOMPLETE:
+			if m.tray != nil {
+				m.arrivals.Removed(volumeLetters(p))
+			}
 		}
 		return co.BROADCAST_QUERY_OK
 	})
 	m.wnd.On().WmTimer(timerDevice, func() {
 		_ = m.wnd.Hwnd().KillTimer(timerDevice)
-		if !m.busy() {
-			go m.refresh(true)
-		}
+		m.deviceSettled()
 	})
+	m.trayEvents()
 	m.action.On().BnClicked(func() { m.onAction() })
-	m.gear.On().BnClicked(func() { onGear(m) })
-	m.wnd.On().WmCommandAccelMenu(cmdSettings, func() { onGear(m) })
-	m.wnd.On().WmCommandAccelMenu(cmdExit, func() { _, _ = m.wnd.Hwnd().SendMessage(co.WM_CLOSE, 0, 0) })
+	settings := func() {
+		onGear(m)
+		go m.reloadTray()
+	}
+	m.gear.On().BnClicked(settings)
+	m.wnd.On().WmCommandAccelMenu(cmdSettings, settings)
+	m.wnd.On().WmCommandAccelMenu(cmdExit, func() { m.exit() })
 	m.wnd.On().WmCommandAccelMenu(cmdAbout, func() { m.showAbout(m.wnd) })
 	m.wnd.On().WmClose(func() {
+		if m.hide() {
+			return
+		}
 		if m.busy() {
 			return // never close during a backup; use Cancel
 		}
-		_ = m.wnd.Hwnd().DestroyWindow()
+		m.quit()
 	})
 }
 
@@ -255,21 +336,32 @@ func (m *mainWindow) busy() bool {
 
 // refresh reads the status (footer, disk that is due) and, if start is
 // set, starts a backup; otherwise a dry run shows which disk is expected.
-func (m *mainWindow) refresh(start bool) {
+// passive: the user did not start the program, but logged in or clicked the
+// icon.
+func (m *mainWindow) refresh(start, passive bool) {
 	ctx := context.Background()
 	m.refreshStatus()
 	if start {
-		m.startRun("--wait", "30")
+		m.startRun(runOptions{args: []string{"--wait", "30"}})
 		return
 	}
 	// Show "insert X" or "wrong disk" without writing anything.
 	res := m.cli.Call(ctx, nil, "run", "--dry-run")
 	m.wnd.UiThread(func() {
-		if res.Event == "error" {
-			m.render(m.model.Apply(res))
-		} else {
+		if m.tray != nil && m.busy() {
+			return // a backup started meanwhile; its messages count
+		}
+		m.viewAt = time.Now()
+		switch {
+		case res.Event == "error":
+			v := m.model.Apply(res)
+			m.render(v)
+			m.attend(&Attendant{}, res, v)
+		case !StartWhenReady(m.schedule, passive):
+			m.render(View{State: StateNoDisk, Headline: m.p.T("gui.waiting"), Footer: m.model.View().Footer, Progress: -1})
+		default:
 			m.render(View{State: StateChecking, Headline: m.p.T("gui.checking"), Footer: m.model.View().Footer, Progress: -1})
-			go m.refresh(true)
+			go m.refresh(true, passive)
 		}
 	})
 }
@@ -283,29 +375,54 @@ func (m *mainWindow) refreshStatus() {
 	}
 }
 
-func (m *mainWindow) startRun(extra ...string) {
+// runOptions say why a run starts.
+type runOptions struct {
+	args []string
+	// inserted: because a registered disk was plugged in.
+	inserted bool
+	// fresh are the new disks it is for; more: others came at the same time.
+	fresh []string
+	more  bool
+}
+
+// startRun starts a backup; false when one is running.
+func (m *mainWindow) startRun(o runOptions) bool {
 	m.mu.Lock()
 	if m.job != nil {
 		m.mu.Unlock()
-		return
+		return false
 	}
-	j, err := m.cli.Start(context.Background(), nil, append([]string{"run"}, extra...)...)
+	att := &Attendant{Inserted: o.inserted} // used in the window's thread
+	j, err := m.cli.Start(context.Background(), nil, append([]string{"run"}, o.args...)...)
 	if err != nil {
 		m.mu.Unlock()
 		m.wnd.UiThread(func() {
-			m.render(View{State: StateFailed, Color: Red, Headline: m.p.T("gui.failed"), Detail: err.Error(), Progress: -1, Button: ButtonRetry})
+			v := View{State: StateFailed, Color: Red, Headline: m.p.T("gui.failed"), Detail: err.Error(), Progress: -1, Button: ButtonRetry}
+			m.render(v)
+			m.attend(att, Event{Event: "error"}, v)
 		})
-		return
+		return true
 	}
 	m.job = j
+	m.pending = o.more
 	m.mu.Unlock()
 	go func() {
+		var last Event
 		for e := range j.Events {
 			e := e
-			m.wnd.UiThread(func() { m.render(m.model.Apply(e)) })
+			last = e
+			m.arrivals.Seen(e.Disk)
+			m.wnd.UiThread(func() {
+				v := m.model.Apply(e)
+				m.viewAt = time.Now()
+				m.render(v)
+				m.attend(att, e, v)
+			})
 		}
 		m.mu.Lock()
 		m.job = nil
+		pending := m.pending
+		m.pending = false
 		m.mu.Unlock()
 		// Footer with the new numbers; an ejected disk is not listed any
 		// more, then the numbers of the backup report stay.
@@ -319,7 +436,9 @@ func (m *mainWindow) startRun(extra ...string) {
 				m.render(v)
 			})
 		}
+		m.runEnded(o, last, pending)
 	}()
+	return true
 }
 
 func (m *mainWindow) onAction() {
@@ -331,7 +450,7 @@ func (m *mainWindow) onAction() {
 		}
 		m.mu.Unlock()
 	case ButtonRetry:
-		go m.refresh(true)
+		go m.refresh(true, false)
 	case ButtonDetails:
 		_, _ = m.wnd.Hwnd().MessageBox(m.lastView.Details, m.p.T("gui.btn.details"), co.MB_ICONINFORMATION)
 	case ButtonEject:
@@ -384,6 +503,9 @@ func (m *mainWindow) render(v View) {
 	icon := map[Color]string{Green: "✔ ", Orange: "⚠ ", Red: "✖ "}[v.Color]
 	_ = m.wnd.Hwnd().SetWindowText(strings.TrimSpace(icon + m.p.T("gui.title")))
 	// The settings and closing are not available while a backup runs.
+	if m.tray != nil {
+		m.tray.setTip(TrayTip(m.p, v))
+	}
 	idle := v.State != StateBusy && v.State != StateVerifying && !m.settingsOpen
 	m.gear.Hwnd().EnableWindow(idle)
 	if m.menu != 0 {

@@ -12,7 +12,17 @@ as the release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Windows: USB Backup can keep running next to the clock when the window is
+  closed (*General and sources*, off by default). The window comes forward
+  when a registered disk is plugged in; any other stick does nothing.
+- Windows: it can start there, hidden, when a user logs in (a separate tick
+  box, off by default).
+
 ### Changed
+
+- Windows: "another backup is running" is no longer shown as a failed backup.
 
 - Windows: the settings ask for administrator rights when they are needed, and
   open in a window of their own. *Run as administrator* is not needed any more,

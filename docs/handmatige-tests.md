@@ -47,6 +47,25 @@ De logica van het statusscherm (alle toestanden, teksten, resterende tijd), de t
 - [ ] **T11.10** Bladeren: weken en bronmappen links, mappen rechts (dubbelklik, Omhoog, Zoeken), een los bestand terugzetten naar het bureaublad (`Bureaublad\Restored` als standaard) en naar de oorspronkelijke plek; Break-glass testen met het bestand.
 - [ ] **T11.11** Logboek openen; taal omzetten naar Nederlands en terug (na herstart van het venster).
 
+## Systeemvak (fase 14, alleen Windows)
+
+Welke schijf nieuw is en wanneer het venster naar voren komt, is met automatische tests op Linux gedekt (`internal/gui/tray_test.go`); het register in de Windows-CI. Pictogram en venster zijn alleen gecompileerd. Te testen op een Windows-pc:
+
+- [ ] **Uit (standaard)** Alles werkt als eerst: het kruisje sluit het programma, er is geen pictogram, `--auto` haalt het venster naar voren, `--tray` stopt meteen.
+- [ ] **Aan** Vinkje aanzetten (met beheerdersrechten) en de instellingen sluiten: het pictogram verschijnt zonder herstart. Uitzetten haalt het weg en zet ook starten bij inloggen uit. Zonder beheerdersrechten: een melding, en het vinkje springt terug.
+- [ ] **Kruisje** verbergt het venster, ook tijdens een back-up; de eerste keer met een melding. Klik op het pictogram opent het. Alt+F4 doet hetzelfde als het kruisje.
+- [ ] **Pictogram** Rechtsklik: openen en afsluiten; het menu sluit bij een klik ernaast. Afsluiten is grijs tijdens een back-up, met een open instellingenvenster en met een open wachtwoordvraag. De tekst bij het pictogram volgt de toestand en het percentage. Scherp bij 100%, 150% en 200%.
+- [ ] **Geregistreerde schijf** met verborgen én met geminimaliseerd venster: het venster komt naar voren, zonder de focus over te nemen (typ in Kladblok), en de back-up start. Verbergen tijdens de back-up: het venster blijft weg; na afloop een melding. Bij een waarschuwing of fout komt het terug.
+- [ ] **Andere stick** (ook met een geregistreerde schijf er al in, en met de USB-taak aan): er gebeurt niets zichtbaars.
+- [ ] **Verkeerde schijf**: het venster zegt welke wel. Dezelfde schijf eruit en binnen twee seconden er weer in: wordt weer opgemerkt.
+- [ ] **Twee schijven**: de tweede tijdens de back-up van de eerste, met `schedule` `insert`: krijgt daarna zijn eigen back-up.
+- [ ] **Lang aan** Venster gestart door de USB-taak (na het aanzetten van het vinkje, of na opnieuw inloggen: een exemplaar dat al liep houdt misschien de oude limiet), gesloten met het kruisje: na meer dan 12 uur staat het pictogram er nog en start een back-up bij insteken.
+- [ ] **Bezig** Schijf insteken tijdens een herstel of controle in het instellingenscherm: de back-up start binnen een minuut nadat dat klaar is.
+- [ ] **Twee gebruikers** (snelle gebruikerswisseling), allebei met pictogram: één maakt de back-up, bij de ander komt geen venster.
+- [ ] **Verkenner herstarten** (Taakbeheer): het pictogram komt terug.
+- [ ] **Starten bij inloggen** Vinkje aan: staat in Taakbeheer > Opstarten; na opnieuw inloggen staat het pictogram er, zonder venster. Met de juiste schijf er al in start de back-up, met `schedule` `insert` niet. Verwijderen van USB Backup haalt het weg. Een gewijzigd `usb-backup.json`: het venster komt bij het inloggen met de melding.
+- [ ] **Afmelden en afsluiten** van Windows met verborgen venster wordt niet tegengehouden.
+
 ## Installers (fase 12)
 
 - [ ] **T12.1** `USB-Backup-Setup.exe` (gebouwd met `make setup-windows`): installeren naar `C:\Program Files\USB Backup`, startmenu, `usb-backup-cli` in PATH (nieuwe console), vermelding in Apps en onderdelen, `C:\ProgramData\USB Backup` alleen schrijfbaar voor beheerders (`icacls`) en `logs` ook voor gebruikers; na installatie opent het venster. Bijwerken: nieuwe setup over de oude, instellingen en registraties blijven. Verwijderen: exe's en taken weg, configuratie en vault blijven tenzij aangevinkt. Stil: `/S`.

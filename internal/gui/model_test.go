@@ -39,6 +39,14 @@ func play(m *Model, lines ...string) View {
 	return v
 }
 
+func parseEvent(t *testing.T, line string) (e Event) {
+	t.Helper()
+	if err := json.Unmarshal([]byte(line), &e); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
 // TestEveryState plays fixed JSON lines, as a fake CLI would, for every
 // state of the status screen.
 func TestEveryState(t *testing.T) {

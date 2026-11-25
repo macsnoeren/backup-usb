@@ -137,6 +137,12 @@ Dit bestand hoort bij het ontwerp `DESIGN.md` (export van "USB Backup – ontwer
 - [x] **T13.1 Om de beurt** Elk aantal schijven, de langst niet gebruikte is aan de beurt, onthouden op de pc; oneven/even en `roundRobin` vervallen (oude instellingen worden `inTurn`). *Klaar als:* tests met vier schijven, overgeslagen weken, een nieuwe en een vergeten schijf, en een beschadigd beurtbestand.
 - [x] **T13.2 Frequentie** `schedule` ook `insert`; keuze onder Algemeen; standaardpatronen die niet door elkaar lopen; oude back-ups blijven te herstellen en tellen mee bij het bewaren. *Klaar als:* tests voor elke frequentie en voor een wisseling van frequentie.
 
+## Fase 14 – Systeemvak (Windows)
+
+- [x] **T14.1 Instelling en starten bij inloggen** `trayIcon` (standaard uit); `install --trigger login`, `install --check` en `uninstall` daarvoor. *Klaar als:* tests voor de instelling, de CLI en (op Windows) het register; zonder `trayIcon` wordt starten bij inloggen geweigerd.
+- [x] **T14.2 Beslissingen** Welke schijf nieuw is, wanneer het venster naar voren komt, wanneer er bij het openen een back-up start: pure functies. *Klaar als:* tabeltests op Linux voor elke toestand.
+- [x] **T14.3 Pictogram en venster** Pictogram, menu, verbergen, afsluiten, `--tray`, `--auto` naar een verborgen venster, vinkjes in het instellingenscherm. *Klaar als:* bouwt voor Windows amd64 en arm64; wat op een Windows-pc getest moet worden, staat in `docs/handmatige-tests.md`.
+
 ## Open punten
 
 Claude Code schrijft hier vragen of afwijkingen van het ontwerp die tijdens de bouw opkomen.
@@ -181,3 +187,6 @@ Claude Code schrijft hier vragen of afwijkingen van het ontwerp die tijdens de b
 - **Gemiste back-ups (besluit van de eigenaar, 2026-11-24):** geen detectie; alleen de datum van de laatste back-up van een aangesloten schijf.
 - **T13.1 – afwijking op verzoek van de gebruiker (24-11-2026):** drie, vier of meer schijven om de beurt in plaats van oneven/even weken; vervangt het besluit bij T1.1. Aanname: een schijf die niet aan de beurt is wordt geweigerd (zoals eerst), met `--any-disk` als uitzondering.
 - **T13.2 – aanname (24-11-2026):** dagelijks, wekelijks en maandelijks bepalen hoe vaak de beurt doorschuift, niet wanneer er iets start. Er komt geen tijdschema terug (dat is op verzoek verwijderd).
+- **Fase 14 – systeemvak (besluiten van de eigenaar, 25-11-2026):** starten bij inloggen is een apart vinkje; de instelling is ondertekend (een oudere versie weigert een instellingenbestand met `trayIcon`, dan verwijderen en opnieuw installeren); Watch Mode en Docker nog niet. Geen nieuwe afhankelijkheid: `Shell_NotifyIcon` zit in windigo (`x/winsh`), dat al gebruikt wordt; `getlantern/systray` niet (laatste release 2023, negen nieuwe modules).
+- **SIGTERM op Linux (gevonden bij fase 14, nog niet gebouwd):** de CLI vangt alleen Ctrl+C af. Bij `systemctl stop` of afsluiten tijdens een back-up blijven `.part` (opgeruimd bij de volgende run) en een eigen mount in `/run/usb-backup` staan.
+- **Fase 14 – grens:** wordt een schijf ingestoken terwijl het programma bij het inloggen nog start, dan telt hij als "al aanwezig"; bij `schedule` `insert` volgt dan pas een back-up na opnieuw insteken. Is het venster zichtbaar, dan geldt bij insteken het gedrag van altijd: de run kiest zelf een schijf.
